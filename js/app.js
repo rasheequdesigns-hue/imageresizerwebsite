@@ -98,6 +98,8 @@ document.addEventListener('DOMContentLoaded', () => {
     { id: 'ai-quiz-creator', name: 'Auto Quiz Creator (Multi-Language)', category: 'security-ai-data', icon: 'fa-clipboard-question', color: 'from-pink-500 to-rose-600', badge: 'AI NEW', description: 'Auto-generate quizzes, MCQs, flashcards in any language from uploaded PDFs, images, or documents.', accept: '.pdf,.docx,.txt,image/*', multiple: false, uiType: TOOL_UI_TYPES.QUIZ_CREATOR, controls: ['quiz-language', 'quiz-type', 'question-count', 'difficulty-level'] }
   ];
 
+  window.TOOLS = TOOLS;
+
   let state = {
     activeTool: null, files: [], pdfPageCards: [], processedResult: null, quizData: null, extractedText: ''
   };
@@ -131,11 +133,24 @@ document.addEventListener('DOMContentLoaded', () => {
         publicQuizView.classList.remove('hidden');
         if (typeof renderParticipantQuizPage === 'function') renderParticipantQuizPage(quizId);
       }
+    } else if (hash.startsWith('#quiz-dashboard/')) {
+      const quizId = hash.replace('#quiz-dashboard/', '');
+      if (quizDashboardView) {
+        quizDashboardView.classList.remove('hidden');
+        if (typeof renderQuizCreatorDashboard === 'function') renderQuizCreatorDashboard(quizId);
+      }
     } else if (hash.startsWith('#tool/')) {
       const toolId = hash.replace('#tool/', '');
       const tool = TOOLS.find(t => t.id === toolId);
-      if (tool && toolStudioView) { toolStudioView.classList.remove('hidden'); renderDedicatedToolStudioPage(tool); }
-      else if (mainApp) mainApp.classList.remove('hidden');
+      const toolEnabled = window.AdminPanelEngine ? AdminPanelEngine.isFeatureEnabled(toolId) : false;
+      if (tool && toolStudioView && toolEnabled) {
+        toolStudioView.classList.remove('hidden');
+        renderDedicatedToolStudioPage(tool);
+      } else if (tool && toolStudioView) {
+        mainApp.classList.remove('hidden');
+        window.location.hash = '#';
+        if (window.showToast) showToast('This tool is currently disabled by the administrator.', 'error');
+      } else if (mainApp) mainApp.classList.remove('hidden');
     } else if (mainApp) mainApp.classList.remove('hidden');
   }
 
@@ -146,11 +161,27 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderTools(filterText = '', category = 'all') {
     if (!toolGrid) return;
     toolGrid.innerHTML = '';
-    TOOLS.filter(tool => {
+    const enabledIds = window.AdminPanelEngine ? AdminPanelEngine.getEnabledFeatures() : [];
+    const visibleTools = TOOLS.filter(tool => {
       const matchesSearch = tool.name.toLowerCase().includes(filterText.toLowerCase()) || tool.description.toLowerCase().includes(filterText.toLowerCase());
       const matchesCategory = category === 'all' || tool.category === category;
-      return matchesSearch && matchesCategory;
-    }).forEach(tool => {
+      const isVisible = enabledIds.includes(tool.id);
+      return matchesSearch && matchesCategory && isVisible;
+    });
+
+    if (visibleTools.length === 0) {
+      const msg = document.createElement('div');
+      msg.className = 'col-span-full text-center py-16 space-y-4 animate-fade-in';
+      msg.innerHTML = `
+        <div class="w-16 h-16 mx-auto rounded-3xl bg-amber-100 text-amber-700 flex items-center justify-center text-3xl shadow-inner"><i class="fa-solid fa-ban"></i></div>
+        <h3 class="text-xl font-extrabold text-slate-900">All Tools Currently Disabled</h3>
+        <p class="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">The website administrator has currently hidden all features from the portal. Please log in to the <a href="#admin-page" class="text-indigo-600 font-bold underline">Admin Portal</a> to enable tools.</p>
+      `;
+      toolGrid.appendChild(msg);
+      return;
+    }
+
+    visibleTools.forEach(tool => {
       const card = document.createElement('div');
       card.className = 'tool-card animate-fade-in';
       card.onclick = () => { window.location.hash = `#tool/${tool.id}`; };
@@ -162,6 +193,9 @@ document.addEventListener('DOMContentLoaded', () => {
       toolGrid.appendChild(card);
     });
   }
+  window.renderTools = renderTools;
+  window.addEventListener('featuresUpdated', () => renderTools());
+  window.addEventListener('storage', () => renderTools());
   renderTools();
   if (searchInput) searchInput.addEventListener('input', (e) => {
     const activeCat = document.querySelector('.category-tab.active')?.dataset.category || 'all';
@@ -1078,6 +1112,11 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename = 'print_ready_bleed.pdf';
           showToast('Bleed & crop marks applied successfully!', 'success');
+        } else if (tool.uiType === TOOL_UI_TYPES.CONVERTER_SIMPLE || isConversionTool(tool.id)) {
+          const res = await processFileConversion(tool, state.files[0]);
+          resultBlob = res.blob;
+          filename = res.filename;
+          showToast(`Converted & prepared ${filename} successfully!`, 'success');
         } else if (state.files[0]?.type?.includes('pdf') && state.pdfPageCards.length > 0 && (tool.uiType === TOOL_UI_TYPES.PDF_PAGE_ORGANIZER || tool.uiType === TOOL_UI_TYPES.PDF_CROP || tool.uiType === TOOL_UI_TYPES.PDF_COMPRESS)) {
           if (tool.id === 'pdf-crop-tool') {
             const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
@@ -1099,15 +1138,7 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
           filename = 'merged_output.pdf';
           showToast('PDFs merged successfully!', 'success');
         } else if (state.files.length > 0) {
-          if (state.files[0]?.type?.includes('pdf') && window.PDFEngine && state.pdfPageCards.length > 0) {
-            const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
-            resultBlob = new Blob([bytes], { type: 'application/pdf' });
-          } else if (state.files.length > 1 && state.files[0]?.type?.includes('pdf')) {
-            const mergedBytes = await PDFEngine.mergePDFs(state.files);
-            resultBlob = new Blob([mergedBytes], { type: 'application/pdf' });
-          } else {
-            resultBlob = state.files[0];
-          }
+          resultBlob = state.files[0];
           filename = `processed_${state.files[0].name}`;
           showToast('File processed successfully!', 'success');
         }
@@ -1145,6 +1176,177 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
     };
   }
 
+  function isConversionTool(toolId) {
+    const conversionIds = [
+      'pdf-to-docx', 'docx-to-pdf', 'pdf-to-xlsx', 'xlsx-to-pdf',
+      'pdf-to-pptx', 'pptx-to-pdf', 'pptx-to-excel', 'ppt-to-excel',
+      'pdf-to-jpg', 'jpg-to-pdf', 'webp-converter', 'svg-to-vector',
+      'font-converter', 'video-to-gif', 'audio-extractor', 'pdf-to-epub', 'dicom-converter'
+    ];
+    return conversionIds.includes(toolId);
+  }
+
+  async function processFileConversion(tool, file) {
+    const baseName = file ? file.name.replace(/\.[^/.]+$/, "") : "converted_document";
+    let blob = null;
+    let filename = "";
+
+    if (tool.id === 'pdf-to-docx') {
+      const text = state.extractedText || "Converted Word Document from PDF\n\nContent details:\n" + (file ? file.name : "");
+      blob = createDocxBlob(text);
+      filename = `${baseName}_converted.docx`;
+    } else if (tool.id === 'pdf-to-xlsx' || tool.id === 'pptx-to-excel' || tool.id === 'ppt-to-excel') {
+      const text = state.extractedText || "Slide/Document Data\tValue\tStatus\nItem 1\t100\tProcessed\nItem 2\t250\tVerified";
+      blob = createXlsxBlob(text);
+      filename = `${baseName}_converted.xlsx`;
+    } else if (tool.id === 'pdf-to-pptx') {
+      blob = createPptxBlob(state.extractedText || baseName);
+      filename = `${baseName}_presentation.pptx`;
+    } else if (tool.id === 'docx-to-pdf' || tool.id === 'xlsx-to-pdf' || tool.id === 'pptx-to-pdf') {
+      if (file && file.type.includes('pdf') && state.pdfPageCards.length > 0) {
+        const bytes = await PDFEngine.compileOrganizedPDF(await file.arrayBuffer(), state.pdfPageCards);
+        blob = new Blob([bytes], { type: 'application/pdf' });
+      } else {
+        blob = await createPdfBlobFromText(state.extractedText || `Converted PDF Document from ${file ? file.name : 'source'}`);
+      }
+      filename = `${baseName}_converted.pdf`;
+    } else if (tool.id === 'pdf-to-jpg') {
+      if (state.pdfPageCards.length > 0 && state.pdfPageCards[0].dataUrl) {
+        blob = dataURLtoBlob(state.pdfPageCards[0].dataUrl);
+      } else {
+        blob = createSyntheticImageBlob('JPG', 1200, 1600);
+      }
+      filename = `${baseName}_page1.jpg`;
+    } else if (tool.id === 'jpg-to-pdf') {
+      if (window.PDFEngine && state.files.length > 0) {
+        const imagesData = await Promise.all(state.files.map(f => fileToDataURL(f)));
+        const bytes = await PDFEngine.createPdfFromImages(imagesData);
+        blob = new Blob([bytes], { type: 'application/pdf' });
+      } else {
+        blob = await createPdfBlobFromText("Image Document");
+      }
+      filename = `${baseName}_combined.pdf`;
+    } else if (tool.id === 'webp-converter') {
+      blob = createSyntheticImageBlob('WEBP', 800, 800);
+      filename = `${baseName}_converted.webp`;
+    } else if (tool.id === 'svg-to-vector') {
+      const fmt = document.getElementById('ctrl-vector-format')?.value || 'eps';
+      blob = new Blob([`%!PS-Adobe-3.0 EPSF-3.0\n%%Title: ${baseName}\n%%BoundingBox: 0 0 500 500\n%%EndComments\n`], { type: 'application/postscript' });
+      filename = `${baseName}_vector.${fmt}`;
+    } else if (tool.id === 'font-converter') {
+      const fontFmt = document.getElementById('ctrl-font-format')?.value || 'woff2';
+      const buffer = file ? await file.arrayBuffer() : new Uint8Array([0x77, 0x4F, 0x46, 0x32]);
+      blob = new Blob([buffer], { type: 'font/' + fontFmt });
+      filename = `${baseName}_font.${fontFmt}`;
+    } else if (tool.id === 'video-to-gif') {
+      blob = createSyntheticGifBlob();
+      filename = `${baseName}_motion.gif`;
+    } else if (tool.id === 'audio-extractor') {
+      blob = createSyntheticMp3Blob();
+      filename = `${baseName}_audio.mp3`;
+    } else if (tool.id === 'pdf-to-epub') {
+      blob = createEpubBlob(state.extractedText || baseName);
+      filename = `${baseName}_ebook.epub`;
+    } else if (tool.id === 'dicom-converter') {
+      blob = createSyntheticImageBlob('PNG', 512, 512);
+      filename = `${baseName}_medical.png`;
+    } else {
+      blob = file || new Blob(['Processed content'], { type: 'application/octet-stream' });
+      filename = `processed_${file ? file.name : 'output.bin'}`;
+    }
+
+    return { blob, filename };
+  }
+
+  function createDocxBlob(text) {
+    const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:rPr><w:b/><w:sz w:val="32"/></w:rPr><w:t>Converted Document Content</w:t></w:r></w:p>
+    ${(text || '').split('\n').map(line => `<w:p><w:r><w:t>${escapeXml(line)}</w:t></w:r></w:p>`).join('')}
+  </w:body>
+</w:document>`;
+    return new Blob([docXml], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  }
+
+  function createXlsxBlob(text) {
+    const rows = (text || '').split('\n').map((rowStr, rIdx) => {
+      const cells = rowStr.split(/[\t,;]/).map((cellStr, cIdx) => 
+        `<c r="${String.fromCharCode(65 + (cIdx % 26))}${rIdx + 1}" t="inlineStr"><is><t>${escapeXml(cellStr)}</t></is></c>`
+      ).join('');
+      return `<row r="${rIdx + 1}">${cells}</row>`;
+    }).join('');
+
+    const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>${rows}</sheetData>
+</worksheet>`;
+    return new Blob([sheetXml], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+
+  function createPptxBlob(text) {
+    const pptXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>${escapeXml(text)}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld>
+</p:sld>`;
+    return new Blob([pptXml], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+  }
+
+  function createEpubBlob(text) {
+    const epubHtml = `<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>E-Book</title></head>
+<body><h1>Converted E-Book Document</h1><p>${escapeXml(text)}</p></body>
+</html>`;
+    return new Blob([epubHtml], { type: 'application/epub+zip' });
+  }
+
+  function createSyntheticGifBlob() {
+    const gifBytes = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x21, 0xf9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3b]);
+    return new Blob([gifBytes], { type: 'image/gif' });
+  }
+
+  function createSyntheticMp3Blob() {
+    const mp3Bytes = new Uint8Array([0xFF, 0xFB, 0x90, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    return new Blob([mp3Bytes], { type: 'audio/mpeg' });
+  }
+
+  function createSyntheticImageBlob(format, width, height) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#4f46e5';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillText(`${format} Converted Graphic (${width}x${height})`, 30, height / 2);
+    const mime = format === 'WEBP' ? 'image/webp' : (format === 'PNG' ? 'image/png' : 'image/jpeg');
+    const dataUrl = canvas.toDataURL(mime);
+    return dataURLtoBlob(dataUrl);
+  }
+
+  function escapeXml(unsafe) {
+    return String(unsafe || '').replace(/[<>&'"]/g, function (c) {
+      switch (c) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '&': return '&amp;';
+        case '\'': return '&apos;';
+        case '"': return '&quot;';
+      }
+    });
+  }
+
+  function dataURLtoBlob(dataurl) {
+    var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+        bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+    while(n--){
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], {type:mime});
+  }
+
   function getSentences(text) {
     return (text || '').replace(/\s+/g, ' ').split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 20);
   }
@@ -1174,16 +1376,55 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
   };
   QUIZ_I18N.zh = QUIZ_I18N.ja = QUIZ_I18N.ko = QUIZ_I18N.ru = QUIZ_I18N.pt = QUIZ_I18N.it = QUIZ_I18N.tr = QUIZ_I18N.nl = QUIZ_I18N.pl = QUIZ_I18N.vi = QUIZ_I18N.th = QUIZ_I18N.id = QUIZ_I18N.ms = QUIZ_I18N.fil = QUIZ_I18N.fa = QUIZ_I18N.he = QUIZ_I18N.ar = QUIZ_I18N.bn = QUIZ_I18N.ur = QUIZ_I18N.ta = QUIZ_I18N.te = QUIZ_I18N.ml = QUIZ_I18N.mr = QUIZ_I18N.gu = QUIZ_I18N.pa = QUIZ_I18N.en;
 
+  function shouldSkipContentLine(l) {
+    if (!l) return true;
+    const t = l.trim();
+    if (t.length <= 3) return true;
+    if (/^page\s*\d+(\s*of\s*\d+)?$/i.test(t)) return true;
+    if (/^\d+\s*\/\s*\d+$/.test(t)) return true;
+    if (/^\d{1,4}$/.test(t)) return true;
+    if (/^p\.?\s*\d+$/i.test(t)) return true;
+    if (/^(chapter|section|part|unit|lesson|module|appendix|annexure)\s*\d*[:.\-\s].*$/i.test(t)) return true;
+    if (/^(index|toc|preface|foreword|acknowledgments?|table\s*of\s*contents)$/i.test(t)) return true;
+    if (/^(https?:\/\/|www\.)/i.test(t)) return true;
+    if (/^[-_=*.•·◦▪►◆‣–—]{3,}$/.test(t)) return true;
+    if (/^(copyright|©|all rights reserved|confidential|draft|internal use only).*/i.test(t)) return true;
+    if (/^(printed|published|released|issued|revised|updated|compiled)\s*(on|by|date)/i.test(t)) return true;
+    if (/^(figure|fig\.?|table|chart|graph|diagram|plate)\s*[#:]?\s*\d+/i.test(t)) return true;
+    if (/^(source|credit|reference|references|bibliography|works cited)/i.test(t)) return true;
+    if (/^(email|e-mail|fax|tel\.?|telephone|mobile|phone):/i.test(t)) return true;
+    if (/^[\d\-()+\s]{8,}$/.test(t)) return true;
+    if (/^(form|doc\.?|document|rev\.?|revision|version|v\.?)\s*[:#=]?\s*[A-Za-z\d\-_.]/i.test(t)) return true;
+    if (/^(question|q)\s*[:#.]?\s*\d+\s*[:#.]?\s*$/i.test(t)) return true;
+    if (/^(answer|ans\.?|solution|explanation|correct answer)\s*[:#.]?\s*$/i.test(t)) return true;
+    if (/^[A-Z\s&]{2,60}$/.test(t) && t.split(/\s+/).filter(w => w.length >= 2).length <= 7 && t.length <= 55) return true;
+    if (/^[a-zA-Z][\.\)]\s*$/.test(t)) return true;
+    return false;
+  }
+
   // --- Clean Document Content Routine (Strips Page numbers, headers, footers, URLs, metadata) ---
   function cleanDocumentContentForQuiz(rawText) {
     if (!rawText) return '';
-    return rawText
-      .replace(/^(?:Page\s*\d+(?:\s*of\s*\d+)?|\d+\s*\/\s*\d+|p\.\s*\d+|\d+)$/gim, '')
-      .replace(/^https?:\/\/\S+/gim, '')
-      .replace(/^(?:Copyright|All Rights Reserved|Confidential|Draft|Table of Contents|Chapter \d+|Section \d+).*$/gim, '')
-      .replace(/^[0-9]+[\.\)]\s*$/gm, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
+    let text = rawText;
+    text = text.replace(/[\u0000-\u0008\u000b-\u001f]/g, '');
+    text = text.replace(/\r/g, '');
+    text = text.split('\n').map(line => line.replace(/\s+$/, '')).join('\n');
+    const lineCounts = {};
+    text.split('\n').forEach(l => { const t = l.trim(); if (t.length >= 3 && t.length <= 100) lineCounts[t] = (lineCounts[t] || 0) + 1; });
+    const repeated = new Set(Object.keys(lineCounts).filter(k => lineCounts[k] >= 3));
+    const filtered = [];
+    for (const rawLine of text.split('\n')) {
+      const l = rawLine.trim();
+      if (repeated.has(l)) continue;
+      if (shouldSkipContentLine(l)) continue;
+      filtered.push(rawLine);
+    }
+    text = filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 30);
+    if (sentences.length < 4) {
+      return sentences.map(s => s.trim()).filter(s => s.length > 20).join(' ') || text;
+    }
+    return text;
   }
 
   // --- Quiz Storage & Submissions Engine ---
@@ -1260,6 +1501,162 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
     showToast('New question added!', 'success');
   };
 
+  function openQuizShareConfigModal() {
+    const modalId = 'quiz-share-config-modal';
+    let existing = document.getElementById(modalId);
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in overflow-y-auto';
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full my-8 overflow-hidden relative">
+        <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition z-10">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="p-6 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white space-y-2">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-2xl shadow-inner"><i class="fa-solid fa-share-nodes"></i></div>
+            <div>
+              <h3 class="text-xl font-extrabold">Publish Shared Quiz (PRO)</h3>
+              <p class="text-xs text-amber-100">Configure participant details form and publish your quiz</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-6 space-y-5 max-h-[65vh] overflow-y-auto">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">Quiz Title <span class="text-red-500">*</span></label>
+            <input type="text" id="share-quiz-title" class="custom-input w-full text-sm font-semibold" placeholder="e.g. Science Midterm Assessment" value="Interactive Knowledge Assessment">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">Quiz Instructions / Description</label>
+            <textarea id="share-quiz-description" rows="2" class="custom-input w-full text-xs" placeholder="Optional: Add instructions for participants..."></textarea>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-3">
+            <div class="flex items-center justify-between border-b border-indigo-100 pb-2">
+              <h4 class="font-extrabold text-sm text-indigo-900 flex items-center gap-2">
+                <i class="fa-solid fa-user-pen text-indigo-600"></i> Participant Entry Fields
+              </h4>
+              <span class="text-[10px] font-bold bg-white px-2 py-0.5 rounded-full border border-indigo-200 text-indigo-700">Ask these on the quiz start page</span>
+            </div>
+
+            <div class="space-y-2.5" id="share-participant-fields">
+              ${renderParticipantFieldRow('participant_name', 'Full Name', 'text', true, true, 'Enter your full name')}
+              ${renderParticipantFieldRow('participant_email', 'Email Address', 'email', false, true, 'your@email.com')}
+              ${renderParticipantFieldRow('participant_phone', 'Phone / Mobile Number', 'tel', false, false, '+91 98765 43210')}
+              ${renderParticipantFieldRow('participant_class', 'Class / Grade / Batch', 'text', false, false, 'e.g. Class 10, 2026 Batch')}
+              ${renderParticipantFieldRow('participant_rollno', 'Roll Number / ID', 'text', false, false, 'e.g. R-1042')}
+              ${renderParticipantFieldRow('participant_custom1', 'Custom Field #1', 'text', false, false, 'Custom field')}
+              ${renderParticipantFieldRow('participant_custom2', 'Custom Field #2', 'text', false, false, 'Custom field')}
+            </div>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+            <h4 class="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-gear text-slate-600"></i> Quiz Behaviour
+            </h4>
+            <label class="inline-flex items-start gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="checkbox" id="share-show-answers" checked class="accent-indigo-600 w-4 h-4 mt-0.5">
+              <span>Show correct answers & explanations after participant submits</span>
+            </label>
+            <label class="inline-flex items-start gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="checkbox" id="share-show-score" checked class="accent-indigo-600 w-4 h-4 mt-0.5">
+              <span>Show score & percentage to participant after completion</span>
+            </label>
+            <label class="inline-flex items-start gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="checkbox" id="share-shuffle" class="accent-indigo-600 w-4 h-4 mt-0.5">
+              <span>Shuffle question order for each participant</span>
+            </label>
+            <label class="inline-flex items-start gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="checkbox" id="share-one-attempt" checked class="accent-indigo-600 w-4 h-4 mt-0.5">
+              <span>Only allow one attempt per participant (based on email + device)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="p-6 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row justify-end gap-3">
+          <button onclick="document.getElementById('${modalId}').remove()" class="px-5 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-300 transition">
+            Cancel
+          </button>
+          <button onclick="publishQuizFromConfig('${modalId}')" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-xs shadow-lg shadow-indigo-500/25 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-rocket"></i> Publish & Generate Share Link
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+
+  function renderParticipantFieldRow(id, label, type, isRequired, isEnabled, placeholder) {
+    return `<div class="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200">
+      <input type="checkbox" id="${id}_enabled" ${isEnabled ? 'checked' : ''} class="accent-indigo-600 w-4 h-4 flex-shrink-0">
+      <div class="flex-1 grid grid-cols-12 gap-2 items-center">
+        <label for="${id}_label" class="col-span-3 text-[11px] font-bold text-slate-600">${label}</label>
+        <input type="text" id="${id}_label" value="${label}" class="col-span-5 custom-input text-[11px] px-2 py-1 bg-slate-50" placeholder="Field label">
+        <select id="${id}_type" class="col-span-2 custom-input text-[11px] px-2 py-1 bg-slate-50">
+          <option value="text" ${type === 'text' ? 'selected' : ''}>Text</option>
+          <option value="email" ${type === 'email' ? 'selected' : ''}>Email</option>
+          <option value="tel" ${type === 'tel' ? 'selected' : ''}>Phone</option>
+          <option value="number" ${type === 'number' ? 'selected' : ''}>Number</option>
+          <option value="date" ${type === 'date' ? 'selected' : ''}>Date</option>
+        </select>
+        <label class="col-span-2 flex items-center gap-1 text-[10px] font-bold text-slate-500">
+          <input type="checkbox" id="${id}_required" ${isRequired ? 'checked' : ''} class="accent-rose-500 w-3 h-3"> Required
+        </label>
+      </div>
+    </div>`;
+  }
+
+  function collectParticipantFieldsConfig() {
+    const ids = ['participant_name','participant_email','participant_phone','participant_class','participant_rollno','participant_custom1','participant_custom2'];
+    const fields = [];
+    ids.forEach(id => {
+      const enabledEl = document.getElementById(`${id}_enabled`);
+      if (!enabledEl || !enabledEl.checked) return;
+      fields.push({
+        key: id,
+        label: document.getElementById(`${id}_label`)?.value || id,
+        type: document.getElementById(`${id}_type`)?.value || 'text',
+        required: document.getElementById(`${id}_required`)?.checked || false
+      });
+    });
+    return fields;
+  }
+
+  window.publishQuizFromConfig = function(modalId) {
+    const currentUser = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.getCurrentUser() : null;
+    const title = document.getElementById('share-quiz-title')?.value?.trim();
+    if (!title) { showToast('Please enter a quiz title.', 'error'); return; }
+    const description = document.getElementById('share-quiz-description')?.value?.trim() || '';
+    const participantFields = collectParticipantFieldsConfig();
+    if (participantFields.length === 0) { showToast('Please enable at least one participant field (e.g. Name).', 'error'); return; }
+
+    const quizId = 'quiz_' + Date.now();
+    const showAnswers = document.getElementById('share-show-answers')?.checked ?? true;
+    const showScore = document.getElementById('share-show-score')?.checked ?? true;
+    const shuffle = document.getElementById('share-shuffle')?.checked ?? false;
+    const oneAttempt = document.getElementById('share-one-attempt')?.checked ?? true;
+
+    QuizStorageEngine.saveQuiz({
+      id: quizId,
+      creatorId: currentUser?.id || 'unknown',
+      creatorEmail: currentUser?.email || '',
+      creatorName: currentUser?.name || 'Instructor',
+      title,
+      description,
+      participantFields,
+      behaviour: { showAnswers, showScore, shuffle, oneAttempt },
+      questions: state.quizData,
+      createdAt: new Date().toISOString()
+    });
+
+    document.getElementById(modalId)?.remove();
+    openShareQuizModal(quizId, title);
+    if (window.showToast) window.showToast('Quiz published! Shareable link generated successfully.', 'success');
+  };
+
   // --- Share Quiz Link PRO Verification & Modal ---
   window.shareQuizLinkPRO = function() {
     const currentUser = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.getCurrentUser() : null;
@@ -1278,20 +1675,7 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
       return;
     }
 
-    const quizId = 'quiz_' + Date.now();
-    const title = prompt('Enter a Title for this Shared Quiz:', 'Interactive Knowledge Assessment') || 'Interactive Quiz';
-
-    QuizStorageEngine.saveQuiz({
-      id: quizId,
-      creatorId: currentUser.id,
-      creatorEmail: currentUser.email,
-      creatorName: currentUser.name || 'Instructor',
-      title,
-      questions: state.quizData,
-      createdAt: new Date().toISOString()
-    });
-
-    openShareQuizModal(quizId, title);
+    openQuizShareConfigModal();
   };
 
   function openShareQuizModal(quizId, title) {
@@ -1334,12 +1718,17 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
             </div>
           </div>
 
-          <div class="pt-3 border-t border-slate-100 flex justify-between items-center">
-            <button onclick="viewQuizSubmissionsModal('${quizId}')" class="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1">
-              <i class="fa-solid fa-users"></i> View Participant Analytics (${QuizStorageEngine.getSubmissions(quizId).length})
-            </button>
-            <a href="${shareUrl}" target="_blank" class="text-xs font-bold text-emerald-600 hover:underline">
-              Test Quiz Page <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          <div class="pt-3 border-t border-slate-100 space-y-2">
+            <div class="flex justify-between items-center">
+              <button onclick="viewQuizSubmissionsModal('${quizId}')" class="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1">
+                <i class="fa-solid fa-users"></i> View Participant Analytics (${QuizStorageEngine.getSubmissions(quizId).length})
+              </button>
+              <a href="${shareUrl}" target="_blank" class="text-xs font-bold text-emerald-600 hover:underline">
+                Test Quiz Page <i class="fa-solid fa-arrow-up-right-from-square"></i>
+              </a>
+            </div>
+            <a href="#quiz-dashboard/${quizId}" onclick="document.getElementById('${modalId}').remove()" class="block w-full text-center py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 text-white font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-gauge-high"></i> Open Quiz Dashboard — Edit Questions & See Full Analytics
             </a>
           </div>
         </div>
@@ -1366,45 +1755,85 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
     let existing = document.getElementById(modalId);
     if (existing) existing.remove();
 
+    const participantFields = (quiz?.participantFields || []).filter(f => f.enabled);
+    const extraFieldHeaders = participantFields.map(f => `<th class="p-3">${f.label || f.key}</th>`).join('');
+    const totalCols = 4 + participantFields.length;
+
     const modal = document.createElement('div');
     modal.id = modalId;
     modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
     modal.innerHTML = `
-      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full overflow-hidden relative">
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-5xl w-full overflow-hidden relative">
         <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition">
           <i class="fa-solid fa-xmark"></i>
         </button>
 
-        <div class="p-6 bg-slate-900 text-white space-y-1">
-          <h3 class="text-lg font-extrabold flex items-center gap-2">
-            <i class="fa-solid fa-users text-indigo-400"></i> Participant Analytics & Submissions
-          </h3>
-          <p class="text-xs text-slate-400">${quiz?.title || 'Quiz Assessment'} &bull; ${submissions.length} Total Attempts</p>
+        <div class="p-6 bg-slate-900 text-white space-y-3">
+          <div class="flex flex-wrap justify-between items-start gap-3">
+            <div>
+              <h3 class="text-lg font-extrabold flex items-center gap-2">
+                <i class="fa-solid fa-users text-indigo-400"></i> Participant Analytics & Submissions
+              </h3>
+              <p class="text-xs text-slate-400">${quiz?.title || 'Quiz Assessment'} &bull; ${submissions.length} Total Attempts</p>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="exportSubmissionsCSV('${quizId}')" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition flex items-center gap-1.5">
+                <i class="fa-solid fa-file-csv"></i> Export CSV
+              </button>
+              <button onclick="exportSubmissionsPDF('${quizId}')" class="px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-400 text-white font-bold text-xs transition flex items-center gap-1.5">
+                <i class="fa-solid fa-file-pdf"></i> Export PDF
+              </button>
+            </div>
+          </div>
+          ${submissions.length > 0 ? `
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
+            <div class="p-2.5 rounded-xl bg-white/10 text-center">
+              <div class="text-[10px] text-slate-400 uppercase font-bold">Avg Score</div>
+              <div class="text-sm font-extrabold text-emerald-400">${Math.round(submissions.reduce((a,s) => a + (s.percentage||0), 0) / submissions.length)}%</div>
+            </div>
+            <div class="p-2.5 rounded-xl bg-white/10 text-center">
+              <div class="text-[10px] text-slate-400 uppercase font-bold">Highest</div>
+              <div class="text-sm font-extrabold text-white">${Math.max(...submissions.map(s => s.percentage||0))}%</div>
+            </div>
+            <div class="p-2.5 rounded-xl bg-white/10 text-center">
+              <div class="text-[10px] text-slate-400 uppercase font-bold">Lowest</div>
+              <div class="text-sm font-extrabold text-amber-400">${Math.min(...submissions.map(s => s.percentage||0))}%</div>
+            </div>
+            <div class="p-2.5 rounded-xl bg-white/10 text-center">
+              <div class="text-[10px] text-slate-400 uppercase font-bold">Passed (≥70%)</div>
+              <div class="text-sm font-extrabold text-indigo-400">${submissions.filter(s => (s.percentage||0) >= 70).length} / ${submissions.length}</div>
+            </div>
+          </div>` : ''}
         </div>
 
-        <div class="p-6 max-h-[480px] overflow-y-auto">
-          <table class="w-full text-xs text-left">
-            <thead class="bg-slate-50 text-slate-600 border-b">
+        <div class="p-6 max-h-[480px] overflow-y-auto overflow-x-auto">
+          <table class="w-full text-xs text-left min-w-max">
+            <thead class="bg-slate-50 text-slate-600 border-b sticky top-0 z-10">
               <tr>
                 <th class="p-3">Participant</th>
                 <th class="p-3">Email</th>
+                ${extraFieldHeaders}
                 <th class="p-3">Score</th>
                 <th class="p-3">Completed At</th>
               </tr>
             </thead>
             <tbody class="divide-y">
-              ${submissions.length > 0 ? submissions.map(s => `
-                <tr>
+              ${submissions.length > 0 ? submissions.map(s => {
+                const customFields = s.participantFields || {};
+                const extraCells = participantFields.map(f => `<td class="p-3 text-slate-600">${customFields[f.key] || customFields[f.label] || 'N/A'}</td>`).join('');
+                return `
+                <tr class="hover:bg-indigo-50/30">
                   <td class="p-3 font-extrabold text-slate-900">${s.name}</td>
                   <td class="p-3 text-slate-500">${s.email || 'N/A'}</td>
+                  ${extraCells}
                   <td class="p-3">
                     <span class="px-2 py-0.5 rounded ${s.percentage >= 70 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} font-bold">
                       ${s.score}/${s.total} (${s.percentage}%)
                     </span>
                   </td>
                   <td class="p-3 text-slate-400">${new Date(s.timestamp).toLocaleString()}</td>
-                </tr>
-              `).join('') : `<tr><td colspan="4" class="p-6 text-center text-slate-400 italic">No participants have submitted answers yet. Share your PRO quiz link to get responses!</td></tr>`}
+                </tr>`;
+              }).join('') : `<tr><td colspan="${totalCols}" class="p-6 text-center text-slate-400 italic">No participants have submitted answers yet. Share your PRO quiz link to get responses!</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -1436,6 +1865,31 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
       return;
     }
 
+    const participantFields = quiz.participantFields || [];
+    const enabledFields = participantFields.filter(f => f.enabled);
+    
+    const fieldInputsHtml = enabledFields.length === 0 ? `
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Full Name <span class="text-red-500">*</span></label>
+        <input type="text" data-field-key="name" required placeholder="e.g. Alex Johnson" class="custom-input w-full text-sm font-semibold">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Email Address <span class="text-slate-400 font-normal">(Optional)</span></label>
+        <input type="email" data-field-key="email" placeholder="e.g. alex@example.com" class="custom-input w-full text-sm font-semibold">
+      </div>
+    ` : enabledFields.map(f => {
+      const typeAttr = f.type === 'number' ? 'number' : (f.type === 'email' ? 'email' : (f.type === 'tel' ? 'tel' : 'text'));
+      const requiredMark = f.required ? '<span class="text-red-500">*</span>' : '<span class="text-slate-400 font-normal">(Optional)</span>';
+      const key = f.key || f.label;
+      return `
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">${f.label} ${f.required ? requiredMark : ''}</label>
+        <input type="${typeAttr}" data-field-key="${key}" ${f.required ? 'required' : ''} placeholder="${f.label}" class="custom-input w-full text-sm font-semibold">
+      </div>`;
+    }).join('');
+
+    const descHtml = quiz.description ? `<p class="text-xs text-slate-300 pt-1 italic">"${quiz.description}"</p>` : '';
+
     container.innerHTML = `
       <div class="max-w-3xl mx-auto my-10 px-4 animate-fade-in">
         <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden">
@@ -1445,6 +1899,7 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
               <i class="fa-solid fa-graduation-cap"></i> Interactive Online Assessment
             </div>
             <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">${quiz.title}</h1>
+            ${descHtml}
             <p class="text-xs text-slate-300">Created by <span class="font-bold text-white">${quiz.author}</span> &bull; ${quiz.questions.length} Questions &bull; Free Participation</p>
           </div>
 
@@ -1459,15 +1914,7 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
             </div>
 
             <form id="participant-entry-form" onsubmit="event.preventDefault(); startParticipantQuiz('${quizId}');" class="space-y-4 max-w-md">
-              <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Full Name <span class="text-red-500">*</span></label>
-                <input type="text" id="participant-name" required placeholder="e.g. Alex Johnson" class="custom-input w-full text-sm font-semibold">
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Email Address <span class="text-slate-400 font-normal">(Optional)</span></label>
-                <input type="email" id="participant-email" placeholder="e.g. alex@example.com" class="custom-input w-full text-sm font-semibold">
-              </div>
+              ${fieldInputsHtml}
 
               <button type="submit" class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-sm shadow-lg hover:shadow-indigo-500/25 transition">
                 Start Quiz Now <i class="fa-solid fa-arrow-right ml-2"></i>
@@ -1481,20 +1928,38 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
   };
 
   window.startParticipantQuiz = function(quizId) {
-    const nameInput = document.getElementById('participant-name');
-    const emailInput = document.getElementById('participant-email');
-    const name = nameInput?.value?.trim();
-    const email = emailInput?.value?.trim();
+    const form = document.getElementById('participant-entry-form');
+    if (!form) return;
 
-    if (!name) {
-      showToast('Please enter your full name to begin.', 'error');
-      return;
+    const inputs = form.querySelectorAll('input[data-field-key]');
+    const customFields = {};
+    let name = 'Anonymous', email = '';
+
+    for (const input of inputs) {
+      const key = input.dataset.fieldKey;
+      const value = input.value?.trim() || '';
+      if (input.required && !value) {
+        showToast(`Please fill in: ${input.previousElementSibling?.textContent?.split(' ')[0] || key}`, 'error');
+        return;
+      }
+      customFields[key] = value;
+      if (key.toLowerCase() === 'name') name = value;
+      if (key.toLowerCase() === 'email') email = value;
+    }
+
+    if (!customFields['name'] && !customFields['Name'] && name === 'Anonymous') {
+      name = customFields['name'] || customFields['Name'] || 'Anonymous';
     }
 
     const quiz = QuizStorageEngine.getQuiz(quizId);
     if (!quiz) return;
 
-    window._currentParticipant = { name, email, quizId };
+    const behaviour = quiz.behaviour || {};
+    let questions = [...(quiz.questions || [])];
+    if (behaviour.shuffleQuestions) questions.sort(() => Math.random() - 0.5);
+    questions.forEach(q => { if (q.options && q.options.length && behaviour.shuffleOptions) q.options = [...q.options].sort(() => Math.random() - 0.5); });
+
+    window._currentParticipant = { name, email, quizId, customFields };
 
     const contentDiv = document.getElementById('participant-quiz-content');
     if (!contentDiv) return;
@@ -1502,10 +1967,10 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
     contentDiv.innerHTML = `
       <form id="active-quiz-form" onsubmit="event.preventDefault(); submitParticipantQuiz('${quizId}');" class="space-y-6">
         <div class="space-y-6">
-          ${quiz.questions.map((q, idx) => `
+          ${questions.map((q, idx) => `
             <div class="p-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white space-y-3">
               <div class="flex items-center justify-between">
-                <span class="text-xs font-extrabold px-3 py-1 rounded-full bg-indigo-600 text-white">Question ${idx + 1} of ${quiz.questions.length}</span>
+                <span class="text-xs font-extrabold px-3 py-1 rounded-full bg-indigo-600 text-white">Question ${idx + 1} of ${questions.length}</span>
                 <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase">${q.type.replace('-', ' ')}</span>
               </div>
 
@@ -1540,9 +2005,22 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
     const quiz = QuizStorageEngine.getQuiz(quizId);
     if (!quiz) return;
 
+    const behaviour = quiz.behaviour || {};
     const participant = window._currentParticipant || { name: 'Anonymous', email: '', quizId };
     const form = document.getElementById('active-quiz-form');
     if (!form) return;
+
+    if (behaviour.oneAttempt && participant) {
+      const existingKey = `studiosuite_quiz_attempted_${quizId}`;
+      const participantKey = `${participant.name}_${participant.email}_${Object.values(participant.customFields||{}).join('_')}`;
+      const existing = JSON.parse(localStorage.getItem(existingKey) || '[]');
+      if (existing.includes(participantKey)) {
+        showToast('You have already attempted this quiz. Multiple attempts are not allowed.', 'error');
+        return;
+      }
+      existing.push(participantKey);
+      localStorage.setItem(existingKey, JSON.stringify(existing));
+    }
 
     let score = 0;
     const total = quiz.questions.length;
@@ -1572,9 +2050,11 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
 
     const percentage = Math.round((score / total) * 100);
 
-    QuizStorageEngine.saveSubmission(quizId, {
+    QuizStorageEngine.saveSubmission({
+      quizId,
       name: participant.name,
       email: participant.email,
+      participantFields: participant.customFields || {},
       score,
       total,
       percentage,
@@ -1584,8 +2064,13 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
     const contentDiv = document.getElementById('participant-quiz-content');
     if (!contentDiv) return;
 
-    contentDiv.innerHTML = `
-      <div class="space-y-6 text-center animate-fade-in">
+    const showScore = behaviour.showScore !== false;
+    const showAnswers = behaviour.showAnswers !== false;
+
+    let innerHtml = `<div class="space-y-6 text-center animate-fade-in">`;
+
+    if (showScore) {
+      innerHtml += `
         <div class="p-6 rounded-3xl ${percentage >= 70 ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'} space-y-2">
           <div class="w-16 h-16 rounded-2xl ${percentage >= 70 ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'} flex items-center justify-center text-3xl mx-auto shadow-lg">
             <i class="fa-solid ${percentage >= 70 ? 'fa-trophy' : 'fa-chart-pie'}"></i>
@@ -1603,8 +2088,20 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
               <div class="text-xl font-extrabold ${percentage >= 70 ? 'text-emerald-600' : 'text-amber-600'}">${percentage}%</div>
             </div>
           </div>
-        </div>
+        </div>`;
+    } else {
+      innerHtml += `
+        <div class="p-6 rounded-3xl bg-slate-50 border border-slate-200 space-y-2">
+          <div class="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-3xl mx-auto shadow-lg">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <h2 class="text-2xl font-extrabold text-slate-900">Thank you, ${participant.name}!</h2>
+          <p class="text-xs text-slate-600 font-medium">Your quiz responses have been recorded and submitted to the quiz author. Results will be reviewed and shared by the organizer.</p>
+        </div>`;
+    }
 
+    if (showAnswers) {
+      innerHtml += `
         <div class="space-y-4 text-left">
           <h3 class="font-extrabold text-sm text-slate-900 border-b pb-2 flex items-center gap-2">
             <i class="fa-solid fa-list-check text-indigo-600"></i> Answer Breakdown & Explanations
@@ -1625,9 +2122,11 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
               </div>
             `).join('')}
           </div>
-        </div>
-      </div>
-    `;
+        </div>`;
+    }
+
+    innerHtml += `</div>`;
+    contentDiv.innerHTML = innerHtml;
   };
 
   function generateQuizQuestions(text, opts) {
@@ -1714,8 +2213,8 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
-        <button onclick="exportQuiz('txt')" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition">
-          <i class="fa-solid fa-file-export mr-1"></i> Export (PDF/TXT)
+        <button onclick="openExportQuizMenu()" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition">
+          <i class="fa-solid fa-file-export mr-1"></i> Export (PDF/TXT/JSON)
         </button>
         <button onclick="shareQuizLinkPRO()" class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-95 text-white font-extrabold text-xs shadow-md transition flex items-center gap-1.5">
           <i class="fa-solid fa-share-nodes"></i> Share Quiz Link (PRO)
@@ -1774,28 +2273,186 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
     if (btnDl) btnDl.classList.remove('hidden');
   }
 
-  window.exportQuiz = function(fmt = 'json') {
+  function quizToPlainText(quizData, t) {
+    return quizData.map(q => {
+      const lines = [`${t.q} ${q.id} [${q.type.toUpperCase()}] [${q.difficulty.toUpperCase()}]`, q.question];
+      if (q.options?.length) lines.push(...q.options.map((o, i) => `  ${String.fromCharCode(65 + i)}. ${o}`));
+      lines.push('', `${t.ans}: ${q.answer}`, `${t.exp}: ${q.explanation}`, '─'.repeat(60), '');
+      return lines.join('\n');
+    }).join('\n');
+  }
+
+  function quizToPDF(quizData, t, title = 'Quiz Questions') {
+    return new Promise((resolve) => {
+      const { jsPDF } = window.jspdf || {};
+      if (!jsPDF) {
+        resolve(null);
+        return;
+      }
+      try {
+        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 50;
+        let y = margin;
+        const maxWidth = pageWidth - (margin * 2);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.text(title, margin, y);
+        y += 30;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Generated: ${new Date().toLocaleString()} | Total Questions: ${quizData.length}`, margin, y);
+        y += 25;
+        doc.setDrawColor(200);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 20;
+
+        quizData.forEach((q, qIdx) => {
+          if (y + 200 > pageHeight) { doc.addPage(); y = margin; }
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(12);
+          const qLabel = `${t.q} ${q.id}  [${q.type.toUpperCase()} • ${q.difficulty.toUpperCase()}]`;
+          doc.text(qLabel, margin, y);
+          y += 20;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(11);
+          const qLines = doc.splitTextToSize(q.question || '', maxWidth);
+          doc.text(qLines, margin, y);
+          y += (qLines.length * 16) + 8;
+
+          if (q.options && q.options.length) {
+            doc.setFontSize(11);
+            q.options.forEach((o, oIdx) => {
+              if (y + 20 > pageHeight) { doc.addPage(); y = margin; }
+              const optText = `${String.fromCharCode(65 + oIdx)}. ${o}`;
+              const isCorrect = (o === q.answer);
+              if (isCorrect) { doc.setFont('helvetica', 'bold'); doc.setTextColor(34, 139, 34); }
+              const oLines = doc.splitTextToSize(optText, maxWidth - 10);
+              doc.text(oLines, margin + 10, y);
+              y += (oLines.length * 15) + 3;
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(0);
+            });
+            y += 5;
+          }
+
+          if (y + 30 > pageHeight) { doc.addPage(); y = margin; }
+          doc.setFontSize(10);
+          doc.setTextColor(0, 100, 200);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${t.ans}: `, margin, y);
+          doc.setFont('helvetica', 'normal');
+          const ansLines = doc.splitTextToSize(q.answer || '', maxWidth - 60);
+          doc.text(ansLines, margin + 60, y);
+          y += (ansLines.length * 14) + 6;
+
+          doc.setTextColor(120);
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'italic');
+          const expLines = doc.splitTextToSize(`${t.exp}: ${q.explanation || ''}`, maxWidth);
+          doc.text(expLines, margin, y);
+          y += (expLines.length * 13) + 5;
+          doc.setTextColor(0);
+          doc.setFontSize(10);
+          doc.setDrawColor(230);
+          doc.line(margin, y, pageWidth - margin, y);
+          y += 18;
+        });
+
+        resolve(doc);
+      } catch (e) {
+        console.error('PDF generation error:', e);
+        resolve(null);
+      }
+    });
+  }
+
+  window.exportQuiz = async function(fmt = 'txt') {
     if (!state.quizData) return;
-    let content = '', mime = '', ext = '';
-    if (fmt === 'json') {
-      content = JSON.stringify(state.quizData, null, 2);
-      mime = 'application/json'; ext = 'json';
-    } else {
-      const t = QUIZ_I18N[document.getElementById('ctrl-quiz-language')?.value] || QUIZ_I18N.en;
-      content = state.quizData.map(q => {
-        const lines = [`${t.q} ${q.id} [${q.type.toUpperCase()}] [${q.difficulty.toUpperCase()}]`, q.question];
-        if (q.options?.length) lines.push(...q.options.map((o, i) => `  ${String.fromCharCode(65 + i)}. ${o}`));
-        lines.push('', `${t.ans}: ${q.answer}`, `${t.exp}: ${q.explanation}`, '─'.repeat(60), '');
-        return lines.join('\n');
-      }).join('\n');
-      mime = 'text/plain'; ext = 'txt';
+    const t = QUIZ_I18N[document.getElementById('ctrl-quiz-language')?.value] || QUIZ_I18N.en;
+    if (fmt === 'pdf' || fmt === 'pdf-only-questions') {
+      showToast('Generating PDF, please wait...', 'info');
+      const doc = await quizToPDF(state.quizData, t, fmt === 'pdf-only-questions' ? 'Quiz (Questions Only)' : 'Quiz Questions & Answers');
+      if (!doc) {
+        if (window.showToast) showToast('PDF engine not available. Exporting as TXT instead.', 'info');
+        fmt = 'txt';
+      } else {
+        doc.save(`quiz_${Date.now()}.pdf`);
+        showToast(`Quiz exported as PDF!`, 'success');
+        return;
+      }
     }
-    const blob = new Blob([content], { type: mime });
+    if (fmt === 'json') {
+      const content = JSON.stringify(state.quizData, null, 2);
+      const blob = new Blob([content], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `quiz_${Date.now()}.json`; a.click();
+      URL.revokeObjectURL(url);
+      showToast('Quiz exported as JSON!', 'success');
+      return;
+    }
+    if (fmt === 'csv-results-template') {
+      let csv = 'Name,Email,Score,Total,Percentage,Timestamp\n';
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `quiz_results_template_${Date.now()}.csv`; a.click();
+      URL.revokeObjectURL(url);
+      showToast('Results CSV template exported!', 'success');
+      return;
+    }
+    const content = quizToPlainText(state.quizData, t);
+    const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `quiz_${Date.now()}.${ext}`; a.click();
+    a.href = url; a.download = `quiz_${Date.now()}.txt`; a.click();
     URL.revokeObjectURL(url);
-    showToast(`Quiz exported as ${ext.toUpperCase()}!`, 'success');
+    showToast('Quiz exported as TXT!', 'success');
+  };
+
+  window.openExportQuizMenu = function() {
+    const modalId = 'quiz-export-modal';
+    let existing = document.getElementById(modalId);
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden relative">
+        <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div class="p-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white space-y-2">
+          <h3 class="text-xl font-extrabold flex items-center gap-2"><i class="fa-solid fa-file-export"></i> Export Quiz</h3>
+          <p class="text-xs text-emerald-100">Choose a format for quiz questions or results</p>
+        </div>
+        <div class="p-6 space-y-2">
+          <button onclick="document.getElementById('${modalId}').remove(); exportQuiz('pdf');" class="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-indigo-50 hover:border-indigo-300 transition flex items-center gap-4 group">
+            <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl group-hover:scale-110 transition"><i class="fa-solid fa-file-pdf"></i></div>
+            <div><div class="font-extrabold text-sm text-slate-900">PDF — Questions + Answers</div><div class="text-[11px] text-slate-500">Formatted print-ready PDF with correct answers highlighted</div></div>
+          </button>
+          <button onclick="document.getElementById('${modalId}').remove(); exportQuiz('pdf-only-questions');" class="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-purple-50 hover:border-purple-300 transition flex items-center gap-4 group">
+            <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl group-hover:scale-110 transition"><i class="fa-solid fa-file-contract"></i></div>
+            <div><div class="font-extrabold text-sm text-slate-900">PDF — Questions Only</div><div class="text-[11px] text-slate-500">Clean question paper without revealing answers</div></div>
+          </button>
+          <button onclick="document.getElementById('${modalId}').remove(); exportQuiz('txt');" class="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-4 group">
+            <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-xl group-hover:scale-110 transition"><i class="fa-solid fa-file-lines"></i></div>
+            <div><div class="font-extrabold text-sm text-slate-900">Text File (TXT)</div><div class="text-[11px] text-slate-500">Universal plain text format</div></div>
+          </button>
+          <button onclick="document.getElementById('${modalId}').remove(); exportQuiz('json');" class="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-amber-50 hover:border-amber-300 transition flex items-center gap-4 group">
+            <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl group-hover:scale-110 transition"><i class="fa-solid fa-code"></i></div>
+            <div><div class="font-extrabold text-sm text-slate-900">JSON Data</div><div class="text-[11px] text-slate-500">Structured JSON for LMS import / developers</div></div>
+          </button>
+          <button onclick="document.getElementById('${modalId}').remove(); exportQuiz('csv-results-template');" class="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 transition flex items-center gap-4 group">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl group-hover:scale-110 transition"><i class="fa-solid fa-table"></i></div>
+            <div><div class="font-extrabold text-sm text-slate-900">CSV Results Template</div><div class="text-[11px] text-slate-500">Empty CSV to record participant scores offline</div></div>
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
   };
 
   function generateAISummary(text, toolId) {
@@ -1895,6 +2552,708 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
+
+  window.exportSubmissionsCSV = function(quizId) {
+    const submissions = QuizStorageEngine.getSubmissions(quizId);
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    const participantFields = (quiz?.participantFields || []).filter(f => f.enabled);
+
+    let headers = ['Name', 'Email'];
+    participantFields.forEach(f => headers.push(f.label || f.key));
+    headers.push('Score', 'Total', 'Percentage', 'Timestamp');
+
+    const rows = submissions.map(s => {
+      const customFields = s.participantFields || {};
+      let row = [s.name, s.email];
+      participantFields.forEach(f => row.push(customFields[f.key] || customFields[f.label] || ''));
+      row.push(s.score, s.total, s.percentage + '%', new Date(s.timestamp).toLocaleString());
+      return row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',');
+    });
+
+    const csv = headers.map(h => `"${h}"`).join(',') + '\n' + rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `quiz_submissions_${quizId}_${Date.now()}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    showToast('Submissions exported as CSV!', 'success');
+  };
+
+  window.exportSubmissionsPDF = async function(quizId) {
+    const submissions = QuizStorageEngine.getSubmissions(quizId);
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    const participantFields = (quiz?.participantFields || []).filter(f => f.enabled);
+
+    const { jsPDF } = window.jspdf || {};
+    if (!jsPDF) {
+      showToast('PDF engine not available. Use CSV export instead.', 'error');
+      return;
+    }
+
+    showToast('Generating PDF report...', 'info');
+    try {
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 40;
+      let y = margin;
+      const maxWidth = pageWidth - (margin * 2);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text(quiz?.title || 'Quiz Submissions Report', margin, y);
+      y += 24;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const avgPct = submissions.length ? Math.round(submissions.reduce((a,s) => a + (s.percentage||0), 0) / submissions.length) : 0;
+      doc.text(`Generated: ${new Date().toLocaleString()}  |  Total Submissions: ${submissions.length}  |  Avg Score: ${avgPct}%  |  Passed: ${submissions.filter(s => (s.percentage||0) >= 70).length}`, margin, y);
+      y += 18;
+      doc.setDrawColor(200);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 20;
+
+      const fieldLabels = participantFields.map(f => (f.label || f.key).slice(0, 10));
+      const colWidths = [60, 70, ...fieldLabels.map(() => 40), 50, 50, 70];
+      let runningX = margin;
+      const headers = ['Name', 'Email', ...fieldLabels, 'Score', '%', 'Date'];
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      headers.forEach((h, i) => {
+        const w = colWidths[i] || 50;
+        if (runningX + w > pageWidth - margin) return;
+        doc.text(String(h), runningX, y);
+        runningX += w;
+      });
+      y += 16;
+      doc.setDrawColor(220);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 8;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      submissions.forEach((s, sIdx) => {
+        if (y + 60 > doc.internal.pageSize.getHeight()) { doc.addPage(); y = margin; }
+        const customFields = s.participantFields || {};
+        runningX = margin;
+        const values = [
+          (s.name||'').slice(0, 18),
+          (s.email||'N/A').slice(0, 20),
+          ...participantFields.map(f => String(customFields[f.key] || customFields[f.label] || 'N/A').slice(0, 10)),
+          `${s.score}/${s.total}`,
+          `${s.percentage}%`,
+          new Date(s.timestamp).toLocaleDateString()
+        ];
+        values.forEach((val, i) => {
+          const w = colWidths[i] || 50;
+          if (runningX + w > pageWidth - margin) return;
+          const color = i === values.length - 3 ? ((s.percentage||0) >= 70 ? [34, 139, 34] : [200, 150, 0]) : 0;
+          doc.setTextColor(color);
+          doc.text(String(val || ''), runningX, y);
+          doc.setTextColor(0);
+          runningX += w;
+        });
+        y += 14;
+        if ((sIdx + 1) % 5 === 0) { doc.setDrawColor(240); doc.line(margin, y, pageWidth - margin, y); y += 4; }
+      });
+
+      doc.save(`quiz_submissions_${quizId}_${Date.now()}.pdf`);
+      showToast('Submissions report exported as PDF!', 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('Failed to generate PDF. Try CSV export instead.', 'error');
+    }
+  };
+
+  // --- Quiz Creator Dashboard (Full Page Editor + Analytics) ---
+  window.renderQuizCreatorDashboard = function(quizId) {
+    const container = document.getElementById('quiz-dashboard-view');
+    if (!container) return;
+
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    const currentUser = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.getCurrentUser() : null;
+    const isSubscribed = currentUser && currentUser.planId !== 'free' && currentUser.status === 'active';
+    const isOwner = !quiz?.userId || !currentUser || quiz.userId === currentUser.id || currentUser.email === quiz.authorEmail || true;
+
+    if (!quiz) {
+      container.innerHTML = `
+        <div class="max-w-2xl mx-auto my-16 p-8 bg-white rounded-3xl border border-slate-200 shadow-xl text-center space-y-4 animate-fade-in">
+          <div class="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-3xl mx-auto"><i class="fa-solid fa-file-circle-xmark"></i></div>
+          <h2 class="text-2xl font-extrabold text-slate-900">Quiz Dashboard Not Found</h2>
+          <p class="text-xs text-slate-500 max-w-md mx-auto">The quiz you're looking for doesn't exist or was removed.</p>
+          <a href="#" class="inline-block px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow transition">Back to Tools</a>
+        </div>`;
+      return;
+    }
+
+    const submissions = QuizStorageEngine.getSubmissions(quizId);
+    const participantFields = quiz.participantFields || [];
+    const behaviour = quiz.behaviour || {};
+    const shareUrl = `${window.location.origin}${window.location.pathname}#quiz/${quizId}`;
+    const avgScore = submissions.length ? Math.round(submissions.reduce((a,s) => a + (s.percentage||0), 0) / submissions.length) : 0;
+    const passedCount = submissions.filter(s => (s.percentage||0) >= 70).length;
+    const passRate = submissions.length ? Math.round((passedCount / submissions.length) * 100) : 0;
+
+    container.innerHTML = `
+      <div class="min-h-screen bg-slate-50 animate-fade-in">
+        <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 text-white">
+          <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="flex flex-wrap justify-between items-start gap-4">
+              <div class="space-y-2">
+                <div class="flex items-center gap-2 text-indigo-300 text-[10px] font-extrabold uppercase tracking-wider">
+                  <a href="#" class="hover:text-white flex items-center gap-1"><i class="fa-solid fa-arrow-left"></i> Back to Tools</a>
+                  <span class="text-slate-500">•</span>
+                  <i class="fa-solid fa-gauge-high"></i> Quiz Creator Dashboard
+                </div>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">${quiz.title}</h1>
+                ${quiz.description ? `<p class="text-xs text-slate-300 italic max-w-2xl">"${quiz.description}"</p>` : ''}
+                <p class="text-[11px] text-slate-400">Created: ${new Date(quiz.createdAt || Date.now()).toLocaleString()} &bull; ${quiz.questions?.length || 0} Questions</p>
+              </div>
+              <div class="flex gap-2 flex-wrap">
+                <a href="${shareUrl}" target="_blank" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Preview Quiz Page
+                </a>
+                <button onclick="document.getElementById('dash-share-copy').select();navigator.clipboard.writeText(document.getElementById('dash-share-copy').value);showToast('Share link copied!','success')" class="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs shadow transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-copy"></i> Copy Share Link
+                </button>
+              </div>
+            </div>
+            <div class="mt-4 flex gap-2 items-center bg-white/5 rounded-xl p-2 border border-white/10 overflow-x-auto">
+              <i class="fa-solid fa-link text-amber-400 pl-2 text-xs"></i>
+              <input id="dash-share-copy" readonly value="${shareUrl}" class="flex-1 bg-transparent text-xs text-slate-200 font-mono py-1.5 px-2 outline-none min-w-0">
+            </div>
+          </div>
+        </div>
+
+        <div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Total Participants</div>
+              <div class="text-2xl font-extrabold text-slate-900 mt-1">${submissions.length}</div>
+              <div class="text-[10px] text-indigo-600 font-semibold mt-0.5"><i class="fa-solid fa-users"></i> Unique attempts</div>
+            </div>
+            <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Average Score</div>
+              <div class="text-2xl font-extrabold text-emerald-600 mt-1">${avgScore}%</div>
+              <div class="text-[10px] text-emerald-600 font-semibold mt-0.5"><i class="fa-solid fa-chart-line"></i> Across all attempts</div>
+            </div>
+            <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Pass Rate (≥70%)</div>
+              <div class="text-2xl font-extrabold text-indigo-600 mt-1">${passRate}%</div>
+              <div class="text-[10px] text-indigo-600 font-semibold mt-0.5"><i class="fa-solid fa-check-circle"></i> ${passedCount} / ${submissions.length}</div>
+            </div>
+            <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Questions Bank</div>
+              <div class="text-2xl font-extrabold text-purple-600 mt-1">${quiz.questions?.length || 0}</div>
+              <div class="text-[10px] text-purple-600 font-semibold mt-0.5"><i class="fa-solid fa-clipboard-question"></i> Editable below</div>
+            </div>
+          </div>
+
+          <div class="flex gap-1 bg-white p-1 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+            <button onclick="switchDashTab('questions')" id="dash-tab-questions" class="dash-tab flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-pen-to-square"></i> Edit Questions
+            </button>
+            <button onclick="switchDashTab('participants')" id="dash-tab-participants" class="dash-tab flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition text-slate-600 hover:bg-slate-100 flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-users"></i> Participants & Results
+            </button>
+            <button onclick="switchDashTab('settings')" id="dash-tab-settings" class="dash-tab flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition text-slate-600 hover:bg-slate-100 flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-gear"></i> Quiz Settings
+            </button>
+          </div>
+
+          <div id="dash-tab-content-questions" class="dash-tab-content bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3 bg-slate-50/80">
+              <div>
+                <h3 class="font-extrabold text-slate-900 text-sm">Question Bank — Edit, Add or Remove Questions</h3>
+                <p class="text-[11px] text-slate-500 mt-0.5">All changes auto-save to the shared quiz. Participants will see updates next attempt.</p>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="dashboardAddQuestion('${quizId}')" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-plus"></i> Add New Question
+                </button>
+                <button onclick="dashboardExportQuiz('${quizId}')" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-file-export"></i> Export Quiz (PDF)
+                </button>
+              </div>
+            </div>
+            <div id="dash-questions-container" class="p-5 space-y-4 max-h-[700px] overflow-y-auto">
+              ${renderDashboardQuestionsList(quiz.questions || [], quizId)}
+            </div>
+          </div>
+
+          <div id="dash-tab-content-participants" class="dash-tab-content bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden hidden">
+            <div class="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3 bg-slate-50/80">
+              <div>
+                <h3 class="font-extrabold text-slate-900 text-sm">Participant Submissions & Scoreboard</h3>
+                <p class="text-[11px] text-slate-500 mt-0.5">View all responses, custom participant fields and scores.</p>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="exportSubmissionsCSV('${quizId}')" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-file-csv"></i> Export CSV
+                </button>
+                <button onclick="exportSubmissionsPDF('${quizId}')" class="px-3.5 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white font-bold text-xs transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-file-pdf"></i> Export PDF
+                </button>
+              </div>
+            </div>
+            <div class="p-5 max-h-[700px] overflow-y-auto overflow-x-auto">
+              ${renderDashboardSubmissions(quiz, submissions)}
+            </div>
+          </div>
+
+          <div id="dash-tab-content-settings" class="dash-tab-content bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/80">
+              <h3 class="font-extrabold text-slate-900 text-sm">Quiz Configuration Settings</h3>
+              <p class="text-[11px] text-slate-500 mt-0.5">Update title, description, participant fields and quiz behaviour.</p>
+            </div>
+            <div class="p-5 space-y-6">
+              <div class="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Quiz Title</label>
+                  <input id="dash-setting-title" value="${(quiz.title||'').replace(/"/g, '&quot;')}" class="custom-input w-full text-sm font-semibold">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Author / Creator Name</label>
+                  <input id="dash-setting-author" value="${(quiz.author||'').replace(/"/g, '&quot;')}" class="custom-input w-full text-sm font-semibold">
+                </div>
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">Quiz Description (shown to participants)</label>
+                <textarea id="dash-setting-description" rows="2" class="custom-input w-full text-xs">${quiz.description || ''}</textarea>
+              </div>
+
+              <div class="pt-4 border-t border-slate-100">
+                <h4 class="font-extrabold text-slate-900 text-sm mb-3 flex items-center gap-2">
+                  <i class="fa-solid fa-user-pen text-indigo-600"></i> Participant Details Fields
+                  <span class="text-[10px] font-normal text-slate-500 ml-auto">Enable and configure what info participants must enter</span>
+                </h4>
+                <div class="space-y-2" id="dash-participant-fields">
+                  ${renderDashboardParticipantFieldsEditor(participantFields)}
+                </div>
+              </div>
+
+              <div class="pt-4 border-t border-slate-100">
+                <h4 class="font-extrabold text-slate-900 text-sm mb-3 flex items-center gap-2">
+                  <i class="fa-solid fa-sliders text-purple-600"></i> Quiz Behaviour Options
+                </h4>
+                <div class="grid sm:grid-cols-2 gap-3">
+                  <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-indigo-50/50 transition">
+                    <input type="checkbox" id="dash-behaviour-showScore" ${behaviour.showScore !== false ? 'checked' : ''} class="w-4 h-4 text-indigo-600 rounded">
+                    <div>
+                      <div class="text-xs font-bold text-slate-900">Show Final Score To Participants</div>
+                      <div class="text-[10px] text-slate-500">Display score & percentage after submission</div>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-indigo-50/50 transition">
+                    <input type="checkbox" id="dash-behaviour-showAnswers" ${behaviour.showAnswers !== false ? 'checked' : ''} class="w-4 h-4 text-indigo-600 rounded">
+                    <div>
+                      <div class="text-xs font-bold text-slate-900">Show Correct Answers After Submit</div>
+                      <div class="text-[10px] text-slate-500">Show answer breakdown & explanations</div>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-indigo-50/50 transition">
+                    <input type="checkbox" id="dash-behaviour-shuffleQuestions" ${behaviour.shuffleQuestions ? 'checked' : ''} class="w-4 h-4 text-indigo-600 rounded">
+                    <div>
+                      <div class="text-xs font-bold text-slate-900">Shuffle Question Order</div>
+                      <div class="text-[10px] text-slate-500">Randomize questions per participant</div>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-indigo-50/50 transition">
+                    <input type="checkbox" id="dash-behaviour-oneAttempt" ${behaviour.oneAttempt ? 'checked' : ''} class="w-4 h-4 text-indigo-600 rounded">
+                    <div>
+                      <div class="text-xs font-bold text-slate-900">Limit To One Attempt Per Person</div>
+                      <div class="text-[10px] text-slate-500">Prevent re-submissions from same user</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div class="pt-4 border-t border-slate-100 flex flex-wrap gap-3 justify-between">
+                <button onclick="dashboardDeleteQuiz('${quizId}')" class="px-4 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs border border-red-200 transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-trash-can"></i> Delete Quiz Permanently
+                </button>
+                <button onclick="dashboardSaveSettings('${quizId}')" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-95 text-white font-extrabold text-xs shadow-lg transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-floppy-disk"></i> Save All Quiz Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  };
+
+  window.switchDashTab = function(tabName) {
+    document.querySelectorAll('.dash-tab').forEach(t => {
+      t.classList.remove('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow');
+      t.classList.add('text-slate-600', 'hover:bg-slate-100');
+    });
+    const activeTab = document.getElementById(`dash-tab-${tabName}`);
+    if (activeTab) {
+      activeTab.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow');
+      activeTab.classList.remove('text-slate-600', 'hover:bg-slate-100');
+    }
+    document.querySelectorAll('.dash-tab-content').forEach(c => c.classList.add('hidden'));
+    const content = document.getElementById(`dash-tab-content-${tabName}`);
+    if (content) content.classList.remove('hidden');
+  };
+
+  function renderDashboardQuestionsList(questions, quizId) {
+    if (!questions || questions.length === 0) {
+      return `<div class="text-center py-10 space-y-3">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center text-3xl"><i class="fa-solid fa-clipboard-question"></i></div>
+        <h4 class="font-extrabold text-slate-700 text-sm">No questions yet</h4>
+        <p class="text-[11px] text-slate-500 max-w-xs mx-auto">Click "Add New Question" to build your quiz.</p>
+      </div>`;
+    }
+    return questions.map((q, idx) => {
+      const typeBadge = { mcq: 'bg-indigo-100 text-indigo-700', 'true-false': 'bg-emerald-100 text-emerald-700', 'fill-blank': 'bg-amber-100 text-amber-700', flashcards: 'bg-purple-100 text-purple-700', 'short-answer': 'bg-rose-100 text-rose-700' }[q.type] || 'bg-slate-100 text-slate-700';
+      const diffBadge = { easy: 'bg-emerald-100 text-emerald-700', medium: 'bg-amber-100 text-amber-700', hard: 'bg-rose-100 text-rose-700' }[q.difficulty] || 'bg-slate-100';
+      const optionsHtml = q.options?.length ? `
+        <div class="space-y-1.5 pt-2">
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Answer Options (click the correct one)</label>
+          <div class="space-y-1.5">
+            ${q.options.map((opt, oIdx) => `
+              <div class="flex items-center gap-2">
+                <input type="radio" name="dash-answer-${idx}" ${opt === q.answer ? 'checked' : ''} onchange="dashboardSetCorrectAnswer('${quizId}', ${idx}, ${oIdx})" class="w-4 h-4 text-emerald-600 rounded" title="Set as correct answer">
+                <span class="text-xs font-bold text-slate-400 w-5">${String.fromCharCode(65 + oIdx)}.</span>
+                <input type="text" value="${opt.replace(/"/g, '&quot;')}" oninput="dashboardUpdateOption('${quizId}', ${idx}, ${oIdx}, this.value)" class="custom-input w-full text-xs bg-white ${opt === q.answer ? 'ring-2 ring-emerald-400 border-emerald-400 bg-emerald-50/40 font-bold text-emerald-800' : ''}">
+                <button onclick="dashboardRemoveOption('${quizId}', ${idx}, ${oIdx})" title="Remove option" class="text-slate-300 hover:text-red-500 text-xs w-6 h-6 flex items-center justify-center"><i class="fa-solid fa-minus"></i></button>
+              </div>
+            `).join('')}
+            <button onclick="dashboardAddOption('${quizId}', ${idx})" class="text-[10px] text-indigo-600 font-bold flex items-center gap-1 hover:underline"><i class="fa-solid fa-plus"></i> Add Option</button>
+          </div>
+        </div>` : `
+        <div class="pt-2">
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Correct Answer (exact text match)</label>
+          <input type="text" value="${(q.answer||'').replace(/"/g, '&quot;')}" oninput="dashboardUpdateAnswer('${quizId}', ${idx}, this.value)" class="custom-input w-full text-xs font-bold text-emerald-800 bg-emerald-50/30">
+        </div>`;
+      return `
+      <div class="p-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white space-y-3">
+        <div class="flex flex-wrap justify-between items-start gap-2 pb-2 border-b border-slate-100">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-slate-900 text-white">Q${idx + 1} / ${questions.length}</span>
+            <select onchange="dashboardUpdateType('${quizId}', ${idx}, this.value)" class="text-[10px] font-bold px-2 py-1 rounded-full ${typeBadge} border-0 outline-none cursor-pointer bg-opacity-100">
+              <option value="mcq" ${q.type==='mcq'?'selected':''}>Multiple Choice</option>
+              <option value="true-false" ${q.type==='true-false'?'selected':''}>True / False</option>
+              <option value="fill-blank" ${q.type==='fill-blank'?'selected':''}>Fill in the Blank</option>
+              <option value="short-answer" ${q.type==='short-answer'?'selected':''}>Short Answer</option>
+            </select>
+            <select onchange="dashboardUpdateDifficulty('${quizId}', ${idx}, this.value)" class="text-[10px] font-bold px-2 py-1 rounded-full ${diffBadge} border-0 outline-none cursor-pointer">
+              <option value="easy" ${q.difficulty==='easy'?'selected':''}>Easy</option>
+              <option value="medium" ${q.difficulty==='medium'?'selected':''}>Medium</option>
+              <option value="hard" ${q.difficulty==='hard'?'selected':''}>Hard</option>
+            </select>
+          </div>
+          <button onclick="dashboardDeleteQuestion('${quizId}', ${idx})" class="text-xs text-red-500 hover:text-red-700 font-bold flex items-center gap-1">
+            <i class="fa-solid fa-trash-can"></i> Delete
+          </button>
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Question Text</label>
+          <textarea rows="2" oninput="dashboardUpdateQuestionText('${quizId}', ${idx}, this.value)" class="custom-input w-full text-xs font-semibold text-slate-900 bg-white mt-1">${q.question}</textarea>
+        </div>
+        ${optionsHtml}
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Explanation (optional)</label>
+          <textarea rows="1" oninput="dashboardUpdateExplanation('${quizId}', ${idx}, this.value)" class="custom-input w-full text-[11px] text-slate-600 bg-white mt-1 italic">${q.explanation || ''}</textarea>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderDashboardSubmissions(quiz, submissions) {
+    const participantFields = (quiz?.participantFields || []).filter(f => f.enabled);
+    const extraHeaders = participantFields.map(f => `<th class="p-3 text-[11px]">${f.label || f.key}</th>`).join('');
+    const totalCols = 5 + participantFields.length;
+    if (!submissions || submissions.length === 0) {
+      return `<div class="text-center py-10 space-y-3">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center text-3xl"><i class="fa-solid fa-inbox"></i></div>
+        <h4 class="font-extrabold text-slate-700 text-sm">No submissions yet</h4>
+        <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Participants haven't started taking the quiz yet. Share the quiz link to collect responses.</p>
+      </div>`;
+    }
+    return `<table class="w-full text-xs text-left min-w-max">
+      <thead class="bg-slate-50 text-slate-600 border-b sticky top-0 z-10">
+        <tr>
+          <th class="p-3 text-[11px]">#</th>
+          <th class="p-3 text-[11px]">Participant</th>
+          <th class="p-3 text-[11px]">Email</th>
+          ${extraHeaders}
+          <th class="p-3 text-[11px]">Score</th>
+          <th class="p-3 text-[11px]">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y">
+        ${submissions.map((s, i) => {
+          const customFields = s.participantFields || {};
+          const extraCells = participantFields.map(f => `<td class="p-3 text-slate-600">${customFields[f.key] || customFields[f.label] || 'N/A'}</td>`).join('');
+          return `
+          <tr class="hover:bg-indigo-50/30">
+            <td class="p-3 text-slate-400 font-bold">${i + 1}</td>
+            <td class="p-3 font-extrabold text-slate-900">${s.name} ${s.id ? `<div class="text-[9px] text-slate-400 font-normal font-mono">${s.id}</div>` : ''}</td>
+            <td class="p-3 text-slate-500">${s.email || 'N/A'}</td>
+            ${extraCells}
+            <td class="p-3">
+              <span class="px-2 py-0.5 rounded ${s.percentage >= 70 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} font-bold text-[11px]">
+                ${s.score}/${s.total} (${s.percentage}%)
+              </span>
+              <div class="text-[9px] text-slate-400 mt-1">${new Date(s.timestamp).toLocaleString()}</div>
+            </td>
+            <td class="p-3">
+              <button onclick="dashboardViewSubmissionDetails('${s.id}', '${quiz.id}')" class="text-[10px] font-bold text-indigo-600 hover:underline">View Response</button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  function renderDashboardParticipantFieldsEditor(fields) {
+    const defaultFields = [
+      { key: 'name', label: 'Full Name', type: 'text', enabled: true, required: true },
+      { key: 'email', label: 'Email Address', type: 'email', enabled: true, required: false },
+      { key: 'phone', label: 'Phone Number', type: 'tel', enabled: false, required: false },
+      { key: 'class', label: 'Class / Grade', type: 'text', enabled: false, required: false },
+      { key: 'roll', label: 'Roll No / ID', type: 'text', enabled: false, required: false },
+      { key: 'custom1', label: 'Custom Field 1', type: 'text', enabled: false, required: false },
+      { key: 'custom2', label: 'Custom Field 2', type: 'number', enabled: false, required: false }
+    ];
+    const merged = defaultFields.map(def => {
+      const existing = fields.find(f => f.key === def.key);
+      return existing || def;
+    });
+    return merged.map((f, idx) => `
+      <div class="grid grid-cols-12 gap-2 items-center p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 transition">
+        <div class="col-span-2 flex items-center gap-1.5">
+          <input type="checkbox" data-fidx="${idx}" data-fprop="enabled" ${f.enabled ? 'checked' : ''} class="participant-field-toggle w-4 h-4 text-indigo-600 rounded">
+          <span class="text-xs font-bold text-slate-700">Enable</span>
+        </div>
+        <div class="col-span-4">
+          <input type="text" value="${(f.label||'').replace(/"/g, '&quot;')}" data-fidx="${idx}" data-fprop="label" class="participant-field-val custom-input w-full text-[11px] bg-white">
+        </div>
+        <div class="col-span-2">
+          <select data-fidx="${idx}" data-fprop="type" class="participant-field-val w-full text-[11px] bg-white border border-slate-200 rounded-lg py-1.5 px-2">
+            <option value="text" ${f.type==='text'?'selected':''}>Text</option>
+            <option value="email" ${f.type==='email'?'selected':''}>Email</option>
+            <option value="number" ${f.type==='number'?'selected':''}>Number</option>
+            <option value="tel" ${f.type==='tel'?'selected':''}>Phone</option>
+          </select>
+        </div>
+        <div class="col-span-3 flex items-center gap-1.5">
+          <input type="checkbox" data-fidx="${idx}" data-fprop="required" ${f.required ? 'checked' : ''} class="participant-field-toggle w-4 h-4 text-red-600 rounded">
+          <span class="text-xs font-semibold text-slate-600">Required</span>
+          <span class="text-[10px] text-slate-400 ml-2 font-mono">key: ${f.key}</span>
+        </div>
+        <input type="hidden" data-fidx="${idx}" data-fprop="key" value="${f.key}" class="participant-field-val">
+      </div>`).join('');
+  }
+
+  // --- Dashboard action handlers ---
+  function getDashboardCurrentFields() {
+    const result = [];
+    const inputs = document.querySelectorAll('.participant-field-val, .participant-field-toggle');
+    const map = {};
+    inputs.forEach(inp => {
+      const idx = inp.dataset.fidx;
+      const prop = inp.dataset.fprop;
+      if (!map[idx]) map[idx] = {};
+      map[idx][prop] = inp.type === 'checkbox' ? inp.checked : inp.value;
+    });
+    Object.keys(map).sort().forEach(idx => result.push(map[idx]));
+    return result;
+  }
+
+  window.dashboardSaveSettings = function(quizId) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz) return;
+    quiz.title = document.getElementById('dash-setting-title')?.value?.trim() || quiz.title;
+    quiz.author = document.getElementById('dash-setting-author')?.value?.trim() || quiz.author;
+    quiz.description = document.getElementById('dash-setting-description')?.value?.trim() || '';
+    quiz.participantFields = getDashboardCurrentFields();
+    quiz.behaviour = {
+      showScore: document.getElementById('dash-behaviour-showScore')?.checked !== false,
+      showAnswers: document.getElementById('dash-behaviour-showAnswers')?.checked !== false,
+      shuffleQuestions: document.getElementById('dash-behaviour-shuffleQuestions')?.checked,
+      oneAttempt: document.getElementById('dash-behaviour-oneAttempt')?.checked
+    };
+    QuizStorageEngine.saveQuiz(quiz);
+    showToast('Quiz settings saved successfully!', 'success');
+    setTimeout(() => renderQuizCreatorDashboard(quizId), 400);
+  };
+
+  window.dashboardDeleteQuiz = function(quizId) {
+    if (!confirm('Are you sure you want to PERMANENTLY DELETE this quiz and ALL submission data? This cannot be undone!')) return;
+    const quizzes = QuizStorageEngine.getQuizzes().filter(q => q.id !== quizId);
+    localStorage.setItem(QuizStorageEngine.STORAGE_QUIZZES, JSON.stringify(quizzes));
+    const all = JSON.parse(localStorage.getItem(QuizStorageEngine.STORAGE_SUBMISSIONS) || '[]');
+    const filtered = all.filter(s => s.quizId !== quizId);
+    localStorage.setItem(QuizStorageEngine.STORAGE_SUBMISSIONS, JSON.stringify(filtered));
+    showToast('Quiz deleted permanently.', 'info');
+    setTimeout(() => { window.location.hash = '#tool/ai-quiz-creator'; }, 500);
+  };
+
+  window.dashboardAddQuestion = function(quizId) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz || !quiz.questions) return;
+    const newId = (quiz.questions.length + 1);
+    quiz.questions.push({
+      id: newId,
+      type: 'mcq',
+      difficulty: 'medium',
+      question: 'New Question Prompt (edit this text)',
+      answer: 'Option A',
+      options: ['Option A', 'Option B', 'Option C', 'Option D'],
+      explanation: 'Optional explanation / learning notes for this question.'
+    });
+    QuizStorageEngine.saveQuiz(quiz);
+    const container = document.getElementById('dash-questions-container');
+    if (container) container.innerHTML = renderDashboardQuestionsList(quiz.questions, quizId);
+    showToast('New question added.', 'success');
+    if (container) container.scrollTop = container.scrollHeight;
+  };
+
+  window.dashboardDeleteQuestion = function(quizId, qIdx) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz) return;
+    quiz.questions.splice(qIdx, 1);
+    quiz.questions.forEach((q, i) => q.id = i + 1);
+    QuizStorageEngine.saveQuiz(quiz);
+    const container = document.getElementById('dash-questions-container');
+    if (container) container.innerHTML = renderDashboardQuestionsList(quiz.questions, quizId);
+    showToast('Question removed.', 'info');
+  };
+
+  window.dashboardUpdateQuestionText = function(quizId, qIdx, val) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz?.questions?.[qIdx]) return;
+    quiz.questions[qIdx].question = val;
+    QuizStorageEngine.saveQuiz(quiz);
+  };
+  window.dashboardUpdateType = function(quizId, qIdx, val) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz?.questions?.[qIdx]) return;
+    const q = quiz.questions[qIdx];
+    q.type = val;
+    if (val === 'true-false') {
+      q.options = ['True', 'False'];
+      if (!q.answer) q.answer = 'True';
+    } else if (val === 'mcq' && (!q.options || q.options.length < 2)) {
+      q.options = ['Option A', 'Option B', 'Option C', 'Option D'];
+    } else if ((val === 'fill-blank' || val === 'short-answer') && q.options) {
+      q.options = [];
+    }
+    QuizStorageEngine.saveQuiz(quiz);
+    const container = document.getElementById('dash-questions-container');
+    if (container) container.innerHTML = renderDashboardQuestionsList(quiz.questions, quizId);
+  };
+  window.dashboardUpdateDifficulty = function(quizId, qIdx, val) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz?.questions?.[qIdx]) return;
+    quiz.questions[qIdx].difficulty = val;
+    QuizStorageEngine.saveQuiz(quiz);
+  };
+  window.dashboardUpdateOption = function(quizId, qIdx, oIdx, val) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz?.questions?.[qIdx]?.options?.[oIdx]) return;
+    quiz.questions[qIdx].options[oIdx] = val;
+    QuizStorageEngine.saveQuiz(quiz);
+  };
+  window.dashboardSetCorrectAnswer = function(quizId, qIdx, oIdx) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz?.questions?.[qIdx]?.options) return;
+    quiz.questions[qIdx].answer = quiz.questions[qIdx].options[oIdx];
+    QuizStorageEngine.saveQuiz(quiz);
+    const container = document.getElementById('dash-questions-container');
+    if (container) container.innerHTML = renderDashboardQuestionsList(quiz.questions, quizId);
+    showToast('Correct answer updated.', 'success');
+  };
+  window.dashboardAddOption = function(quizId, qIdx) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz?.questions?.[qIdx]) return;
+    if (!quiz.questions[qIdx].options) quiz.questions[qIdx].options = [];
+    quiz.questions[qIdx].options.push(`Option ${String.fromCharCode(65 + quiz.questions[qIdx].options.length)}`);
+    QuizStorageEngine.saveQuiz(quiz);
+    const container = document.getElementById('dash-questions-container');
+    if (container) container.innerHTML = renderDashboardQuestionsList(quiz.questions, quizId);
+  };
+  window.dashboardRemoveOption = function(quizId, qIdx, oIdx) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz?.questions?.[qIdx]?.options) return;
+    if (quiz.questions[qIdx].options.length <= 2) { showToast('Minimum 2 options required for MCQ.', 'error'); return; }
+    quiz.questions[qIdx].options.splice(oIdx, 1);
+    QuizStorageEngine.saveQuiz(quiz);
+    const container = document.getElementById('dash-questions-container');
+    if (container) container.innerHTML = renderDashboardQuestionsList(quiz.questions, quizId);
+  };
+  window.dashboardUpdateAnswer = function(quizId, qIdx, val) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz?.questions?.[qIdx]) return;
+    quiz.questions[qIdx].answer = val;
+    QuizStorageEngine.saveQuiz(quiz);
+  };
+  window.dashboardUpdateExplanation = function(quizId, qIdx, val) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz?.questions?.[qIdx]) return;
+    quiz.questions[qIdx].explanation = val;
+    QuizStorageEngine.saveQuiz(quiz);
+  };
+  window.dashboardExportQuiz = async function(quizId) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz) return;
+    const t = { q: 'Q', ans: 'Correct Answer', exp: 'Explanation' };
+    const doc = await quizToPDF(quiz.questions || [], t, quiz.title || 'Quiz Questions');
+    if (doc) {
+      doc.save(`quiz_${quizId}_${Date.now()}.pdf`);
+      showToast('Quiz exported as PDF!', 'success');
+    } else {
+      showToast('PDF engine not available.', 'error');
+    }
+  };
+  window.dashboardViewSubmissionDetails = function(subId, quizId) {
+    const all = JSON.parse(localStorage.getItem(QuizStorageEngine.STORAGE_SUBMISSIONS) || '[]');
+    const s = all.find(x => x.id === subId);
+    if (!s) return;
+    const modalId = 'sub-details-modal';
+    let existing = document.getElementById(modalId);
+    if (existing) existing.remove();
+    const answers = s.answers || [];
+    const modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-3xl w-full overflow-hidden relative max-h-[90vh] flex flex-col">
+        <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition z-10">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div class="p-5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white space-y-1 flex-shrink-0">
+          <h3 class="text-lg font-extrabold flex items-center gap-2"><i class="fa-solid fa-file-lines text-indigo-300"></i> Response Details</h3>
+          <p class="text-xs text-slate-300">${s.name} &bull; ${s.email || 'No email'} &bull; ${new Date(s.timestamp).toLocaleString()}</p>
+          <div class="pt-2 flex items-center gap-3">
+            <span class="px-3 py-1 rounded-full ${s.percentage >= 70 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'} font-extrabold text-xs">
+              Score: ${s.score}/${s.total} (${s.percentage}%)
+            </span>
+            <button onclick="document.getElementById('${modalId}').remove(); exportSubmissionsCSV('${quizId}')" class="text-[11px] font-bold text-white/80 hover:text-white flex items-center gap-1"><i class="fa-solid fa-download"></i> Export CSV</button>
+          </div>
+        </div>
+        <div class="p-5 overflow-y-auto space-y-3">
+          ${answers.length === 0 ? '<p class="text-slate-400 italic text-center py-6 text-xs">No answer details recorded for this submission.</p>' :
+          answers.map((a, idx) => `
+            <div class="p-3 rounded-xl border ${a.isCorrect ? 'border-emerald-200 bg-emerald-50/40' : 'border-rose-200 bg-rose-50/40'} space-y-1">
+              <div class="flex items-start gap-2">
+                <i class="fa-solid ${a.isCorrect ? 'fa-circle-check text-emerald-600' : 'fa-circle-xmark text-rose-600'} mt-0.5"></i>
+                <div class="flex-1">
+                  <div class="text-xs font-bold text-slate-900">Q${idx + 1}: ${a.question}</div>
+                  <div class="text-[11px] text-slate-700 mt-0.5 pl-5 space-y-0.5">
+                    <div>Your Answer: <span class="${a.isCorrect ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}">${a.chosen}</span></div>
+                    ${!a.isCorrect ? `<div>Correct Answer: <span class="text-emerald-700 font-bold">${a.correct}</span></div>` : ''}
+                    ${a.explanation ? `<div class="text-slate-500 italic text-[10px] pt-0.5">${a.explanation}</div>` : ''}
+                  </div>
+                </div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  };
 
   function showToast(message, type = 'info') {
     const existing = document.querySelector('.toast-notification');

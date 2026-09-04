@@ -6,6 +6,7 @@ class AdminPanelEngine {
   static STORAGE_ADMIN_SESSION = 'studiosuite_admin_session';
   static STORAGE_ADMIN_PASSCODE = 'studiosuite_admin_passcode';
   static STORAGE_FOOTER_CONTACT = 'studiosuite_footer_contact';
+  static STORAGE_FEATURES = 'studiosuite_enabled_features';
 
   static getPasscode() {
     return localStorage.getItem(this.STORAGE_ADMIN_PASSCODE) || 'admin123';
@@ -29,6 +30,54 @@ class AdminPanelEngine {
 
   static adminLogout() {
     localStorage.removeItem(this.STORAGE_ADMIN_SESSION);
+  }
+
+  /**
+   * Feature / Tool Enable-Disable Management
+   * Default: ALL tools disabled
+   */
+  static getAllToolIds() {
+    if (window.TOOLS && Array.isArray(window.TOOLS)) {
+      return window.TOOLS.map(t => t.id);
+    }
+    return [];
+  }
+
+  static getEnabledFeatures() {
+    let stored = localStorage.getItem(this.STORAGE_FEATURES);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    localStorage.setItem(this.STORAGE_FEATURES, JSON.stringify([]));
+    return [];
+  }
+
+  static isFeatureEnabled(toolId) {
+    const enabled = this.getEnabledFeatures();
+    return enabled.includes(toolId);
+  }
+
+  static setFeatureEnabled(toolId, enabled) {
+    const current = this.getEnabledFeatures();
+    const idx = current.indexOf(toolId);
+    if (enabled && idx === -1) current.push(toolId);
+    if (!enabled && idx !== -1) current.splice(idx, 1);
+    localStorage.setItem(this.STORAGE_FEATURES, JSON.stringify(current));
+    return current;
+  }
+
+  static enableAllFeatures() {
+    const all = this.getAllToolIds();
+    localStorage.setItem(this.STORAGE_FEATURES, JSON.stringify(all));
+    return all;
+  }
+
+  static disableAllFeatures() {
+    localStorage.setItem(this.STORAGE_FEATURES, JSON.stringify([]));
+    return [];
   }
 
   /**
@@ -300,8 +349,38 @@ function renderFullAdminPage() {
 
         </div>
 
-        <!-- Right Column (4 Cols): Plans & Supabase -->
+        <!-- Right Column (4 Cols): Features, Plans & Supabase -->
         <div class="lg:col-span-4 space-y-6">
+
+          <!-- Feature Enable / Disable Management -->
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 class="font-extrabold text-base text-slate-900 uppercase flex items-center gap-2">
+                <i class="fa-solid fa-toggle-on text-indigo-600"></i> Feature Visibility
+              </h3>
+              <span class="text-[10px] bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full font-extrabold">
+                Default: All Disabled
+              </span>
+            </div>
+
+            <div class="flex gap-2 flex-wrap">
+              <button onclick="adminEnableAllFeatures()" class="flex-1 text-xs py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition">
+                <i class="fa-solid fa-check-double"></i> Enable All
+              </button>
+              <button onclick="adminDisableAllFeatures()" class="flex-1 text-xs py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold transition">
+                <i class="fa-solid fa-ban"></i> Disable All
+              </button>
+            </div>
+
+            <div class="text-[11px] text-slate-500 font-semibold bg-indigo-50 p-2 rounded-lg border border-indigo-100">
+              <i class="fa-solid fa-circle-info text-indigo-600 mr-1"></i>
+              Enabled tools are visible to users on the main website. Toggle each tool below.
+            </div>
+
+            <div id="admin-feature-list" class="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
+              ${renderAdminFeatureList()}
+            </div>
+          </div>
           
           <!-- Plans CRUD -->
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -441,5 +520,94 @@ window.changeAdminUserPlan = function(userId) {
       alert(err.message || 'Failed to assign plan');
     }
   }
+};
+
+function renderAdminFeatureList() {
+  const tools = window.TOOLS || [];
+  if (!tools || tools.length === 0) {
+    return `<p class="text-xs text-slate-400 italic text-center py-4">Loading tools list...</p>`;
+  }
+
+  const categories = {};
+  tools.forEach(t => {
+    if (!categories[t.category]) categories[t.category] = [];
+    categories[t.category].push(t);
+  });
+
+  const catLabels = {
+    'pdf-core': 'Core PDF',
+    'pdf-convert': 'Conversions',
+    'image-tools': 'Image & Raster',
+    'design-prepress': 'Vector & Design',
+    'print-packaging': 'Prepress & Packaging',
+    'video-motion': 'Video & Motion',
+    'fonts-typography': 'Typography & Fonts',
+    'developer-tools': 'Web & Developer',
+    'cad-blueprints': 'CAD & Architectural',
+    'legal-medical': 'Legal & Medical',
+    'publishing-ebooks': 'E-Books & Publishing',
+    'threed-motion': '3D & Motion Assets',
+    'security-ai-data': 'Security & AI'
+  };
+
+  let html = '';
+  Object.keys(categories).forEach(cat => {
+    html += `<div class="mt-3 first:mt-0">
+      <div class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1 px-1">${catLabels[cat] || cat}</div>`;
+    categories[cat].forEach(tool => {
+      const isEnabled = AdminPanelEngine.isFeatureEnabled(tool.id);
+      html += `<label class="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition border border-transparent hover:border-slate-200">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-7 h-7 rounded-lg bg-gradient-to-r ${tool.color} text-white flex items-center justify-center text-[10px] shadow-sm flex-shrink-0">
+            <i class="fa-solid ${tool.icon}"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="text-[11px] font-bold text-slate-800 truncate">${tool.name}</div>
+          </div>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+          <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="adminToggleFeature('${tool.id}', this.checked)" class="sr-only peer">
+          <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+        </label>
+      </label>`;
+    });
+    html += `</div>`;
+  });
+
+  const enabledCount = AdminPanelEngine.getEnabledFeatures().length;
+  const totalCount = tools.length;
+  html = `<div class="text-[11px] font-bold text-slate-600 mb-2 px-1 flex justify-between">
+    <span><i class="fa-solid fa-sliders text-indigo-600"></i> ${enabledCount} / ${totalCount} tools enabled</span>
+  </div>` + html;
+
+  return html;
+}
+
+window.adminToggleFeature = function(toolId, enabled) {
+  AdminPanelEngine.setFeatureEnabled(toolId, enabled);
+  const list = document.getElementById('admin-feature-list');
+  if (list) list.innerHTML = renderAdminFeatureList();
+  window.dispatchEvent(new CustomEvent('featuresUpdated'));
+  if (window.renderTools && typeof window.renderTools === 'function') {
+    window.renderTools();
+  }
+};
+
+window.adminEnableAllFeatures = function() {
+  AdminPanelEngine.enableAllFeatures();
+  const list = document.getElementById('admin-feature-list');
+  if (list) list.innerHTML = renderAdminFeatureList();
+  window.dispatchEvent(new CustomEvent('featuresUpdated'));
+  if (window.showToast) window.showToast('All tools enabled successfully!', 'success');
+  if (window.renderTools && typeof window.renderTools === 'function') window.renderTools();
+};
+
+window.adminDisableAllFeatures = function() {
+  AdminPanelEngine.disableAllFeatures();
+  const list = document.getElementById('admin-feature-list');
+  if (list) list.innerHTML = renderAdminFeatureList();
+  window.dispatchEvent(new CustomEvent('featuresUpdated'));
+  if (window.showToast) window.showToast('All tools disabled (hidden from users).', 'info');
+  if (window.renderTools && typeof window.renderTools === 'function') window.renderTools();
 };
 
