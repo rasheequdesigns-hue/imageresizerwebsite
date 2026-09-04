@@ -872,6 +872,24 @@ document.addEventListener('DOMContentLoaded', () => {
     switch (tool.uiType) {
       case TOOL_UI_TYPES.PDF_PAGE_ORGANIZER:
         return `<div id="pdf-page-cards-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[480px] overflow-y-auto p-1"></div>`;
+      case TOOL_UI_TYPES.CONVERTER_SIMPLE:
+        return `
+          <div class="space-y-4">
+            <div id="converter-file-info" class="hidden"></div>
+            <div class="p-5 bg-gradient-to-br from-slate-50 to-indigo-50/50 rounded-xl border border-slate-200 text-center space-y-3">
+              <div class="w-14 h-14 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-2xl mx-auto shadow-inner">
+                <i class="fa-solid ${tool.icon || 'fa-right-left'}"></i>
+              </div>
+              <div>
+                <h4 class="text-sm font-extrabold text-slate-900">${tool.name}</h4>
+                <p class="text-xs text-slate-500 max-w-xs mx-auto mt-1">${tool.description}</p>
+              </div>
+              <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-600 shadow-xs">
+                <i class="fa-solid fa-circle-info text-indigo-500"></i>
+                Upload a file above, then click the process button to convert.
+              </div>
+            </div>
+          </div>`;
       case TOOL_UI_TYPES.OCR_TRANSLATE:
         return `
           <div class="space-y-3">
@@ -933,6 +951,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const countBadge = document.getElementById('studio-item-count-badge');
     if (countBadge) countBadge.textContent = `${state.files.length} File${state.files.length > 1 ? 's' : ''}`;
 
+    const fin = document.getElementById('file-info-name');
+    if (fin) {
+      fin.textContent = file.name;
+      const fs = document.getElementById('file-info-size');
+      if (fs) fs.textContent = (typeof formatFileSize === 'function') ? formatFileSize(file.size) : `${Math.round(file.size/1024)} KB`;
+      const fd = document.getElementById('file-info-date');
+      if (fd) fd.textContent = new Date(file.lastModified).toLocaleDateString();
+    }
+
     // Tool-specific initialization
     if (tool.id === 'pdf-merger') {
       renderMergerFileList();
@@ -990,6 +1017,25 @@ document.addEventListener('DOMContentLoaded', () => {
       runXlsxToPdfPreview(file);
     } else if (tool.id === 'pptx-to-pdf') {
       initPptxToPdfView(file);
+    } else if (tool.uiType === TOOL_UI_TYPES.CONVERTER_SIMPLE || tool.id === 'pdf-to-docx' || tool.id === 'docx-to-pdf') {
+      // Converter tools — just show file info, work area already visible, ready to process
+      const convInfoEl = document.getElementById('converter-file-info');
+      if (convInfoEl) {
+        convInfoEl.innerHTML = `<div class="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+          <i class="fa-solid fa-file text-indigo-600 text-2xl flex-shrink-0"></i>
+          <div class="min-w-0">
+            <p class="font-extrabold text-sm text-slate-900 truncate">${file.name}</p>
+            <p class="text-xs text-slate-500">${formatFileSize(file.size)} · Ready to convert</p>
+          </div>
+          <span class="ml-auto text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex-shrink-0">
+            <i class="fa-solid fa-check mr-1"></i>File loaded
+          </span>
+        </div>`;
+        convInfoEl.classList.remove('hidden');
+      }
+      if (tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR || tool.uiType === TOOL_UI_TYPES.OCR_TRANSLATE) {
+        try { await extractPdfTextForQuizOrAI(file); } catch(e) {}
+      }
     } else if (file.type.startsWith('image/')) {
       renderImagePreview(file);
       if (tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR) {
@@ -2143,327 +2189,424 @@ document.addEventListener('DOMContentLoaded', () => {
       const isText = tool.uiType === TOOL_UI_TYPES.TEXT_INPUT;
       if (!isText && state.files.length === 0) { showToast('Please upload a file first.', 'error'); return; }
 
-      const statusMsg = document.getElementById('studio-processing-status');
-      const statusText = document.getElementById('processing-status-text');
-      if (statusMsg) statusMsg.classList.remove('hidden');
-      if (statusText) statusText.textContent = getProcessButtonText(tool).replace('&', 'and') + '...';
+      // ── Loading overlay (full workspace) ──────────────────────────────────
+      let overlay = document.getElementById('studio-loading-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'studio-loading-overlay';
+        overlay.className = 'fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-5 bg-slate-950/75 backdrop-blur-sm';
+        overlay.innerHTML = `
+          <div class="bg-white rounded-3xl p-8 shadow-2xl border border-slate-200 flex flex-col items-center gap-4 max-w-sm w-full mx-4 animate-fade-in">
+            <div class="relative w-16 h-16">
+              <div class="absolute inset-0 rounded-full border-4 border-indigo-100"></div>
+              <div class="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <i class="fa-solid fa-wand-magic-sparkles text-indigo-600 text-xl"></i>
+              </div>
+            </div>
+            <div class="text-center">
+              <h4 class="font-extrabold text-slate-900 text-sm mb-1" id="overlay-title">Processing…</h4>
+              <p id="overlay-status" class="text-xs text-slate-500 min-h-[1.5rem]">Please wait, this may take a moment</p>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+              <div id="overlay-progress-bar" class="h-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300 animate-pulse" style="width: 15%"></div>
+            </div>
+            <p class="text-[10px] text-slate-400 text-center">Your file never leaves your device — 100% in-browser processing</p>
+          </div>`;
+        document.body.appendChild(overlay);
+      }
+      const overlayTitle  = document.getElementById('overlay-title');
+      const overlayStatus = document.getElementById('overlay-status');
+      const overlayBar    = document.getElementById('overlay-progress-bar');
+
+      function setOverlayProgress(pct, msg) {
+        if (overlayBar) overlayBar.style.width = `${Math.min(99, Math.max(5, pct))}%`;
+        if (msg && overlayStatus) overlayStatus.textContent = msg;
+      }
+
+      if (overlayTitle) overlayTitle.textContent = getProcessButtonText(tool).replace(/&amp;/g, '&');
+      overlay.classList.remove('hidden');
+      setOverlayProgress(15, 'Initialising…');
+
+      // ── Button state ──────────────────────────────────────────────────────
+      const originalBtnHTML = btn.innerHTML;
+      btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i><span>Processing…</span>`;
+      btn.classList.add('opacity-75', 'cursor-not-allowed');
       btn.disabled = true;
+
+      const statusMsg  = document.getElementById('studio-processing-status');
+      const statusText = document.getElementById('processing-status-text');
+      if (statusMsg)  statusMsg.classList.remove('hidden');
+      if (statusText) statusText.textContent = getProcessButtonText(tool).replace('&', 'and') + '...';
+
+      // Yield to let UI paint spinner before heavy work
+      await new Promise(r => setTimeout(r, 80));
 
       try {
         let resultBlob = null, filename = `export_${Date.now()}`;
 
-        // --- 1. PDF MERGER ---
+        // ── 1. PDF MERGER ─────────────────────────────────────────────────
         if (tool.id === 'pdf-merger') {
           if (state.files.length < 1) throw new Error('Please upload at least one PDF to merge.');
+          setOverlayProgress(20, `Merging ${state.files.length} PDF file(s)…`);
           const orientation = document.getElementById('ctrl-merge-orientation')?.value || 'auto';
-          const customName = document.getElementById('ctrl-merge-filename')?.value?.trim() || 'merged_document.pdf';
+          const customName  = document.getElementById('ctrl-merge-filename')?.value?.trim() || 'merged_document';
           const mergedBytes = await PDFEngine.mergePDFs(state.files, { orientation });
+          setOverlayProgress(95, 'Finalising document…');
           resultBlob = new Blob([mergedBytes], { type: 'application/pdf' });
-          filename = customName.endsWith('.pdf') ? customName : `${customName}.pdf`;
-          showToast('PDFs merged and normalized successfully!', 'success');
+          filename   = customName.endsWith('.pdf') ? customName : `${customName}.pdf`;
+          showToast('PDFs merged successfully!', 'success');
         }
-        // --- 2. PDF SPLITTER ---
+        // ── 2. PDF SPLITTER ───────────────────────────────────────────────
         else if (tool.id === 'pdf-splitter') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          const mode = document.getElementById('ctrl-split-mode')?.value || 'ranges';
-          const ranges = document.getElementById('ctrl-page-range')?.value || '1';
-          const splitRes = await PDFEngine.splitPDF(await state.files[0].arrayBuffer(), { mode, ranges });
-          if (splitRes.type === 'zip') {
-            resultBlob = splitRes.blob;
-            filename = splitRes.filename || 'split_pages.zip';
+          setOverlayProgress(20, 'Parsing page ranges…');
+          const mode      = document.getElementById('splitter-mode-select')?.value || document.getElementById('ctrl-split-mode')?.value || 'ranges';
+          const rangeStr  = document.getElementById('splitter-range-input')?.value || document.getElementById('ctrl-page-range')?.value || '1';
+          const splitRes  = await PDFEngine.splitPDF(await state.files[0].arrayBuffer(), { mode, rangeStr });
+          setOverlayProgress(90, 'Packaging output…');
+          if (splitRes.isZip) {
+            resultBlob = splitRes.zipBlob;
+            filename   = splitRes.filename || 'split_pages.zip';
           } else {
-            resultBlob = new Blob([splitRes.data], { type: 'application/pdf' });
-            filename = splitRes.filename || 'split_document.pdf';
+            resultBlob = new Blob([splitRes.pdfBytes], { type: 'application/pdf' });
+            filename   = splitRes.filename || 'split_document.pdf';
           }
           showToast('PDF split successfully!', 'success');
         }
-        // --- 3. PDF UN-MERGER ---
+        // ── 3. PDF UN-MERGER ──────────────────────────────────────────────
         else if (tool.id === 'pdf-unmerger') {
           if (!state.files[0]) throw new Error('Please upload a merged PDF file.');
+          setOverlayProgress(20, 'Analysing document structure…');
           if (!state.detectedSubDocs || state.detectedSubDocs.length === 0) {
             state.detectedSubDocs = await PDFEngine.unmergePDF(await state.files[0].arrayBuffer());
           }
+          setOverlayProgress(60, `Extracting ${state.detectedSubDocs.length} sub-documents…`);
           const unmergeRes = await PDFEngine.exportUnmergedSubDocs(await state.files[0].arrayBuffer(), state.detectedSubDocs);
-          resultBlob = unmergeRes.blob;
+          setOverlayProgress(95, 'Packaging archive…');
+          if (unmergeRes.isZip) {
+            resultBlob = unmergeRes.zipBlob;
+          } else {
+            resultBlob = new Blob([unmergeRes.pdfBytes], { type: 'application/pdf' });
+          }
           filename = unmergeRes.filename;
-          showToast(`Extracted ${state.detectedSubDocs.length} individual constituent sub-documents!`, 'success');
+          showToast(`Extracted ${state.detectedSubDocs.length} sub-document(s)!`, 'success');
         }
-        // --- 4. PDF PAGE RE-ORDERER ---
+        // ── 4. PDF PAGE RE-ORDERER ────────────────────────────────────────
         else if (tool.id === 'pdf-page-reorder') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          setOverlayProgress(30, 'Reordering pages…');
           const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
+          setOverlayProgress(95, 'Saving document…');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
-          filename = 'reordered_document.pdf';
-          showToast('PDF pages organized and saved successfully!', 'success');
+          filename   = 'reordered_document.pdf';
+          showToast('PDF pages reordered successfully!', 'success');
         }
-        // --- 5. PDF PAGE DELETER ---
+        // ── 5. PDF PAGE DELETER ───────────────────────────────────────────
         else if (tool.id === 'pdf-page-deleter') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          if (state.selectedDeletePages.size === 0) throw new Error('Please select at least one page to delete.');
-          if (state.selectedDeletePages.size >= state.pdfPageCards.length) throw new Error('Cannot delete all pages in the PDF.');
+          if (state.selectedDeletePages.size === 0) throw new Error('Select at least one page to delete.');
+          if (state.selectedDeletePages.size >= state.pdfPageCards.length) throw new Error('Cannot delete all pages in the document.');
+          setOverlayProgress(30, `Removing ${state.selectedDeletePages.size} page(s)…`);
           const pagesToDelete = Array.from(state.selectedDeletePages);
           const bytes = await PDFEngine.deletePages(await state.files[0].arrayBuffer(), pagesToDelete);
+          setOverlayProgress(95, 'Saving document…');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
-          filename = 'pages_deleted.pdf';
-          showToast(`Deleted ${pagesToDelete.length} pages successfully!`, 'success');
+          filename   = 'pages_deleted.pdf';
+          showToast(`Deleted ${pagesToDelete.length} page(s) successfully!`, 'success');
         }
-        // --- 6. PDF CROP TOOL ---
+        // ── 6. PDF CROP TOOL ──────────────────────────────────────────────
         else if (tool.id === 'pdf-crop-tool') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          const top = parseFloat(document.getElementById('crop-input-top')?.value || 0);
-          const right = parseFloat(document.getElementById('crop-input-right')?.value || 0);
+          setOverlayProgress(30, 'Applying crop geometry…');
+          const top    = parseFloat(document.getElementById('crop-input-top')?.value    || 0);
+          const right  = parseFloat(document.getElementById('crop-input-right')?.value  || 0);
           const bottom = parseFloat(document.getElementById('crop-input-bottom')?.value || 0);
-          const left = parseFloat(document.getElementById('crop-input-left')?.value || 0);
-          const unit = document.getElementById('crop-unit-select')?.value || 'px';
-          const scope = document.querySelector('input[name="crop-scope"]:checked')?.value || 'all';
+          const left   = parseFloat(document.getElementById('crop-input-left')?.value   || 0);
+          const unit      = document.getElementById('crop-unit-select')?.value || 'px';
+          const scope     = document.querySelector('input[name="crop-scope-radio"]:checked')?.value || document.querySelector('input[name="crop-scope"]:checked')?.value || 'all';
           const pageRange = document.getElementById('crop-custom-range')?.value || '';
-
           const bytes = await PDFEngine.cropPDF(
             await state.files[0].arrayBuffer(),
-            { top, right, bottom, left, unit, canvasW: state.cropState.origW || 420, canvasH: state.cropState.origH || 594 },
+            { top, right, bottom, left, unit, canvasW: state.cropState?.origW || 420, canvasH: state.cropState?.origH || 594 },
             { scope, pageRange, activePageIndex: 0 }
           );
+          setOverlayProgress(95, 'Saving cropped PDF…');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
-          filename = 'cropped_document.pdf';
-          showToast('Applied PDF crop geometry successfully!', 'success');
+          filename   = 'cropped_document.pdf';
+          showToast('Crop applied successfully!', 'success');
         }
-        // --- 7. SMART PDF COMPRESSOR ---
+        // ── 7. SMART PDF COMPRESSOR ───────────────────────────────────────
         else if (tool.id === 'pdf-compressor-smart') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          const preset = document.getElementById('compress-preset-select')?.value || document.getElementById('ctrl-compression-level')?.value || 'medium';
+          const preset = document.getElementById('smart-compress-preset')?.value || document.getElementById('ctrl-compression-level')?.value || 'medium';
+          setOverlayProgress(10, 'Starting smart compression…');
           const compRes = await PDFEngine.compressPDF(await state.files[0].arrayBuffer(), preset, (pct) => {
-            if (statusText) statusText.textContent = `Optimizing PDF streams (${pct}%)...`;
+            setOverlayProgress(10 + pct * 0.85, `Optimising page ${Math.ceil(pct / (100 / (state.pdfPageCards.length || 1)))} — ${pct}% done…`);
           });
+          setOverlayProgress(98, 'Finalising…');
           resultBlob = new Blob([compRes.bytes], { type: 'application/pdf' });
-          filename = 'compressed_smart.pdf';
-
+          filename   = 'compressed_smart.pdf';
           const metEl = document.getElementById('compress-metric-result');
           if (metEl) {
             metEl.classList.remove('hidden');
-            metEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i>Compressed from <b>${formatFileSize(compRes.originalSize)}</b> to <b>${formatFileSize(compRes.compressedSize)}</b> (Saved <b>${compRes.percentSaved}%</b> / ${formatFileSize(compRes.savedBytes)})`;
+            metEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i>Compressed <b>${formatFileSize(compRes.originalSize)}</b> → <b>${formatFileSize(compRes.compressedSize)}</b> <span class="text-emerald-700 font-black">(${compRes.percentSaved}% saved)</span>`;
           }
-          showToast(`Compressed successfully! Saved ${compRes.percentSaved}%`, 'success');
+          showToast(`Compressed! Saved ${compRes.percentSaved}%`, 'success');
         }
-        // --- 8. LOSSLESS PDF SHRINKER ---
+        // ── 8. LOSSLESS PDF SHRINKER ──────────────────────────────────────
         else if (tool.id === 'lossless-pdf-shrinker') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          setOverlayProgress(30, 'Stripping metadata & unreferenced objects…');
           const shrinkRes = await PDFEngine.shrinkPDFLossless(await state.files[0].arrayBuffer());
+          setOverlayProgress(95, 'Saving…');
           resultBlob = new Blob([shrinkRes.bytes], { type: 'application/pdf' });
-          filename = 'lossless_shrink.pdf';
-
+          filename   = 'lossless_shrink.pdf';
           const metEl = document.getElementById('lossless-metric-result');
           if (metEl) {
             metEl.classList.remove('hidden');
-            metEl.innerHTML = `<i class="fa-solid fa-shield-check text-teal-600 mr-2"></i>Lossless Stripping Complete: <b>${formatFileSize(shrinkRes.originalSize)}</b> → <b>${formatFileSize(shrinkRes.compressedSize)}</b> (Saved <b>${shrinkRes.percentSaved}%</b> with 100% visual fidelity preserved)`;
+            metEl.innerHTML = `<i class="fa-solid fa-shield-check text-teal-600 mr-2"></i>Lossless: <b>${formatFileSize(shrinkRes.originalSize)}</b> → <b>${formatFileSize(shrinkRes.compressedSize)}</b> <span class="text-emerald-700 font-black">(${shrinkRes.percentSaved}% saved — 100% fidelity)</span>`;
           }
-          showToast('Lossless metadata and stream optimization complete!', 'success');
+          showToast('Lossless shrink complete!', 'success');
         }
-        // --- 9. PDF TARGET SIZE SHRINKER ---
+        // ── 9. PDF TARGET SIZE SHRINKER ───────────────────────────────────
         else if (tool.id === 'pdf-target-shrinker') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          let targetVal = parseFloat(document.getElementById('target-size-kb-input')?.value || document.getElementById('ctrl-target-size')?.value || 1000);
-          const unit = document.getElementById('ctrl-target-unit')?.value || 'KB';
-          if (unit === 'MB' && targetVal < 500) targetVal = targetVal * 1024;
-          const targetBytes = targetVal * 1024;
-
-          const targetRes = await PDFEngine.shrinkPDFTargetSize(await state.files[0].arrayBuffer(), targetBytes, (status) => {
-            if (statusText) statusText.textContent = status;
+          let targetVal = parseFloat(document.getElementById('target-size-number')?.value || document.getElementById('target-size-kb-input')?.value || document.getElementById('ctrl-target-size')?.value || 2);
+          const targetUnitEl = document.getElementById('target-size-unit') || document.getElementById('ctrl-target-unit');
+          const targetUnit   = targetUnitEl?.value || 'MB';
+          const targetBytes  = targetUnit === 'MB' ? targetVal * 1024 * 1024 : targetVal * 1024;
+          setOverlayProgress(5, `Target: ${targetVal} ${targetUnit} — starting iterative compression…`);
+          const targetRes = await PDFEngine.shrinkPDFTargetSize(await state.files[0].arrayBuffer(), targetBytes, (statusStr) => {
+            setOverlayProgress(30, statusStr);
           });
+          setOverlayProgress(98, 'Finalising…');
           resultBlob = new Blob([targetRes.bytes], { type: 'application/pdf' });
-          filename = `shrunk_under_${Math.round(targetVal)}kb.pdf`;
-
+          filename   = `shrunk_${targetVal}${targetUnit.toLowerCase()}.pdf`;
           const feedEl = document.getElementById('target-shrinker-feedback');
           if (feedEl) {
             feedEl.classList.remove('hidden');
             feedEl.innerHTML = targetRes.hitTarget
-              ? `<div class="p-3 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 font-bold text-xs"><i class="fa-solid fa-check-circle mr-1.5 text-emerald-600"></i>Success! Compressed to ${formatFileSize(targetRes.finalSize)} (Target limit was ${formatFileSize(targetBytes)}).</div>`
-              : `<div class="p-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 font-bold text-xs"><i class="fa-solid fa-triangle-exclamation mr-1.5 text-amber-600"></i>Smallest Legible Boundary Reached (${formatFileSize(targetRes.finalSize)}). Further downsampling would destroy document legibility.</div>`;
+              ? `<div class="p-3 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 font-bold text-xs flex items-center gap-2"><i class="fa-solid fa-check-circle text-emerald-600"></i>Target met! Compressed to <b>${formatFileSize(targetRes.finalSize)}</b></div>`
+              : `<div class="p-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 font-bold text-xs flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-amber-500"></i>Best achievable: <b>${formatFileSize(targetRes.finalSize)}</b> — target could not be strictly met.</div>`;
           }
-          showToast('Target size downsampling finished!', 'success');
+          showToast('Target compression finished!', 'success');
         }
-        // --- 10. PDF TO EXCEL (XLSX) ---
+        // ── 10. PDF TO EXCEL (XLSX) ───────────────────────────────────────
         else if (tool.id === 'pdf-to-xlsx') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          setOverlayProgress(20, 'Extracting text and table structures…');
           const xlsxRes = await PDFEngine.pdfToExcel(await state.files[0].arrayBuffer());
+          setOverlayProgress(95, 'Building workbook…');
           resultBlob = xlsxRes.blob;
-          filename = xlsxRes.filename;
-          showToast('Tables detected and compiled to Excel workbook (.xlsx)!', 'success');
+          filename   = xlsxRes.filename;
+          showToast('Tables extracted to Excel (.xlsx)!', 'success');
         }
-        // --- 11. EXCEL (XLSX) TO PDF ---
+        // ── 11. EXCEL (XLSX) TO PDF ───────────────────────────────────────
         else if (tool.id === 'xlsx-to-pdf') {
-          if (!state.files[0]) throw new Error('Please upload an Excel spreadsheet.');
-          const orientation = document.querySelector('input[name="orientation"]:checked')?.value || 'portrait';
-          const paper = document.getElementById('ctrl-paper-size')?.value || 'A4';
+          if (!state.files[0]) throw new Error('Please upload an Excel or CSV spreadsheet.');
+          setOverlayProgress(25, 'Parsing spreadsheet…');
+          const orientation = document.getElementById('xlsx-paper-orientation')?.value || document.querySelector('input[name="orientation"]:checked')?.value || 'portrait';
+          const paper       = document.getElementById('xlsx-paper-size')?.value || document.getElementById('ctrl-paper-size')?.value || 'A4';
           const pdfRes = await PDFEngine.excelToPDF(state.files[0], { orientation, paperSize: paper });
+          setOverlayProgress(95, 'Rendering PDF…');
           resultBlob = pdfRes.blob;
-          filename = pdfRes.filename;
-          showToast('Spreadsheet converted to formatted PDF document!', 'success');
+          filename   = pdfRes.filename;
+          showToast('Spreadsheet converted to PDF!', 'success');
         }
-        // --- 12. PDF TO POWERPOINT (PPTX) ---
+        // ── 12. PDF TO POWERPOINT (PPTX) ──────────────────────────────────
         else if (tool.id === 'pdf-to-pptx') {
-          if (!state.files[0]) throw new Error('Please upload a PDF presentation.');
-          const pptxRes = await PDFEngine.pdfToPPTX(await state.files[0].arrayBuffer(), (pct) => {
-            if (statusText) statusText.textContent = `Converting slides (${pct}%)...`;
+          if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          setOverlayProgress(5, 'Rendering PDF pages as slides…');
+          const pptxRes = await PDFEngine.pdfToPPTX(await state.files[0].arrayBuffer(), (msg) => {
+            setOverlayProgress(10, msg);
           });
+          setOverlayProgress(98, 'Finalising presentation…');
           resultBlob = pptxRes.blob;
-          filename = pptxRes.filename;
-          showToast('PDF pages converted to PowerPoint presentation (.pptx)!', 'success');
+          filename   = pptxRes.filename;
+          showToast('PDF converted to PowerPoint (.pptx)!', 'success');
         }
-        // --- 13. POWERPOINT (PPTX) TO PDF ---
+        // ── 13. POWERPOINT (PPTX) TO PDF ──────────────────────────────────
         else if (tool.id === 'pptx-to-pdf') {
-          if (!state.files[0]) throw new Error('Please upload a PowerPoint (.pptx) file.');
-          const pdfRes = await PDFEngine.pptxToPDF(state.files[0], (pct) => {
-            if (statusText) statusText.textContent = `Rendering slides to vector PDF (${pct}%)...`;
+          if (!state.files[0]) throw new Error('Please upload a .pptx file.');
+          setOverlayProgress(10, 'Parsing presentation slides…');
+          const pdfRes = await PDFEngine.pptxToPDF(state.files[0], (msg) => {
+            setOverlayProgress(30, msg);
           });
+          setOverlayProgress(98, 'Saving PDF…');
           resultBlob = pdfRes.blob;
-          filename = pdfRes.filename;
-          showToast('PowerPoint converted to PDF document!', 'success');
+          filename   = pdfRes.filename;
+          showToast('Presentation converted to PDF!', 'success');
         }
-        // --- 14. PDF TO JPG CONVERTER ---
+        // ── 14. PDF TO JPG CONVERTER ──────────────────────────────────────
         else if (tool.id === 'pdf-to-jpg') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          const dpi = parseFloat(document.getElementById('pdf-jpg-dpi')?.value || document.getElementById('ctrl-dpi')?.value || 2);
+          const dpi   = parseFloat(document.getElementById('pdf-jpg-dpi')?.value || document.getElementById('ctrl-dpi')?.value || '2');
           const range = document.getElementById('pdf-jpg-range')?.value || '';
+          setOverlayProgress(10, 'Rendering PDF pages as images…');
           const images = await PDFEngine.pdfToImages(await state.files[0].arrayBuffer(), 'image/jpeg', dpi, range);
+          setOverlayProgress(90, images.length > 1 ? 'Packaging ZIP…' : 'Saving image…');
           if (images.length === 1) {
             resultBlob = dataURLtoBlob(images[0].dataUrl);
-            filename = `page_${images[0].page}.jpg`;
+            filename   = `page_${images[0].page}.jpg`;
           } else {
             const zip = new window.JSZip();
-            images.forEach(img => {
-              const base64 = img.dataUrl.split(',')[1];
-              zip.file(`page_${img.page}.jpg`, base64, { base64: true });
-            });
+            images.forEach(img => zip.file(`page_${img.page}.jpg`, img.dataUrl.split(',')[1], { base64: true }));
             resultBlob = await zip.generateAsync({ type: 'blob' });
-            filename = 'pdf_pages_jpg.zip';
+            filename   = 'pdf_pages_jpg.zip';
           }
-          showToast(`Rendered ${images.length} high-res JPG images!`, 'success');
+          showToast(`Rendered ${images.length} high-res image(s)!`, 'success');
         }
-        // --- 15. JPG TO PDF CONVERTER ---
+        // ── 15. JPG TO PDF CONVERTER ──────────────────────────────────────
         else if (tool.id === 'jpg-to-pdf') {
-          if (state.files.length === 0) throw new Error('Please upload one or more JPEG images.');
+          if (state.files.length === 0) throw new Error('Please upload one or more images.');
+          setOverlayProgress(20, `Embedding ${state.files.length} image(s) into PDF…`);
           const orientation = document.querySelector('input[name="orientation"]:checked')?.value || 'auto';
-          const margin = document.getElementById('ctrl-margin-auto')?.checked ? 20 : 0;
-          const bytes = await PDFEngine.imagesToPDF(state.files, { orientation, margin });
+          const marginLevel = document.getElementById('ctrl-margin-auto')?.checked ? 'small' : 'none';
+          const pageFormat  = document.getElementById('ctrl-paper-size')?.value || 'A4';
+          const bytes = await PDFEngine.imagesToPDF(state.files, { orientation, marginLevel, pageFormat });
+          setOverlayProgress(95, 'Saving PDF…');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
-          filename = 'compiled_images.pdf';
-          showToast('Images compiled into unified PDF document!', 'success');
+          filename   = 'compiled_images.pdf';
+          showToast('Images compiled into PDF!', 'success');
         }
-        // --- 16. BATCH IMAGE RESIZER ---
+        // ── 16. BATCH IMAGE RESIZER ───────────────────────────────────────
         else if (tool.id === 'batch-img-resizer') {
           if (state.files.length === 0) throw new Error('Please upload images to resize.');
-          const mode = document.getElementById('batch-resizer-mode')?.value || 'fixed';
-          const width = parseInt(document.getElementById('batch-width')?.value || 0);
-          const height = parseInt(document.getElementById('batch-height')?.value || 0);
+          const mode      = document.getElementById('batch-resizer-mode')?.value || 'fixed';
+          const width     = parseInt(document.getElementById('batch-width')?.value  || 0);
+          const height    = parseInt(document.getElementById('batch-height')?.value || 0);
           const lockAspect = document.getElementById('batch-lock-aspect')?.checked ?? true;
-          const percent = parseFloat(document.getElementById('batch-percent')?.value || 50);
-          const targetKB = parseFloat(document.getElementById('batch-target-kb')?.value || 500);
-
-          const processed = await PDFEngine.batchResizeImages(state.files, { mode, width, height, lockAspect, percent, targetKB }, (cur, tot, name) => {
-            if (statusText) statusText.textContent = `Resizing image ${cur} of ${tot} (${name})...`;
+          const percent   = parseFloat(document.getElementById('batch-percent')?.value   || 50);
+          const targetKB  = parseFloat(document.getElementById('batch-target-kb')?.value || 500);
+          const processed = await PDFEngine.batchResizeImages(state.files, { mode, width, height, lockAspect, percent, targetSizeKB: targetKB }, (cur, tot, name) => {
+            setOverlayProgress(10 + (cur / tot) * 85, `Resizing ${cur}/${tot}: ${name}`);
           });
-
+          setOverlayProgress(98, 'Packaging results…');
           if (processed.length === 1) {
             resultBlob = processed[0].blob;
-            filename = processed[0].name;
+            filename   = processed[0].name;
           } else {
             const zip = new window.JSZip();
             processed.forEach(item => zip.file(item.name, item.blob));
             resultBlob = await zip.generateAsync({ type: 'blob' });
-            filename = 'batch_resized_images.zip';
+            filename   = 'batch_resized_images.zip';
           }
-          showToast(`Batch processed ${processed.length} images successfully!`, 'success');
+          showToast(`Resized ${processed.length} image(s)!`, 'success');
         }
-        // --- 17. LOSSLESS PNG COMPRESSOR ---
+        // ── 17. LOSSLESS PNG COMPRESSOR ───────────────────────────────────
         else if (tool.id === 'png-compressor') {
           if (!state.files[0]) throw new Error('Please upload a PNG file.');
-          if (state.pngComparison?.blob) {
-            resultBlob = state.pngComparison.blob;
-          } else {
-            const comp = await PDFEngine.compressPNGLossless(state.files[0]);
-            resultBlob = comp.blob;
-          }
-          filename = `optimized_${state.files[0].name}`;
+          setOverlayProgress(30, 'Compressing PNG losslessly…');
+          const comp = state.pngComparison?.blob
+            ? { blob: state.pngComparison.blob }
+            : await PDFEngine.compressPNGLossless(state.files[0]);
+          setOverlayProgress(95, 'Done!');
+          resultBlob = comp.blob;
+          filename   = `optimised_${state.files[0].name}`;
           showToast('Lossless PNG compression complete!', 'success');
         }
-        // --- 18. WEBP IMAGE CONVERTER ---
+        // ── 18. WEBP IMAGE CONVERTER ──────────────────────────────────────
         else if (tool.id === 'webp-converter') {
           if (state.files.length === 0) throw new Error('Please upload images to convert.');
-          const quality = parseInt(document.getElementById('ctrl-webp-quality')?.value || 80);
-          const lossless = document.getElementById('ctrl-webp-lossless')?.checked || false;
-
+          const quality  = parseInt(document.getElementById('webp-quality-range')?.value || document.getElementById('ctrl-webp-quality')?.value || 80);
+          const lossless = document.getElementById('webp-lossless-check')?.checked || document.getElementById('ctrl-webp-lossless')?.checked || false;
           const webpResults = await PDFEngine.convertToWebP(state.files, quality, lossless, (cur, tot, name) => {
-            if (statusText) statusText.textContent = `Converting ${cur} of ${tot} to WebP (${name})...`;
+            setOverlayProgress(10 + (cur / tot) * 85, `Converting ${cur}/${tot}: ${name}`);
           });
-
+          setOverlayProgress(98, 'Packaging…');
           if (webpResults.length === 1) {
             resultBlob = webpResults[0].blob;
-            filename = webpResults[0].name;
+            filename   = webpResults[0].name;
           } else {
             const zip = new window.JSZip();
             webpResults.forEach(item => zip.file(item.name, item.blob));
             resultBlob = await zip.generateAsync({ type: 'blob' });
-            filename = 'converted_webp_images.zip';
+            filename   = 'converted_webp_images.zip';
           }
-          showToast(`Converted ${webpResults.length} images to modern WebP!`, 'success');
+          showToast(`Converted ${webpResults.length} image(s) to WebP!`, 'success');
         }
-        // --- REMAINING PLATFORM SUITE TOOLS ---
+        // ── REMAINING PLATFORM TOOLS ──────────────────────────────────────
         else if (tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR) {
-          const customText = document.getElementById('quiz-enable-custom-text')?.checked
-            ? (document.getElementById('quiz-extracted-text')?.value || '')
-            : state.extractedText;
-          if (!customText?.trim()) { showToast('Please upload content or paste custom text.', 'error'); return; }
-          const lang = document.getElementById('ctrl-quiz-language')?.value || 'en';
+          const useCustom = document.getElementById('quiz-enable-custom-text')?.checked;
+          const customText = useCustom ? (document.getElementById('quiz-extracted-text')?.value || '') : state.extractedText;
+          if (!customText?.trim()) { showToast('Please upload content or paste text first.', 'error'); return; }
+          setOverlayProgress(30, 'Generating quiz questions…');
+          const lang  = document.getElementById('ctrl-quiz-language')?.value || 'en';
           const qType = document.getElementById('ctrl-quiz-type')?.value || 'mcq';
           const count = parseInt(document.getElementById('ctrl-question-count')?.value || '10');
-          const diff = document.getElementById('ctrl-difficulty-level')?.value || 'medium';
+          const diff  = document.getElementById('ctrl-difficulty-level')?.value || 'medium';
           state.quizData = generateQuizQuestions(customText, { lang, qType, count, diff });
           renderQuizQuestions(state.quizData);
           const qArea = document.getElementById('quiz-result-area');
           if (qArea) qArea.classList.remove('hidden');
-          showToast(`Generated ${state.quizData.length} quiz questions successfully!`, 'success');
-        } else if (tool.uiType === TOOL_UI_TYPES.OCR_TRANSLATE) {
-          const summary = generateAISummary(state.extractedText, tool.id);
-          const aiArea = document.getElementById('ai-result-area');
+          showToast(`Generated ${state.quizData.length} quiz questions!`, 'success');
+        }
+        else if (tool.uiType === TOOL_UI_TYPES.OCR_TRANSLATE) {
+          setOverlayProgress(40, 'Generating AI output…');
+          const summary  = generateAISummary(state.extractedText, tool.id);
+          const aiArea   = document.getElementById('ai-result-area');
           const aiContent = document.getElementById('ai-result-content');
           if (aiArea && aiContent) { aiArea.classList.remove('hidden'); aiContent.textContent = summary; }
           resultBlob = new Blob([summary], { type: 'text/plain' });
-          filename = tool.id.includes('summar') ? 'ai_summary.txt' : 'ai_output.txt';
+          filename   = tool.id.includes('summar') ? 'ai_summary.txt' : 'ai_output.txt';
           showToast('AI processing complete!', 'success');
-        } else if (tool.id === 'bleed-crop-generator' && window.DesignPrepressEngine && state.files[0]) {
+        }
+        else if (tool.id === 'bleed-crop-generator' && window.DesignPrepressEngine && state.files[0]) {
+          setOverlayProgress(30, 'Applying bleed & crop marks…');
           const bytes = await DesignPrepressEngine.addBleedAndTrimMarks(await state.files[0].arrayBuffer());
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
-          filename = 'print_ready_bleed.pdf';
-          showToast('Bleed & crop marks applied successfully!', 'success');
-        } else if (tool.uiType === TOOL_UI_TYPES.CONVERTER_SIMPLE || isConversionTool(tool.id)) {
+          filename   = 'print_ready_bleed.pdf';
+          showToast('Bleed & crop marks applied!', 'success');
+        }
+        else if (tool.uiType === TOOL_UI_TYPES.CONVERTER_SIMPLE || isConversionTool(tool.id)) {
+          if (!state.files[0] && tool.uiType !== TOOL_UI_TYPES.TEXT_INPUT) throw new Error('Please upload a file first.');
+          setOverlayProgress(30, 'Converting…');
           const res = await processFileConversion(tool, state.files[0]);
           resultBlob = res.blob;
-          filename = res.filename;
-          showToast(`Converted & prepared ${filename} successfully!`, 'success');
-        } else if (state.files[0]?.type?.includes('pdf') && state.pdfPageCards.length > 0) {
+          filename   = res.filename;
+          showToast(`Converted ${filename} successfully!`, 'success');
+        }
+        else if (state.files[0]?.type?.includes('pdf') && state.pdfPageCards.length > 0) {
+          setOverlayProgress(40, 'Compiling organised PDF…');
           const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
-          filename = 'rearranged_organized.pdf';
-          showToast('PDF processed and exported successfully!', 'success');
-        } else if (state.files.length > 0) {
+          filename   = 'rearranged_organized.pdf';
+          showToast('PDF processed successfully!', 'success');
+        }
+        else if (state.files.length > 0) {
           resultBlob = state.files[0];
-          filename = `processed_${state.files[0].name}`;
+          filename   = `processed_${state.files[0].name}`;
           showToast('File processed successfully!', 'success');
         }
+
+        setOverlayProgress(100, 'Done! Preparing download…');
+        await new Promise(r => setTimeout(r, 400));
 
         if (resultBlob) {
           state.processedResult = { blob: resultBlob, filename };
           const currentUser = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.getCurrentUser() : null;
           if (window.SupabaseEngine) SupabaseEngine.saveWorkHistory(currentUser?.id, tool.id, tool.name, filename, resultBlob.size);
           const btnDl = document.getElementById('studio-btn-download');
-          if (btnDl) btnDl.classList.remove('hidden');
+          if (btnDl) {
+            btnDl.classList.remove('hidden');
+            // Auto-trigger download immediately
+            const url = URL.createObjectURL(resultBlob);
+            const a   = document.createElement('a');
+            a.href = url; a.download = filename; a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 2000);
+          }
         }
       } catch (err) {
-        console.error(err);
-        showToast(err.message || 'Processing failed.', 'error');
+        console.error('[StudioSuite] Process error:', err);
+        showToast(err.message || 'Processing failed. Please check the console for details.', 'error');
       } finally {
+        // Hide overlay and restore button
+        if (overlay) overlay.classList.add('hidden');
         if (statusMsg) statusMsg.classList.add('hidden');
-        btn.disabled = false;
+        btn.innerHTML = originalBtnHTML;
+        btn.classList.remove('opacity-75', 'cursor-not-allowed');
+        btn.disabled  = false;
       }
     };
   }

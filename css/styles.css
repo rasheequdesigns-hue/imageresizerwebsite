@@ -414,3 +414,87 @@ body {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
 }
 
+
+/* ============================================================
+   Processing Overlay & Loading Animations
+   ============================================================ */
+
+/* Full-screen processing overlay */
+#studio-loading-overlay {
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+#studio-loading-overlay .inner-card {
+  animation: slideUpFade 0.25s ease-out;
+}
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Spin animation on processing button */
+@keyframes spin { to { transform: rotate(360deg); } }
+.fa-spin { animation: spin 0.7s linear infinite; }
+
+/* Pulsing progress bar */
+@keyframes progressPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}
+#overlay-progress-bar {
+  animation: progressPulse 1.4s ease-in-out infinite;
+}
+
+/* Admin panel tab system */
+.admin-tab-content { animation: fadeIn 0.18s ease-out; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.admin-tab-btn {
+  position: relative;
+  transition: all 0.15s ease;
+}
+.admin-tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 2px;
+  background: currentColor;
+  border-radius: 2px;
+}
+
+/* Process button loading state */
+#studio-btn-process:disabled {
+  position: relative;
+  overflow: hidden;
+}
+#studio-btn-process:disabled::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%);
+  animation: shimmer 1.6s linear infinite;
+}
+@keyframes shimmer {
+  to { left: 100%; }
+}
+
+/* Download button reveal animation */
+#studio-btn-download:not(.hidden) {
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Converter info card */
+#converter-file-info .loaded-badge {
+  animation: fadeIn 0.2s ease;
+}

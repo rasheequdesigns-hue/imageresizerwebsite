@@ -706,7 +706,10 @@ class PDFEngine {
       startY += 20;
     });
 
-    return doc.output('arraybuffer');
+    const pdfArrayBuffer = doc.output('arraybuffer');
+    const blob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
+    const safeName = (file.name || 'spreadsheet').replace(/\.[^/.]+$/, '');
+    return { blob, filename: `${safeName}_report.pdf` };
   }
 
   /**
@@ -744,7 +747,8 @@ class PDFEngine {
       } catch (e) {}
     }
 
-    return await pptx.write({ outputType: 'blob' });
+    const pptxBlob = await pptx.write({ outputType: 'blob' });
+    return { blob: pptxBlob, filename: 'presentation.pptx' };
   }
 
   /**
@@ -806,7 +810,10 @@ class PDFEngine {
       }
     }
 
-    return doc.output('arraybuffer');
+    const pdfArrayBuffer = doc.output('arraybuffer');
+    const blob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
+    const safeName = (file.name || 'presentation').replace(/\.[^/.]+$/, '');
+    return { blob, filename: `${safeName}.pdf` };
   }
 
   /**
