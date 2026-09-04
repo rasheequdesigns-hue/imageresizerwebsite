@@ -274,17 +274,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Find the minimum required plan name for locked tools
       let requiredPlanLabel = 'PRO';
       if (!isAllowedForUser && window.AuthSubscriptionEngine) {
-        const allPlans = AuthSubscriptionEngine.getPlans();
-        const currentUserPlanId = AuthSubscriptionEngine.getCurrentUser()?.planId || 'free';
-        // Find the first plan (by price) that includes this tool
-        const sorted = [...allPlans].sort((a, b) => (a.priceINR || 0) - (b.priceINR || 0));
-        const requiredPlan = sorted.find(p => {
-          if (p.id === 'free') return false;
-          if (p.allowedToolIds === 'all') return true;
-          if (Array.isArray(p.allowedToolIds)) return p.allowedToolIds.includes(tool.id);
-          return true;
-        });
-        if (requiredPlan) requiredPlanLabel = requiredPlan.name + ' Only';
+        const planName = AuthSubscriptionEngine.getRequiredPlanName(tool.id);
+        requiredPlanLabel = planName ? planName + ' Only' : 'PRO';
       }
 
       const badgeHtml = !isAllowedForUser 

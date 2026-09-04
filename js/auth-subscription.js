@@ -221,6 +221,25 @@ class AuthSubscriptionEngine {
   /**
    * PRO Plan Upgrade Lock Modal for Restricted Free User Tools
    */
+
+  /** Returns the name of the cheapest plan granting access to toolId, for use in locked badge labels */
+  static getRequiredPlanName(toolId) {
+    const plans = this._plansCache || [];
+    const sorted = [...plans].sort((a, b) => (a.priceINR || 0) - (b.priceINR || 0));
+    for (const plan of sorted) {
+      if (!plan || plan.id === 'free') continue;
+      const allowed = plan.allowedToolIds;
+      if (!allowed || allowed === 'all' || allowed === '"all"') return plan.name;
+      if (Array.isArray(allowed) && allowed.includes(toolId)) return plan.name;
+      try {
+        const parsed = JSON.parse(allowed);
+        if (parsed === 'all') return plan.name;
+        if (Array.isArray(parsed) && parsed.includes(toolId)) return plan.name;
+      } catch {}
+    }
+    const firstPaid = sorted.find(p => p.id !== 'free' && (p.priceINR || 0) > 0);
+    return firstPaid ? firstPaid.name : 'PRO';
+  }
   static openProUpgradeLockModal(toolOrId) {
     const tools = window.TOOLS || [];
     const tool = typeof toolOrId === 'string' ? tools.find(t => t.id === toolOrId) : toolOrId;

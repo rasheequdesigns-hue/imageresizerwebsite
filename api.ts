@@ -182,6 +182,60 @@ async function loginUser(sql: ReturnType<typeof neon>, body: Record<string, stri
   return json(safeUser);
 }
 
+// POST /api/plans � create or update a plan
+async function upsertPlan(sql: ReturnType<typeof neon>, body: Record<string, unknown>): Promise<Response> {
+  const { id, name, price_inr, duration_days, max_file_size_mb, badge, features, allowed_tool_ids, currency } = body as Record<string, unknown>;
+  if (!id || !name) return err("id and name are required");
+
+  const featuresJson = JSON.stringify(Array.isArray(features) ? features : []);
+  const allowedJson = Array.isArray(allowed_tool_ids)
+    ? JSON.stringify(allowed_tool_ids)
+    : (allowed_tool_ids === "all" || allowed_tool_ids === undefined || allowed_tool_ids === null)
+      ? '"all"'
+      : JSON.stringify(allowed_tool_ids);
+
+  await sql`
+    INSERT INTO subscription_plans (id, name, price_inr, duration_days, max_file_size_mb, badge, features, allowed_tool_ids, currency)
+    VALUES (
+      ${id as string},
+      ${name as string},
+      ${Number(price_inr) || 0},
+      ${Number(duration_days) || 30},
+      ${Number(max_file_size_mb) || 25},
+      ${(badge as string) || ''},
+      ${featuresJson}::jsonb,
+      ${allowedJson}::jsonb,
+      ${(currency as string) || 'INR'}
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      name             = EXCLUDED.name,
+      price_inr        = EXCLUDED.price_inr,
+      duration_days    = EXCLUDED.duration_days,
+      max_file_size_mb = EXCLUDED.max_file_size_mb,
+      badge            = EXCLUDED.badge,
+      features         = EXCLUDED.features,
+      allowed_tool_ids = EXCLUDED.allowed_tool_ids,
+      currency         = EXCLUDED.currency
+  `;
+  const [row] = await sql`
+    SELECT id, name,
+           price_inr        AS "priceINR",
+           duration_days    AS "durationDays",
+           max_file_size_mb AS "maxFileSizeMB",
+           badge, features,
+           allowed_tool_ids AS "allowedToolIds",
+           currency
+    FROM subscription_plans WHERE id = ${id as string}
+  `;
+  return json(row, 200);
+}
+
+// DELETE /api/plans/:id
+async function deletePlan(sql: ReturnType<typeof neon>, planId: string): Promise<Response> {
+  if (planId === "free") return err("Cannot delete the default free plan", 400);
+  await sql`DELETE FROM subscription_plans WHERE id = ${planId}`;
+  return json({ ok: true });
+}
 // GET /api/plans
 async function getPlans(sql: ReturnType<typeof neon>): Promise<Response> {
   const rows = await sql`
@@ -500,6 +554,13 @@ export default async function api(request: Request): Promise<Response> {
     // ── Plans ─────────────────────────────────────────────────────────────
     if (path === "/api/plans" && method === "GET") {
       return await getPlans(sql);
+    }
+    if (path === "/api/plans" && method === "POST") {
+      return await upsertPlan(sql, body);
+    }
+    const planDeleteMatch = path.match(/^\/api\/plans\/([^/]+)$/);
+    if (planDeleteMatch && method === "DELETE") {
+      return await deletePlan(sql, planDeleteMatch[1]);
     }
 
     // ── Features ──────────────────────────────────────────────────────────

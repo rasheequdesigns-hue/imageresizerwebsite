@@ -195,35 +195,36 @@ class AdminPanelEngine {
     return [];
   }
 
-  // ── Plans CRUD (delegates to AuthSubscriptionEngine for plan data) ─────────
+  // -- Plans CRUD -- persisted to Neon DB via API ---------------------------------
 
-  static savePlan(planData) {
-    // Plans stored in DB via API. For admin UI save, call the appropriate endpoint.
-    // This stores locally for the session until page reload re-fetches.
-    const plans = AuthSubscriptionEngine.getPlans();
-    const existingIdx = plans.findIndex(p => p.id === planData.id);
-    if (existingIdx !== -1) {
-      plans[existingIdx] = { ...plans[existingIdx], ...planData };
-    } else {
-      plans.push({
-        id: 'plan_' + Date.now(),
-        currency: '₹',
-        badge: 'Custom',
-        ...planData,
-      });
+  static async savePlan(planData) {
+    const payload = {
+      id:               planData.id || ('plan_' + Date.now()),
+      name:             planData.name,
+      price_inr:        planData.priceINR != null ? planData.priceINR : 0,
+      duration_days:    planData.durationDays || 30,
+      max_file_size_mb: planData.maxFileSizeMB || 25,
+      badge:            planData.badge || '',
+      features:         planData.features || [],
+      allowed_tool_ids: planData.allowedToolIds != null ? planData.allowedToolIds : 'all',
+      currency:         '\u20b9',
+    };
+    const saved = await NeonEngine.call('/api/plans', 'POST', payload);
+    // Refresh local cache
+    const plans = AuthSubscriptionEngine._plansCache || [];
+    const idx = plans.findIndex(p => p.id === saved.id);
+    if (idx !== -1) plans[idx] = saved; else plans.push(saved);
+    AuthSubscriptionEngine._plansCache = [...plans].sort((a, b) => (a.priceINR || 0) - (b.priceINR || 0));
+    return saved;
+  }
+
+  static async deletePlan(planId) {
+    if (planId === 'free') throw new Error('Cannot delete the default free plan');
+    await NeonEngine.call('/api/plans/' + encodeURIComponent(planId), 'DELETE');
+    if (AuthSubscriptionEngine._plansCache) {
+      AuthSubscriptionEngine._plansCache = AuthSubscriptionEngine._plansCache.filter(p => p.id !== planId);
     }
-    // Update the in-memory cache so UI reflects immediately
-    AuthSubscriptionEngine._plansCache = plans;
-    return plans;
   }
-
-  static deletePlan(planId) {
-    if (planId === 'free') throw new Error('Cannot delete default free plan');
-    const plans = (AuthSubscriptionEngine._plansCache || []).filter(p => p.id !== planId);
-    AuthSubscriptionEngine._plansCache = plans;
-    return plans;
-  }
-
   // ── Payments (read from DB, delete via API) ────────────────────────────────
 
   static async getPayments() {
@@ -953,111 +954,170 @@ window.renderAdminFeatureList = renderAdminFeatureList;
 
 // ── Plan CRUD modal ────────────────────────────────────────────────────────
 
-window.openAddPlanModal = function(planIdToEdit = null) {
-  const modalId = 'admin-plan-crud-modal';
-  let existing = document.getElementById(modalId);
+
+// -----------------------------------------------------------------------------
+// Plan Create / Edit Modal � full tool assignment + DB-persisted save/delete
+// -----------------------------------------------------------------------------
+
+window.openAddPlanModal = function(planIdToEdit) {
+  planIdToEdit = planIdToEdit || null;
+  var modalId = 'admin-plan-crud-modal';
+  var existing = document.getElementById(modalId);
   if (existing) existing.remove();
 
-  const plans = AuthSubscriptionEngine.getPlans();
-  const editPlan = planIdToEdit ? plans.find(p => p.id === planIdToEdit) : null;
-  const freePlan = plans.find(p => p.id === 'free');
-  const tools = window.TOOLS || [];
+  var plans = AuthSubscriptionEngine.getPlans();
+  var editPlan = planIdToEdit ? plans.find(function(p){ return p.id === planIdToEdit; }) : null;
+  var tools = window.TOOLS || [];
 
-  const initialFeatures = editPlan && Array.isArray(editPlan.features) ? editPlan.features.join('\n') : '';
+  var initialFeatures = (editPlan && Array.isArray(editPlan.features))
+    ? editPlan.features.join('\n') : '';
 
-  let initialAllowedTools;
-  if (editPlan) {
-    initialAllowedTools = editPlan.allowedToolIds !== undefined ? editPlan.allowedToolIds : 'all';
-  } else {
-    initialAllowedTools = freePlan && Array.isArray(freePlan.allowedToolIds) ? freePlan.allowedToolIds : [];
-  }
+  var rawAllowed = editPlan ? editPlan.allowedToolIds : 'all';
+  var isAllAll = (!rawAllowed || rawAllowed === 'all');
+  var allowedSet = Array.isArray(rawAllowed) ? new Set(rawAllowed) : new Set();
 
-  const categorizedTools = {};
-  tools.forEach(t => {
-    const cat = t.category || 'General Tools';
-    if (!categorizedTools[cat]) categorizedTools[cat] = [];
-    categorizedTools[cat].push(t);
-  });
+  var catLabels = {
+    'pdf-core':'Core PDF','pdf-convert':'Conversions','image-tools':'Image & Raster',
+    'design-prepress':'Vector & Design','print-packaging':'Prepress & Packaging',
+    'video-motion':'Video & Motion','fonts-typography':'Typography & Fonts',
+    'developer-tools':'Web & Developer','cad-blueprints':'CAD & Architectural',
+    'legal-medical':'Legal & Medical','publishing-ebooks':'E-Books & Publishing',
+    'threed-motion':'3D & Motion','security-ai-data':'Security & AI'
+  };
+  var cats = {};
+  tools.forEach(function(t){ if (!cats[t.category]) cats[t.category] = []; cats[t.category].push(t); });
 
-  const modal = document.createElement('div');
+  var toolHtml = Object.keys(cats).map(function(cat){
+    var rows = cats[cat].map(function(tool){
+      var chk = (isAllAll || allowedSet.has(tool.id)) ? 'checked' : '';
+      return '<label class="flex items-center gap-1.5 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-[11px] font-medium text-slate-700 plan-tool-row-'+cat+'">' +
+        '<input type="checkbox" name="plan-tool-ids" value="'+tool.id+'" '+chk+
+        ' class="accent-indigo-600 w-3.5 h-3.5 flex-shrink-0 plan-chk-'+cat+'">' +
+        '<span class="truncate" title="'+tool.name+'">'+tool.name+'</span></label>';
+    }).join('');
+    return '<div class="mb-3"><div class="flex items-center justify-between mb-1">'+
+      '<span class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">'+(catLabels[cat]||cat)+'</span>'+
+      '<span class="flex gap-1 text-[9px]">'+
+      '<button type="button" onclick="adminPlanSelCat(\''+cat+'\',true)" class="text-indigo-600 font-bold hover:underline">All</button>'+
+      '&nbsp;/&nbsp;'+
+      '<button type="button" onclick="adminPlanSelCat(\''+cat+'\',false)" class="text-slate-400 font-bold hover:underline">None</button>'+
+      '</span></div>'+
+      '<div class="grid grid-cols-2 gap-0.5">'+rows+'</div></div>';
+  }).join('');
+
+  var editName    = editPlan ? (editPlan.name||'') : '';
+  var editPrice   = editPlan ? (editPlan.priceINR||0) : '499';
+  var editDur     = editPlan ? (editPlan.durationDays||30) : '30';
+  var editSize    = editPlan ? (editPlan.maxFileSizeMB||25) : '250';
+  var editBadge   = editPlan ? (editPlan.badge||'') : 'PRO';
+  var deleteBtnHtml = (editPlan && editPlan.id !== 'free')
+    ? '<button type="button" onclick="if(confirm(\'Delete plan '+editName+'? This is permanent.\')){ adminDeletePlan(\''+editPlan.id+'\'); document.getElementById(\''+modalId+'\').remove(); }" class="text-xs font-bold text-red-500 hover:text-red-700 underline flex items-center gap-1"><i class="fa-solid fa-trash-can"></i> Delete Plan</button>'
+    : '<div></div>';
+
+  var modal = document.createElement('div');
   modal.id = modalId;
-  modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in';
-  modal.innerHTML = `
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full my-8 overflow-hidden relative">
-      <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition z-10">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-      <div class="p-6 bg-slate-900 text-white space-y-1">
-        <h3 class="text-lg font-extrabold flex items-center gap-2">
-          <i class="fa-solid fa-crown text-amber-400"></i> ${editPlan ? 'Edit Subscription Plan' : 'Create New Subscription Plan'}
-        </h3>
-      </div>
-      <form onsubmit="handleSavePlanSubmit(event, '${editPlan ? editPlan.id : ''}')" class="p-6 space-y-5 max-h-[580px] overflow-y-auto">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Plan Name <span class="text-red-500">*</span></label>
-            <input type="text" id="plan-input-name" required value="${editPlan ? editPlan.name : ''}" placeholder="e.g. Pro Monthly" class="custom-input w-full text-xs font-bold">
-          </div>
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Price in INR (₹) <span class="text-red-500">*</span></label>
-            <input type="number" id="plan-input-price" required value="${editPlan ? editPlan.priceINR : '499'}" min="0" placeholder="499" class="custom-input w-full text-xs font-extrabold">
-          </div>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Duration (Days)</label>
-            <input type="number" id="plan-input-duration" required value="${editPlan ? editPlan.durationDays : '30'}" min="1" class="custom-input w-full text-xs font-bold">
-          </div>
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Max File Size (MB)</label>
-            <input type="number" id="plan-input-maxsize" required value="${editPlan ? editPlan.maxFileSizeMB : '250'}" min="1" class="custom-input w-full text-xs font-bold">
-          </div>
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Badge Tag</label>
-            <input type="text" id="plan-input-badge" value="${editPlan ? (editPlan.badge || '') : 'PRO'}" class="custom-input w-full text-xs font-semibold">
-          </div>
-        </div>
-        <div>
-          <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">Plan Features (one per line)</label>
-          <textarea id="plan-input-features" rows="4" class="custom-input w-full text-xs font-mono bg-white">${initialFeatures}</textarea>
-        </div>
-        <div class="pt-3 border-t border-slate-200 flex justify-between items-center gap-3">
-          ${editPlan && editPlan.id !== 'free' ? `
-            <button type="button" onclick="AdminPanelEngine.deletePlan('${editPlan.id}'); document.getElementById('${modalId}').remove(); renderFullAdminPage();" class="text-xs font-bold text-red-500 hover:text-red-700 underline">
-              Delete Plan
-            </button>
-          ` : '<div></div>'}
-          <div class="flex gap-2">
-            <button type="button" onclick="document.getElementById('${modalId}').remove()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition">Cancel</button>
-            <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-extrabold shadow-md transition">
-              ${editPlan ? 'Update Plan' : 'Create Plan'}
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
-  `;
+  modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fade-in';
+  modal.innerHTML =
+    '<div class="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-3xl max-h-[95vh] flex flex-col overflow-hidden relative">' +
+      '<button onclick="document.getElementById(\''+modalId+'\').remove()" class="absolute top-4 right-4 z-10 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition"><i class="fa-solid fa-xmark"></i></button>' +
+      // Header
+      '<div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white px-6 py-5 flex-shrink-0">' +
+        '<h3 class="text-base font-extrabold flex items-center gap-2"><i class="fa-solid fa-crown text-amber-400"></i> ' +
+        (editPlan ? 'Edit Plan � '+editPlan.name : 'Create New Subscription Plan') + '</h3>' +
+        '<p class="text-[11px] text-indigo-300 mt-0.5">Changes are saved directly to Neon Postgres.</p>' +
+      '</div>' +
+      // Form
+      '<form id="plan-edit-form" onsubmit="handleSavePlanSubmit(event,\''+( editPlan ? editPlan.id : '' )+'\')" class="flex flex-col flex-1 overflow-hidden">' +
+        '<div class="flex-1 overflow-y-auto">' +
+          '<div class="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">' +
+            // Left: plan details
+            '<div class="p-5 space-y-4">' +
+              '<h4 class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-pen-to-square text-indigo-500"></i> Plan Details</h4>' +
+              '<div class="grid grid-cols-2 gap-3">' +
+                '<div class="col-span-2"><label class="text-[10px] font-bold text-slate-500 uppercase">Plan Name *</label><input type="text" id="plan-input-name" required value="'+editName+'" placeholder="e.g. Pro Monthly" class="custom-input w-full text-sm font-bold mt-1"></div>' +
+                '<div><label class="text-[10px] font-bold text-slate-500 uppercase">Price (INR ?) *</label><div class="relative mt-1"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">?</span><input type="number" id="plan-input-price" required min="0" step="1" value="'+editPrice+'" class="custom-input w-full pl-7 text-sm font-extrabold"></div></div>' +
+                '<div><label class="text-[10px] font-bold text-slate-500 uppercase">Duration (days) *</label><input type="number" id="plan-input-duration" required min="1" value="'+editDur+'" class="custom-input w-full text-sm font-bold mt-1"></div>' +
+                '<div><label class="text-[10px] font-bold text-slate-500 uppercase">Max File Size (MB)</label><input type="number" id="plan-input-maxsize" required min="1" value="'+editSize+'" class="custom-input w-full text-sm font-bold mt-1"></div>' +
+                '<div><label class="text-[10px] font-bold text-slate-500 uppercase">Badge Label</label><input type="text" id="plan-input-badge" value="'+editBadge+'" placeholder="Popular" class="custom-input w-full text-sm mt-1"></div>' +
+              '</div>' +
+              '<div><label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">Marketing Features <span class="text-slate-400 font-normal normal-case">(one per line)</span></label>' +
+              '<textarea id="plan-input-features" rows="5" placeholder="All 50 Tools Unlocked&#10;250MB File Limit&#10;Priority Support" class="custom-input w-full text-xs font-mono resize-y">'+initialFeatures+'</textarea></div>' +
+            '</div>' +
+            // Right: tool access
+            '<div class="p-5">' +
+              '<div class="flex items-center justify-between mb-2">' +
+                '<h4 class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-toolbox text-indigo-500"></i> Tool Access for this Plan</h4>' +
+                '<div class="flex gap-1.5"><button type="button" onclick="adminPlanSelAll(true)" class="text-[10px] font-extrabold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">All</button>' +
+                '<button type="button" onclick="adminPlanSelAll(false)" class="text-[10px] font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200">None</button></div>' +
+              '</div>' +
+              '<div class="p-2.5 bg-indigo-50 rounded-xl border border-indigo-200 text-[11px] text-indigo-800 font-semibold mb-3"><i class="fa-solid fa-circle-info text-indigo-500 mr-1"></i> Checked = accessible. Unchecked = shows locked badge with plan name.</div>' +
+              '<div id="plan-tool-checkboxes" class="max-h-[380px] overflow-y-auto pr-1">'+toolHtml+'</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        // Footer
+        '<div class="flex-shrink-0 border-t border-slate-200 px-6 py-4 flex items-center justify-between gap-3 bg-slate-50/80">' +
+          deleteBtnHtml +
+          '<div class="flex gap-3 items-center">' +
+            '<button type="button" onclick="document.getElementById(\''+modalId+'\').remove()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition">Cancel</button>' +
+            '<button type="submit" id="plan-save-btn" class="btn-gradient px-6 py-2.5 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-2"><i class="fa-solid fa-floppy-disk"></i> '+(editPlan?'Save Changes':'Create Plan')+'</button>' +
+          '</div>' +
+        '</div>' +
+      '</form>' +
+    '</div>';
   document.body.appendChild(modal);
+
+  window.adminPlanSelAll = function(val) {
+    modal.querySelectorAll('input[name="plan-tool-ids"]').forEach(function(cb){ cb.checked = val; });
+  };
+  window.adminPlanSelCat = function(cat, val) {
+    modal.querySelectorAll('input.plan-chk-'+cat+'[name="plan-tool-ids"]').forEach(function(cb){ cb.checked = val; });
+  };
 };
 
-window.handleSavePlanSubmit = function(e, editPlanId) {
+window.handleSavePlanSubmit = async function(e, editPlanId) {
   e.preventDefault();
-  const name = document.getElementById('plan-input-name')?.value?.trim();
-  const priceINR = parseFloat(document.getElementById('plan-input-price')?.value || '0');
-  const durationDays = parseInt(document.getElementById('plan-input-duration')?.value || '30');
-  const maxFileSizeMB = parseInt(document.getElementById('plan-input-maxsize')?.value || '250');
-  const badge = document.getElementById('plan-input-badge')?.value?.trim() || '';
-  const featuresText = document.getElementById('plan-input-features')?.value || '';
-  const features = featuresText.split('\n').map(f => f.trim()).filter(Boolean);
+  var btn = document.getElementById('plan-save-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Saving...'; }
 
-  const planData = {
+  var name          = (document.getElementById('plan-input-name')?.value || '').trim();
+  var priceINR      = parseFloat(document.getElementById('plan-input-price')?.value || 0);
+  var durationDays  = parseInt(document.getElementById('plan-input-duration')?.value || 30);
+  var maxFileSizeMB = parseInt(document.getElementById('plan-input-maxsize')?.value || 25);
+  var badge         = (document.getElementById('plan-input-badge')?.value || '').trim();
+  var featuresText  = document.getElementById('plan-input-features')?.value || '';
+  var features      = featuresText.split('\n').map(function(f){ return f.trim(); }).filter(Boolean);
+
+  var checkedBoxes = Array.from(document.querySelectorAll('input[name="plan-tool-ids"]:checked'));
+  var allBoxes     = Array.from(document.querySelectorAll('input[name="plan-tool-ids"]'));
+  var allowedToolIds = (checkedBoxes.length === allBoxes.length)
+    ? 'all'
+    : checkedBoxes.map(function(cb){ return cb.value; });
+
+  var planData = {
     id: editPlanId || ('plan_' + Date.now()),
-    name, priceINR, currency: '₹', durationDays, maxFileSizeMB, badge, features,
-    allowedToolIds: 'all',
+    name, priceINR, durationDays, maxFileSizeMB, badge, features, allowedToolIds
   };
 
-  AdminPanelEngine.savePlan(planData);
-  document.getElementById('admin-plan-crud-modal')?.remove();
-  alert(`Subscription Plan "${name}" saved!`);
-  renderFullAdminPage();
+  try {
+    await AdminPanelEngine.savePlan(planData);
+    document.getElementById('admin-plan-crud-modal')?.remove();
+    if (window.showToast) showToast('Plan "'+name+'" saved!', 'success');
+    renderFullAdminPage().then(function(){ if (window.adminSwitchTab) adminSwitchTab('plans'); });
+  } catch(err) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1.5"></i>Save Changes'; }
+    if (window.showToast) showToast('Save failed: '+(err.message||err), 'error');
+    else alert('Save failed: '+(err.message||err));
+  }
+};
+
+window.adminDeletePlan = async function(planId) {
+  try {
+    await AdminPanelEngine.deletePlan(planId);
+    if (window.showToast) showToast('Plan deleted.', 'success');
+    renderFullAdminPage().then(function(){ if (window.adminSwitchTab) adminSwitchTab('plans'); });
+  } catch(err) {
+    if (window.showToast) showToast('Delete failed: '+(err.message||err), 'error');
+    else alert('Delete failed: '+(err.message||err));
+  }
 };
