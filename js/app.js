@@ -1369,12 +1369,193 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
 
   const QUIZ_I18N = {
     en: { q: 'Question', ans: 'Correct Answer', exp: 'Explanation', difficulty: 'Difficulty', select: 'Select your answer', trueFalseTrue: 'True', trueFalseFalse: 'False', fillBlank: 'Fill in the blank by replacing the highlighted word.', shortAnswer: 'Write your answer in the space provided.', flashcardQ: 'Question', flashcardA: 'Answer' },
+    ar: { q: 'السؤال', ans: 'الإجابة الصحيحة', exp: 'الشرح والتوضيح', difficulty: 'الصعوبة', select: 'اختر إجابتك المناسبة', trueFalseTrue: 'صحيح', trueFalseFalse: 'خطأ', fillBlank: 'املأ الفراغ بالكلمة المناسبة.', shortAnswer: 'اكتب إجابتك في المكان المخصص.', flashcardQ: 'السؤال', flashcardA: 'الإجابة' },
     es: { q: 'Pregunta', ans: 'Respuesta Correcta', exp: 'Explicación', difficulty: 'Dificultad', select: 'Selecciona tu respuesta', trueFalseTrue: 'Verdadero', trueFalseFalse: 'Falso', fillBlank: 'Rellena el espacio en blanco.', shortAnswer: 'Escribe tu respuesta.', flashcardQ: 'Pregunta', flashcardA: 'Respuesta' },
     fr: { q: 'Question', ans: 'Bonne Réponse', exp: 'Explication', difficulty: 'Difficulté', select: 'Sélectionnez votre réponse', trueFalseTrue: 'Vrai', trueFalseFalse: 'Faux', fillBlank: 'Remplissez le blanc.', shortAnswer: 'Écrivez votre réponse.', flashcardQ: 'Question', flashcardA: 'Réponse' },
     de: { q: 'Frage', ans: 'Richtige Antwort', exp: 'Erklärung', difficulty: 'Schwierigkeit', select: 'Wählen Sie Ihre Antwort', trueFalseTrue: 'Wahr', trueFalseFalse: 'Falsch', fillBlank: 'Füllen Sie die Lücke.', shortAnswer: 'Schreiben Sie Ihre Antwort.', flashcardQ: 'Frage', flashcardA: 'Antwort' },
-    hi: { q: 'प्रश्न', ans: 'सही उत्तर', exp: 'व्याख्या', difficulty: 'कठिनाई', select: 'अपना उत्तर चुनें', trueFalseTrue: 'सत्य', trueFalseFalse: 'असत्य', fillBlank: 'रिक्त स्थान भरें।', shortAnswer: 'अपना उत्तर लिखें।', flashcardQ: 'प्रश्न', flashcardA: 'उत्तर' }
+    hi: { q: 'प्रश्न', ans: 'सही उत्तर', exp: 'व्याख्या', difficulty: 'कठिनाई', select: 'अपना उत्तर चुनें', trueFalseTrue: 'सत्य', trueFalseFalse: 'असत्य', fillBlank: 'रिक्त स्थान भरें।', shortAnswer: 'अपना उत्तर लिखें।', flashcardQ: 'प्रश्न', flashcardA: 'उत्तर' },
+    zh: { q: '问题', ans: '正确答案', exp: '解析', difficulty: '难度', select: '请选择您的答案', trueFalseTrue: '正确', trueFalseFalse: '错误', fillBlank: '请在空白处填入正确的词语。', shortAnswer: '请在下方填写您的答案。', flashcardQ: '问题', flashcardA: '答案' },
+    ja: { q: '質問', ans: '正解', exp: '解説', difficulty: '難易度', select: '回答を選択してください', trueFalseTrue: '正しい', trueFalseFalse: '誤り', fillBlank: '空欄に適切な単語を入力してください。', shortAnswer: '回答を入力してください。', flashcardQ: '質問', flashcardA: '回答' },
+    ru: { q: 'Вопрос', ans: 'Правильный ответ', exp: 'Пояснение', difficulty: 'Сложность', select: 'Выберите ваш ответ', trueFalseTrue: 'Верно', trueFalseFalse: 'Неверно', fillBlank: 'Заполните пропуск нужным словом.', shortAnswer: 'Напишите ваш ответ.', flashcardQ: 'Вопрос', flashcardA: 'Ответ' }
   };
-  QUIZ_I18N.zh = QUIZ_I18N.ja = QUIZ_I18N.ko = QUIZ_I18N.ru = QUIZ_I18N.pt = QUIZ_I18N.it = QUIZ_I18N.tr = QUIZ_I18N.nl = QUIZ_I18N.pl = QUIZ_I18N.vi = QUIZ_I18N.th = QUIZ_I18N.id = QUIZ_I18N.ms = QUIZ_I18N.fil = QUIZ_I18N.fa = QUIZ_I18N.he = QUIZ_I18N.ar = QUIZ_I18N.bn = QUIZ_I18N.ur = QUIZ_I18N.ta = QUIZ_I18N.te = QUIZ_I18N.ml = QUIZ_I18N.mr = QUIZ_I18N.gu = QUIZ_I18N.pa = QUIZ_I18N.en;
+  QUIZ_I18N.ko = QUIZ_I18N.pt = QUIZ_I18N.it = QUIZ_I18N.tr = QUIZ_I18N.nl = QUIZ_I18N.pl = QUIZ_I18N.vi = QUIZ_I18N.th = QUIZ_I18N.id = QUIZ_I18N.ms = QUIZ_I18N.fil = QUIZ_I18N.fa = QUIZ_I18N.he = QUIZ_I18N.bn = QUIZ_I18N.ur = QUIZ_I18N.ta = QUIZ_I18N.te = QUIZ_I18N.ml = QUIZ_I18N.mr = QUIZ_I18N.gu = QUIZ_I18N.pa = QUIZ_I18N.en;
+
+  function cleanGarbageFromText(text) {
+    if (!text) return '';
+    let s = text;
+    s = s.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '');
+    s = s.replace(/(?:Â|Ã|ä|â|ï|¿|½|â|â|â)/g, ' ');
+    s = s.replace(/(?<=^|\s)[b-hjk-zB-HJK-Z](?=\s|$)/g, ' ');
+    s = s.replace(/\s+/g, ' ').trim();
+    return s;
+  }
+
+  function extractCleanSentencesByLanguage(rawText, targetLang) {
+    const cleanedDoc = cleanDocumentContentForQuiz(rawText);
+    const sanitized = cleanGarbageFromText(cleanedDoc);
+    const rawSentences = sanitized.replace(/\r/g, '').split(/(?<=[.!?؟।\n])\s+/);
+
+    const validSentences = [];
+
+    rawSentences.forEach(rawSent => {
+      let line = rawSent.trim();
+      if (line.length < 12) return;
+
+      if (targetLang === 'ar') {
+        const arabicPart = line.replace(/[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s\d,،.؟!]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (arabicPart.length >= 12 && arabicPart.split(/\s+/).length >= 2) {
+          validSentences.push(arabicPart);
+        }
+      } else if (targetLang === 'hi') {
+        const devPart = line.replace(/[^\u0900-\u097F\s\d,।?!]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (devPart.length >= 12 && devPart.split(/\s+/).length >= 2) {
+          validSentences.push(devPart);
+        }
+      } else if (targetLang === 'bn') {
+        const bnPart = line.replace(/[^\u0980-\u09FF\s\d,।?!]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (bnPart.length >= 12) validSentences.push(bnPart);
+      } else if (targetLang === 'zh' || targetLang === 'ja' || targetLang === 'ko') {
+        const cjkPart = line.replace(/[^\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af\s\d,.?!]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (cjkPart.length >= 8) validSentences.push(cjkPart);
+      } else if (targetLang === 'ru') {
+        const cyrPart = line.replace(/[^\u0400-\u04FF\s\d,.?!]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (cyrPart.length >= 12) validSentences.push(cyrPart);
+      } else {
+        const latinPart = line.replace(/[^\w\s\d,.\-!?'"]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (latinPart.length >= 12 && latinPart.split(/\s+/).length >= 2) {
+          validSentences.push(latinPart);
+        }
+      }
+    });
+
+    if (validSentences.length < 3) {
+      const fallbackTemplates = getFallbackSentencesForLanguage(targetLang);
+      validSentences.push(...fallbackTemplates);
+    }
+
+    return validSentences;
+  }
+
+  function getFallbackSentencesForLanguage(lang) {
+    const fallbacks = {
+      ar: [
+        "يتناول المحتوى أهم المفاهيم والمعلومات الأساسية الجوهرية.",
+        "تساعد المراجعة المستمرة على ترسيخ الفهم واكتساب المهارات.",
+        "تستخدم الأنظمة الحديثة تقنيات متطورة لتحسين الأداء والكفاءة.",
+        "يساهم التحليل التقييمي في اتخاذ القرارات السليمة والصائبة.",
+        "تعتبر المعرفة والبحث العملي ركيزة أساسية للتقدم والابتكار."
+      ],
+      es: [
+        "El documento analiza conceptos fundamentales y datos esenciales.",
+        "La revisión continua ayuda a consolidar la comprensión y adquirir habilidades.",
+        "Los sistemas modernos utilizan tecnologías avanzadas para mejorar la eficiencia.",
+        "El análisis evaluativo contribuye a tomar decisiones acertadas.",
+        "El conocimiento y la investigación son pilares fundamentales para la innovación."
+      ],
+      fr: [
+        "Le document traite des concepts fondamentaux et des informations essentielles.",
+        "L'examen continu aide à consolider la compréhension et à acquérir des compétences.",
+        "Les systèmes modernes utilisent des technologies avancées pour améliorer l'efficacité.",
+        "L'analyse d'évaluation contribue à la prise de décisions éclairées.",
+        "La connaissance et la recherche sont des piliers essentiels de l'innovation."
+      ],
+      de: [
+        "Das Dokument behandelt grundlegende Konzepte und wesentliche Informationen.",
+        "Die kontinuierliche Überprüfung hilft, das Verständnis zu festigen.",
+        "Moderne Systeme nutzen fortschrittliche Technologien zur Effizienzsteigerung.",
+        "Die Evaluierungsanalyse trägt zu fundierten Entscheidungen bei.",
+        "Wissen und Forschung sind wesentliche Säulen für Innovation."
+      ],
+      hi: [
+        "यह दस्तावेज महत्वपूर्ण अवधारणाओं और आवश्यक जानकारी का विश्लेषण करता है।",
+        "निरंतर समीक्षा समझ को मजबूत करने और कौशल प्राप्त करने में मदद करती है।",
+        "आधुनिक प्रणालियाँ दक्षता में सुधार के लिए उन्नत तकनीकों का उपयोग करती हैं।",
+        "मूल्यांकन विश्लेषण सही निर्णय लेने में योगदान देता है।",
+        "ज्ञान और अनुसंधान नवाचार के लिए आवश्यक आधार हैं।"
+      ],
+      zh: [
+        "该文档分析了核心概念和重要信息。",
+        "持续的复习有助于巩固理解并获得技能。",
+        "现代系统利用先进技术提高效率。",
+        "评估分析有助于做出明智的决策。",
+        "知识与研究是创新的基本支柱。"
+      ]
+    };
+    return fallbacks[lang] || [
+      "The document analyzes fundamental concepts and essential information.",
+      "Continuous review helps consolidate understanding and acquire key skills.",
+      "Modern systems leverage advanced techniques to enhance overall performance.",
+      "Evaluative analysis contributes to making sound, informed decisions.",
+      "Knowledge and research serve as essential pillars for ongoing innovation."
+    ];
+  }
+
+  function getKeywordsForQuiz(text, lang, n = 20) {
+    const str = (text || '').trim();
+    let words = [];
+    if (lang === 'ar') {
+      words = str.match(/[\u0621-\u064A]{3,}/g) || [];
+    } else if (lang === 'hi') {
+      words = str.match(/[\u0900-\u097F]{3,}/g) || [];
+    } else if (lang === 'zh' || lang === 'ja' || lang === 'ko') {
+      words = str.match(/[\u4e00-\u9fa5]{2,}/g) || [];
+    } else {
+      words = str.toLowerCase().match(/[a-zà-ÿ]{4,}/gi) || [];
+    }
+
+    const stopAr = new Set(['في', 'من', 'على', 'إلى', 'عن', 'مع', 'هذا', 'هذه', 'تم', 'كان', 'يكون', 'أن', 'إن', 'التي', 'الذي', 'الذين', 'ما', 'لا', 'أو', 'و']);
+    const stopEn = new Set(['the','and','that','this','with','from','they','will','would','there','their','what','about','which','when','make','like','time','just','know','take','into','year','your','good','some','could','them','see','other','than','then','now','look','only','come','its','over','think','also','back','after','use','two','how','our','work','first','well','way','even','new','want','because','any','these','give','day','most','us']);
+
+    const freq = {};
+    words.forEach(w => {
+      const clean = w.toLowerCase();
+      if (!stopAr.has(clean) && !stopEn.has(clean) && clean.length > 2) {
+        freq[w] = (freq[w] || 0) + 1;
+      }
+    });
+
+    const extracted = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, n).map(e => e[0]);
+    return extracted.length >= 3 ? extracted : getFallbackKeywordsForLanguage(lang);
+  }
+
+  function getFallbackKeywordsForLanguage(lang) {
+    const kwMap = {
+      ar: ['المعرفة', 'التحليل', 'الابتكار', 'الأداء', 'الأنظمة', 'التطوير', 'البحث', 'الكفاءة', 'التقييم', 'المهارات'],
+      es: ['Conocimiento', 'Análisis', 'Innovación', 'Rendimiento', 'Sistemas', 'Desarrollo', 'Investigación', 'Eficiencia', 'Evaluación', 'Habilidades'],
+      fr: ['Connaissance', 'Analyse', 'Innovation', 'Performance', 'Systèmes', 'Développement', 'Recherche', 'Efficacité', 'Évaluation', 'Compétences'],
+      de: ['Wissen', 'Analyse', 'Innovation', 'Leistung', 'Systeme', 'Entwicklung', 'Forschung', 'Effizienz', 'Bewertung', 'Fähigkeiten'],
+      hi: ['ज्ञान', 'विश्लेषण', 'नवाचार', 'प्रदर्शन', 'प्रणाली', 'विकास', 'अनुसंधान', 'दक्षता', 'मूल्यांकन', 'कौशल'],
+      zh: ['知识', '分析', '创新', '性能', '系统', '发展', '研究', '效率', '评估', '技能']
+    };
+    return kwMap[lang] || ['Knowledge', 'Analysis', 'Innovation', 'Performance', 'Systems', 'Development', 'Research', 'Efficiency', 'Evaluation', 'Skills'];
+  }
+
+  function pickLanguageDistractors(correct, keywords, lang, n = 3) {
+    const pool = keywords.filter(k => k.toLowerCase() !== (correct || '').toLowerCase());
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    const distractors = shuffled.slice(0, n);
+
+    const fallbacks = {
+      ar: ['التحليل', 'الأداء', 'الكفاءة', 'الابتكار', 'الأنظمة'],
+      es: ['Análisis', 'Rendimiento', 'Eficiencia', 'Innovación', 'Sistemas'],
+      fr: ['Analyse', 'Performance', 'Efficacité', 'Innovation', 'Systèmes'],
+      de: ['Analyse', 'Leistung', 'Effizienz', 'Innovation', 'Systeme'],
+      hi: ['विश्लेषण', 'प्रदर्शन', 'दक्षता', 'नवाचार', 'प्रणाली'],
+      zh: ['分析', '性能', '效率', '创新', '系统']
+    };
+    const defaultPool = fallbacks[lang] || ['Analysis', 'Performance', 'Efficiency', 'Innovation', 'Systems'];
+
+    let idx = 0;
+    while (distractors.length < n) {
+      const fb = defaultPool[idx % defaultPool.length];
+      if (!distractors.includes(fb) && fb.toLowerCase() !== (correct || '').toLowerCase()) {
+        distractors.push(fb);
+      }
+      idx++;
+    }
+
+    return distractors;
+  }
 
   function shouldSkipContentLine(l) {
     if (!l) return true;
@@ -2130,55 +2311,63 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
   };
 
   function generateQuizQuestions(text, opts) {
-    const cleanedText = cleanDocumentContentForQuiz(text);
     const { lang = 'en', qType = 'mcq', count = 10, diff = 'medium' } = opts || {};
-    const sentences = getSentences(cleanedText);
-    const keywords = getKeywords(cleanedText, 25);
-    if (sentences.length === 0) sentences.push(...getSentences(generateSampleContent('content')));
+    
+    const sentences = extractCleanSentencesByLanguage(text, lang);
+    const keywords = getKeywordsForQuiz(text, lang, 25);
     const t = QUIZ_I18N[lang] || QUIZ_I18N.en;
-    const getKws = () => keywords.length ? keywords : getKeywords(cleanedText + ' artificial intelligence machine learning neural networks data algorithms programming software development computer science technology information systems engineering design analysis research innovation', 20);
+
     const resolveType = (i) => qType === 'mixed' ? ['mcq','true-false','fill-blank','flashcards','short-answer'][i % 5] : qType;
     const out = [];
-    const used = new Set();
+    const usedSentences = new Set();
+
     for (let i = 0; i < count; i++) {
       const type = resolveType(i);
       let sentIdx = Math.floor(Math.random() * sentences.length);
       let tries = 0;
-      while (used.has(sentIdx) && tries < 20) { sentIdx = (sentIdx + 1) % sentences.length; tries++; }
-      used.add(sentIdx);
-      const sentence = sentences[sentIdx] || sentences[i % sentences.length] || 'The content discusses important concepts worth reviewing.';
-      const kws = getKws();
+      while (usedSentences.has(sentIdx) && tries < 20) {
+        sentIdx = (sentIdx + 1) % sentences.length;
+        tries++;
+      }
+      usedSentences.add(sentIdx);
+
+      const sentence = sentences[sentIdx] || sentences[i % sentences.length];
+      const wordsInSent = sentence.split(/\s+/).filter(w => w.length >= 2);
+      
+      let keyword = wordsInSent.find(w => keywords.includes(w)) || wordsInSent[Math.floor(Math.random() * wordsInSent.length)] || keywords[i % keywords.length];
+      if (keyword) {
+        keyword = keyword.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+      }
+
+      if (!keyword || keyword.length < 2) {
+        keyword = keywords[i % keywords.length] || (lang === 'ar' ? 'المفهوم' : 'concept');
+      }
+
       let question, answer, options, explanation;
 
       if (type === 'mcq') {
-        const kwsInSent = kws.filter(k => sentence.toLowerCase().includes(k));
-        const keyword = kwsInSent.length ? kwsInSent[Math.floor(Math.random() * kwsInSent.length)] : kws[i % kws.length] || 'concept';
-        const regex = new RegExp(`\\b${keyword}\\b`, 'i');
-        question = sentence.replace(regex, '________');
+        question = sentence.includes(keyword) ? sentence.replace(keyword, '________') : `${sentence} (________)`;
         answer = keyword;
-        const distractors = pickDistractors(keyword, kws);
+        const distractors = pickLanguageDistractors(keyword, keywords, lang, 3);
         options = [answer, ...distractors].sort(() => Math.random() - 0.5);
-        explanation = `${sentence}  →  Keyword: ${keyword}.`;
+        explanation = `${sentence}  →  (${t.ans}: ${keyword})`;
       } else if (type === 'true-false') {
         const flip = Math.random() > 0.5;
-        const baseSentence = sentence;
-        if (flip && kws.length >= 2) {
-          const orig = kws[i % kws.length], replacement = kws[(i + 1) % kws.length];
-          question = baseSentence.replace(new RegExp(`\\b${orig}\\b`, 'i'), replacement);
-          answer = 'False';
-          explanation = `Original statement contains "${orig}", not "${replacement}".`;
+        const distractors = pickLanguageDistractors(keyword, keywords, lang, 1);
+        if (flip && distractors.length > 0 && sentence.includes(keyword)) {
+          question = sentence.replace(keyword, distractors[0]);
+          answer = t.trueFalseFalse;
+          explanation = lang === 'ar' ? `العبارة المعدلة غير صحيحة. الكلمة الأصلية: "${keyword}".` : `Original statement contains "${keyword}", not "${distractors[0]}".`;
         } else {
-          question = baseSentence;
-          answer = 'True';
-          explanation = 'This statement accurately reflects the source material.';
+          question = sentence;
+          answer = t.trueFalseTrue;
+          explanation = lang === 'ar' ? `العبارة صحيحة وتتطابق مع المحتوى الأصلي.` : `This statement accurately reflects the source material.`;
         }
         options = [t.trueFalseTrue, t.trueFalseFalse];
       } else if (type === 'fill-blank') {
-        const kwsInSent = kws.filter(k => sentence.toLowerCase().includes(k));
-        const keyword = kwsInSent.length ? kwsInSent[Math.floor(Math.random() * kwsInSent.length)] : kws[i % kws.length] || 'term';
-        question = sentence.replace(new RegExp(`\\b${keyword}\\b`, 'i'), '_____');
+        question = sentence.includes(keyword) ? sentence.replace(keyword, '________') : `${sentence} (________)`;
         answer = keyword;
-        explanation = t.fillBlank + ` Correct word: ${keyword}.`;
+        explanation = `${t.fillBlank} ${t.ans}: ${keyword}.`;
       } else if (type === 'flashcards') {
         const words = sentence.split(' ');
         const half = Math.ceil(words.length / 2);
@@ -2186,12 +2375,14 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
         answer = words.slice(half).join(' ');
         explanation = sentence;
       } else {
-        question = `Based on the provided material, explain: ${sentence.split(' ').slice(0, 10).join(' ')}...`;
+        question = `${t.q} ${i + 1}: ${sentence}`;
         answer = sentence;
         explanation = t.shortAnswer;
       }
+
       out.push({ id: i + 1, type, difficulty: diff, question, answer, options: options || [], explanation });
     }
+
     return out;
   }
 
