@@ -111,14 +111,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const toolStudioView = document.getElementById('tool-studio-view');
     const adminPage = document.getElementById('admin-page-view');
     const historyPage = document.getElementById('user-history-view');
+    const publicQuizView = document.getElementById('public-quiz-view');
+    const quizDashboardView = document.getElementById('quiz-dashboard-view');
+
     if (mainApp) mainApp.classList.add('hidden');
     if (toolStudioView) toolStudioView.classList.add('hidden');
     if (adminPage) adminPage.classList.add('hidden');
     if (historyPage) historyPage.classList.add('hidden');
+    if (publicQuizView) publicQuizView.classList.add('hidden');
+    if (quizDashboardView) quizDashboardView.classList.add('hidden');
+
     if (hash === '#admin-page' || hash === '#admin') {
       if (adminPage) { adminPage.classList.remove('hidden'); if (typeof renderFullAdminPage === 'function') renderFullAdminPage(); }
     } else if (hash === '#history') {
       if (historyPage) { historyPage.classList.remove('hidden'); renderUserHistoryPage(); }
+    } else if (hash.startsWith('#quiz/') || hash.startsWith('#take-quiz/')) {
+      const quizId = hash.replace(/^#(quiz|take-quiz)\//, '');
+      if (publicQuizView) {
+        publicQuizView.classList.remove('hidden');
+        if (typeof renderParticipantQuizPage === 'function') renderParticipantQuizPage(quizId);
+      }
     } else if (hash.startsWith('#tool/')) {
       const toolId = hash.replace('#tool/', '');
       const tool = TOOLS.find(t => t.id === toolId);
@@ -1162,13 +1174,470 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
   };
   QUIZ_I18N.zh = QUIZ_I18N.ja = QUIZ_I18N.ko = QUIZ_I18N.ru = QUIZ_I18N.pt = QUIZ_I18N.it = QUIZ_I18N.tr = QUIZ_I18N.nl = QUIZ_I18N.pl = QUIZ_I18N.vi = QUIZ_I18N.th = QUIZ_I18N.id = QUIZ_I18N.ms = QUIZ_I18N.fil = QUIZ_I18N.fa = QUIZ_I18N.he = QUIZ_I18N.ar = QUIZ_I18N.bn = QUIZ_I18N.ur = QUIZ_I18N.ta = QUIZ_I18N.te = QUIZ_I18N.ml = QUIZ_I18N.mr = QUIZ_I18N.gu = QUIZ_I18N.pa = QUIZ_I18N.en;
 
+  // --- Clean Document Content Routine (Strips Page numbers, headers, footers, URLs, metadata) ---
+  function cleanDocumentContentForQuiz(rawText) {
+    if (!rawText) return '';
+    return rawText
+      .replace(/^(?:Page\s*\d+(?:\s*of\s*\d+)?|\d+\s*\/\s*\d+|p\.\s*\d+|\d+)$/gim, '')
+      .replace(/^https?:\/\/\S+/gim, '')
+      .replace(/^(?:Copyright|All Rights Reserved|Confidential|Draft|Table of Contents|Chapter \d+|Section \d+).*$/gim, '')
+      .replace(/^[0-9]+[\.\)]\s*$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  // --- Quiz Storage & Submissions Engine ---
+  class QuizStorageEngine {
+    static STORAGE_QUIZZES = 'studiosuite_quizzes';
+    static STORAGE_SUBMISSIONS = 'studiosuite_quiz_submissions';
+
+    static getQuizzes() {
+      return JSON.parse(localStorage.getItem(this.STORAGE_QUIZZES) || '[]');
+    }
+
+    static getQuiz(id) {
+      return this.getQuizzes().find(q => q.id === id);
+    }
+
+    static saveQuiz(quizObj) {
+      const quizzes = this.getQuizzes();
+      const idx = quizzes.findIndex(q => q.id === quizObj.id);
+      if (idx !== -1) quizzes[idx] = { ...quizzes[idx], ...quizObj, updatedAt: new Date().toISOString() };
+      else quizzes.push(quizObj);
+      localStorage.setItem(this.STORAGE_QUIZZES, JSON.stringify(quizzes));
+      return quizObj;
+    }
+
+    static getSubmissions(quizId) {
+      const all = JSON.parse(localStorage.getItem(this.STORAGE_SUBMISSIONS) || '[]');
+      return all.filter(s => s.quizId === quizId);
+    }
+
+    static saveSubmission(subObj) {
+      const all = JSON.parse(localStorage.getItem(this.STORAGE_SUBMISSIONS) || '[]');
+      subObj.id = 'sub_' + Date.now();
+      subObj.timestamp = new Date().toISOString();
+      all.push(subObj);
+      localStorage.setItem(this.STORAGE_SUBMISSIONS, JSON.stringify(all));
+      return subObj;
+    }
+  }
+  window.QuizStorageEngine = QuizStorageEngine;
+
+  // --- Interactive Live Quiz Editing Helpers ---
+  window.updateQuizQuestionText = function(idx, val) {
+    if (state.quizData && state.quizData[idx]) state.quizData[idx].question = val;
+  };
+  window.updateQuizQuestionAnswer = function(idx, val) {
+    if (state.quizData && state.quizData[idx]) state.quizData[idx].answer = val;
+  };
+  window.updateQuizOptionText = function(qIdx, optIdx, val) {
+    if (state.quizData && state.quizData[qIdx] && state.quizData[qIdx].options) {
+      state.quizData[qIdx].options[optIdx] = val;
+    }
+  };
+  window.deleteQuizQuestionAt = function(idx) {
+    if (state.quizData) {
+      state.quizData.splice(idx, 1);
+      state.quizData.forEach((q, i) => q.id = i + 1);
+      renderQuizQuestions(state.quizData);
+      showToast('Question deleted', 'info');
+    }
+  };
+  window.addQuizQuestion = function() {
+    if (!state.quizData) state.quizData = [];
+    const newId = state.quizData.length + 1;
+    state.quizData.push({
+      id: newId,
+      type: 'mcq',
+      difficulty: 'medium',
+      question: 'New Question Prompt',
+      answer: 'Option A',
+      options: ['Option A', 'Option B', 'Option C', 'Option D'],
+      explanation: 'Explanation for correct answer.'
+    });
+    renderQuizQuestions(state.quizData);
+    showToast('New question added!', 'success');
+  };
+
+  // --- Share Quiz Link PRO Verification & Modal ---
+  window.shareQuizLinkPRO = function() {
+    const currentUser = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.getCurrentUser() : null;
+    const isSubscribed = currentUser && currentUser.planId !== 'free' && currentUser.status === 'active';
+
+    if (!isSubscribed) {
+      if (window.AuthSubscriptionEngine) AuthSubscriptionEngine.openSubscriptionModal();
+      if (window.showToast) {
+        window.showToast('Shareable Quiz Links are exclusive to Subscribed PRO Users. Upgrade to PRO to generate shareable links!', 'info');
+      }
+      return;
+    }
+
+    if (!state.quizData || state.quizData.length === 0) {
+      showToast('Please generate or create quiz questions first.', 'error');
+      return;
+    }
+
+    const quizId = 'quiz_' + Date.now();
+    const title = prompt('Enter a Title for this Shared Quiz:', 'Interactive Knowledge Assessment') || 'Interactive Quiz';
+
+    QuizStorageEngine.saveQuiz({
+      id: quizId,
+      creatorId: currentUser.id,
+      creatorEmail: currentUser.email,
+      creatorName: currentUser.name || 'Instructor',
+      title,
+      questions: state.quizData,
+      createdAt: new Date().toISOString()
+    });
+
+    openShareQuizModal(quizId, title);
+  };
+
+  function openShareQuizModal(quizId, title) {
+    const modalId = 'quiz-share-modal';
+    let existing = document.getElementById(modalId);
+    if (existing) existing.remove();
+
+    const shareUrl = `${window.location.origin}${window.location.pathname}#quiz/${quizId}`;
+
+    const modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden relative">
+        <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="p-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-center space-y-2">
+          <div class="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center text-2xl mx-auto shadow-inner">
+            <i class="fa-solid fa-share-nodes"></i>
+          </div>
+          <h3 class="text-xl font-extrabold">Quiz Link Generated!</h3>
+          <p class="text-xs text-purple-100">PRO Feature &bull; Share this link with participants to take the quiz</p>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Quiz Title</label>
+            <p class="font-extrabold text-sm text-slate-900">${title}</p>
+          </div>
+
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Participant Shareable URL</label>
+            <div class="flex gap-2 mt-1">
+              <input type="text" id="share-quiz-input-url" class="custom-input w-full text-xs font-mono bg-slate-50" value="${shareUrl}" readonly>
+              <button onclick="copyShareQuizUrl()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition whitespace-nowrap">
+                <i class="fa-solid fa-copy mr-1"></i> Copy Link
+              </button>
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex justify-between items-center">
+            <button onclick="viewQuizSubmissionsModal('${quizId}')" class="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1">
+              <i class="fa-solid fa-users"></i> View Participant Analytics (${QuizStorageEngine.getSubmissions(quizId).length})
+            </button>
+            <a href="${shareUrl}" target="_blank" class="text-xs font-bold text-emerald-600 hover:underline">
+              Test Quiz Page <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  window.copyShareQuizUrl = function() {
+    const input = document.getElementById('share-quiz-input-url');
+    if (input) {
+      input.select();
+      navigator.clipboard.writeText(input.value);
+      showToast('Shareable Quiz Link copied to clipboard!', 'success');
+    }
+  };
+
+  // --- Participant Submissions Analytics Modal ---
+  window.viewQuizSubmissionsModal = function(quizId) {
+    const submissions = QuizStorageEngine.getSubmissions(quizId);
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+
+    const modalId = 'quiz-submissions-modal';
+    let existing = document.getElementById(modalId);
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full overflow-hidden relative">
+        <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="p-6 bg-slate-900 text-white space-y-1">
+          <h3 class="text-lg font-extrabold flex items-center gap-2">
+            <i class="fa-solid fa-users text-indigo-400"></i> Participant Analytics & Submissions
+          </h3>
+          <p class="text-xs text-slate-400">${quiz?.title || 'Quiz Assessment'} &bull; ${submissions.length} Total Attempts</p>
+        </div>
+
+        <div class="p-6 max-h-[480px] overflow-y-auto">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-50 text-slate-600 border-b">
+              <tr>
+                <th class="p-3">Participant</th>
+                <th class="p-3">Email</th>
+                <th class="p-3">Score</th>
+                <th class="p-3">Completed At</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              ${submissions.length > 0 ? submissions.map(s => `
+                <tr>
+                  <td class="p-3 font-extrabold text-slate-900">${s.name}</td>
+                  <td class="p-3 text-slate-500">${s.email || 'N/A'}</td>
+                  <td class="p-3">
+                    <span class="px-2 py-0.5 rounded ${s.percentage >= 70 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} font-bold">
+                      ${s.score}/${s.total} (${s.percentage}%)
+                    </span>
+                  </td>
+                  <td class="p-3 text-slate-400">${new Date(s.timestamp).toLocaleString()}</td>
+                </tr>
+              `).join('') : `<tr><td colspan="4" class="p-6 text-center text-slate-400 italic">No participants have submitted answers yet. Share your PRO quiz link to get responses!</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  };
+
+  // --- Public Participant Quiz Renderer & Interactive Submission Engine ---
+  window.renderParticipantQuizPage = function(quizId) {
+    const container = document.getElementById('public-quiz-view');
+    if (!container) return;
+
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+
+    if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+      container.innerHTML = `
+        <div class="max-w-2xl mx-auto my-16 p-8 bg-white rounded-3xl border border-slate-200 shadow-xl text-center space-y-4 animate-fade-in">
+          <div class="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-3xl mx-auto">
+            <i class="fa-solid fa-file-circle-xmark"></i>
+          </div>
+          <h2 class="text-2xl font-extrabold text-slate-900">Quiz Not Found or Expired</h2>
+          <p class="text-xs text-slate-500 max-w-md mx-auto">The quiz link you are trying to access does not exist or has been removed by the creator.</p>
+          <a href="#" class="inline-block px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow transition">
+            Go to Home
+          </a>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="max-w-3xl mx-auto my-10 px-4 animate-fade-in">
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden">
+          
+          <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-8 space-y-3 relative">
+            <div class="flex items-center gap-2 text-indigo-400 font-extrabold text-xs uppercase tracking-wider">
+              <i class="fa-solid fa-graduation-cap"></i> Interactive Online Assessment
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">${quiz.title}</h1>
+            <p class="text-xs text-slate-300">Created by <span class="font-bold text-white">${quiz.author}</span> &bull; ${quiz.questions.length} Questions &bull; Free Participation</p>
+          </div>
+
+          <div id="participant-quiz-content" class="p-6 sm:p-8 space-y-6">
+            <div class="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-2">
+              <h3 class="font-extrabold text-sm text-indigo-900 flex items-center gap-2">
+                <i class="fa-solid fa-user-pen text-indigo-600"></i> Participant Details Required
+              </h3>
+              <p class="text-xs text-slate-600 leading-relaxed">
+                Please enter your details below to start the quiz. Your results will be securely transmitted to the quiz creator.
+              </p>
+            </div>
+
+            <form id="participant-entry-form" onsubmit="event.preventDefault(); startParticipantQuiz('${quizId}');" class="space-y-4 max-w-md">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Full Name <span class="text-red-500">*</span></label>
+                <input type="text" id="participant-name" required placeholder="e.g. Alex Johnson" class="custom-input w-full text-sm font-semibold">
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Email Address <span class="text-slate-400 font-normal">(Optional)</span></label>
+                <input type="email" id="participant-email" placeholder="e.g. alex@example.com" class="custom-input w-full text-sm font-semibold">
+              </div>
+
+              <button type="submit" class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-sm shadow-lg hover:shadow-indigo-500/25 transition">
+                Start Quiz Now <i class="fa-solid fa-arrow-right ml-2"></i>
+              </button>
+            </form>
+          </div>
+
+        </div>
+      </div>
+    `;
+  };
+
+  window.startParticipantQuiz = function(quizId) {
+    const nameInput = document.getElementById('participant-name');
+    const emailInput = document.getElementById('participant-email');
+    const name = nameInput?.value?.trim();
+    const email = emailInput?.value?.trim();
+
+    if (!name) {
+      showToast('Please enter your full name to begin.', 'error');
+      return;
+    }
+
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz) return;
+
+    window._currentParticipant = { name, email, quizId };
+
+    const contentDiv = document.getElementById('participant-quiz-content');
+    if (!contentDiv) return;
+
+    contentDiv.innerHTML = `
+      <form id="active-quiz-form" onsubmit="event.preventDefault(); submitParticipantQuiz('${quizId}');" class="space-y-6">
+        <div class="space-y-6">
+          ${quiz.questions.map((q, idx) => `
+            <div class="p-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold px-3 py-1 rounded-full bg-indigo-600 text-white">Question ${idx + 1} of ${quiz.questions.length}</span>
+                <span class="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase">${q.type.replace('-', ' ')}</span>
+              </div>
+
+              <p class="text-sm font-extrabold text-slate-900">${q.question}</p>
+
+              ${q.options && q.options.length ? `
+                <div class="space-y-2 pt-1">
+                  ${q.options.map((opt, optIdx) => `
+                    <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50/50 cursor-pointer transition">
+                      <input type="radio" name="q_${q.id}" value="${opt.replace(/"/g, '&quot;')}" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                      <span class="text-xs font-semibold text-slate-800"><b class="text-slate-400 mr-1.5">${String.fromCharCode(65 + optIdx)}.</b> ${opt}</span>
+                    </label>
+                  `).join('')}
+                </div>
+              ` : `
+                <div class="pt-1">
+                  <input type="text" name="q_${q.id}" placeholder="Type your answer here..." class="custom-input w-full text-xs font-medium bg-white">
+                </div>
+              `}
+            </div>
+          `).join('')}
+        </div>
+
+        <button type="submit" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-sm shadow-xl transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-paper-plane"></i> Submit Final Quiz Answers
+        </button>
+      </form>
+    `;
+  };
+
+  window.submitParticipantQuiz = function(quizId) {
+    const quiz = QuizStorageEngine.getQuiz(quizId);
+    if (!quiz) return;
+
+    const participant = window._currentParticipant || { name: 'Anonymous', email: '', quizId };
+    const form = document.getElementById('active-quiz-form');
+    if (!form) return;
+
+    let score = 0;
+    const total = quiz.questions.length;
+    const reviewData = [];
+
+    quiz.questions.forEach(q => {
+      let chosen = '';
+      if (q.options && q.options.length) {
+        const selected = form.querySelector(`input[name="q_${q.id}"]:checked`);
+        chosen = selected ? selected.value : '';
+      } else {
+        const textInput = form.querySelector(`input[name="q_${q.id}"]`);
+        chosen = textInput ? textInput.value.trim() : '';
+      }
+
+      const isCorrect = chosen.toLowerCase() === (q.answer || '').toLowerCase();
+      if (isCorrect) score++;
+
+      reviewData.push({
+        question: q.question,
+        chosen: chosen || 'No answer submitted',
+        correct: q.answer,
+        isCorrect,
+        explanation: q.explanation
+      });
+    });
+
+    const percentage = Math.round((score / total) * 100);
+
+    QuizStorageEngine.saveSubmission(quizId, {
+      name: participant.name,
+      email: participant.email,
+      score,
+      total,
+      percentage,
+      answers: reviewData
+    });
+
+    const contentDiv = document.getElementById('participant-quiz-content');
+    if (!contentDiv) return;
+
+    contentDiv.innerHTML = `
+      <div class="space-y-6 text-center animate-fade-in">
+        <div class="p-6 rounded-3xl ${percentage >= 70 ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'} space-y-2">
+          <div class="w-16 h-16 rounded-2xl ${percentage >= 70 ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'} flex items-center justify-center text-3xl mx-auto shadow-lg">
+            <i class="fa-solid ${percentage >= 70 ? 'fa-trophy' : 'fa-chart-pie'}"></i>
+          </div>
+          <h2 class="text-2xl font-extrabold text-slate-900">${percentage >= 70 ? 'Congratulations, ' + participant.name + '!' : 'Quiz Complete, ' + participant.name}</h2>
+          <p class="text-xs text-slate-600 font-medium">Your score has been recorded and submitted to the quiz author.</p>
+
+          <div class="flex justify-center items-center gap-4 pt-2">
+            <div class="px-5 py-3 rounded-2xl bg-white border border-slate-200 shadow-sm text-center">
+              <div class="text-xs font-bold text-slate-400 uppercase">Score</div>
+              <div class="text-xl font-extrabold text-indigo-600">${score} / ${total}</div>
+            </div>
+            <div class="px-5 py-3 rounded-2xl bg-white border border-slate-200 shadow-sm text-center">
+              <div class="text-xs font-bold text-slate-400 uppercase">Percentage</div>
+              <div class="text-xl font-extrabold ${percentage >= 70 ? 'text-emerald-600' : 'text-amber-600'}">${percentage}%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-4 text-left">
+          <h3 class="font-extrabold text-sm text-slate-900 border-b pb-2 flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-indigo-600"></i> Answer Breakdown & Explanations
+          </h3>
+
+          <div class="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+            ${reviewData.map((item, idx) => `
+              <div class="p-4 rounded-xl border ${item.isCorrect ? 'border-emerald-200 bg-emerald-50/40' : 'border-rose-200 bg-rose-50/40'} space-y-1 text-xs">
+                <div class="font-bold text-slate-900 flex items-start gap-2">
+                  <i class="fa-solid ${item.isCorrect ? 'fa-circle-check text-emerald-600' : 'fa-circle-xmark text-rose-600'} mt-0.5"></i>
+                  <span><b>Q${idx + 1}:</b> ${item.question}</span>
+                </div>
+                <div class="pl-5 space-y-0.5 text-slate-700">
+                  <div><b>Your Answer:</b> <span class="${item.isCorrect ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}">${item.chosen}</span></div>
+                  ${!item.isCorrect ? `<div><b>Correct Answer:</b> <span class="text-emerald-700 font-bold">${item.correct}</span></div>` : ''}
+                  ${item.explanation ? `<div class="text-slate-500 text-[11px] italic pt-1">${item.explanation}</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
   function generateQuizQuestions(text, opts) {
+    const cleanedText = cleanDocumentContentForQuiz(text);
     const { lang = 'en', qType = 'mcq', count = 10, diff = 'medium' } = opts || {};
-    const sentences = getSentences(text);
-    const keywords = getKeywords(text, 25);
+    const sentences = getSentences(cleanedText);
+    const keywords = getKeywords(cleanedText, 25);
     if (sentences.length === 0) sentences.push(...getSentences(generateSampleContent('content')));
     const t = QUIZ_I18N[lang] || QUIZ_I18N.en;
-    const getKws = () => keywords.length ? keywords : getKeywords(text + ' artificial intelligence machine learning neural networks data algorithms programming software development computer science technology information systems engineering design analysis research innovation', 20);
+    const getKws = () => keywords.length ? keywords : getKeywords(cleanedText + ' artificial intelligence machine learning neural networks data algorithms programming software development computer science technology information systems engineering design analysis research innovation', 20);
     const resolveType = (i) => qType === 'mixed' ? ['mcq','true-false','fill-blank','flashcards','short-answer'][i % 5] : qType;
     const out = [];
     const used = new Set();
@@ -1232,42 +1701,73 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
     if (!container || !data) return;
     container.innerHTML = '';
     const t = QUIZ_I18N[document.getElementById('ctrl-quiz-language')?.value] || QUIZ_I18N.en;
+
+    // Render Quiz Management Header Actions (Export vs PRO Share Link vs Add Question)
+    const headerActions = document.createElement('div');
+    headerActions.className = 'p-4 bg-slate-900 text-white rounded-2xl flex flex-wrap justify-between items-center gap-3 shadow-md mb-4';
+    headerActions.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-extrabold px-3 py-1 rounded-full bg-indigo-600 text-white">${data.length} Questions</span>
+        <button onclick="addQuizQuestion()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition">
+          <i class="fa-solid fa-plus text-emerald-400 mr-1"></i> Add Question
+        </button>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="exportQuiz('txt')" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition">
+          <i class="fa-solid fa-file-export mr-1"></i> Export (PDF/TXT)
+        </button>
+        <button onclick="shareQuizLinkPRO()" class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-95 text-white font-extrabold text-xs shadow-md transition flex items-center gap-1.5">
+          <i class="fa-solid fa-share-nodes"></i> Share Quiz Link (PRO)
+        </button>
+      </div>
+    `;
+    container.appendChild(headerActions);
+
     data.forEach((q, idx) => {
       const card = document.createElement('div');
       card.className = 'p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white space-y-3';
       const typeBadge = { mcq: 'bg-indigo-100 text-indigo-700', 'true-false': 'bg-emerald-100 text-emerald-700', 'fill-blank': 'bg-amber-100 text-amber-700', flashcards: 'bg-purple-100 text-purple-700', 'short-answer': 'bg-rose-100 text-rose-700' }[q.type] || 'bg-slate-100 text-slate-700';
       const diffBadge = { easy: 'bg-emerald-100 text-emerald-700', medium: 'bg-amber-100 text-amber-700', hard: 'bg-rose-100 text-rose-700' }[q.difficulty] || 'bg-slate-100';
-      let optionsHtml = '';
-      if (q.type === 'mcq' && q.options.length) {
-        optionsHtml = `<div class="space-y-1.5">${q.options.map(opt => `
-          <label class="flex items-start gap-2 p-2 rounded-lg border border-slate-200 hover:bg-white hover:border-indigo-300 transition cursor-pointer text-xs">
-            <input type="radio" name="quiz-${idx}" class="mt-0.5 accent-indigo-600" data-answer="${q.answer}" value="${opt}">
-            <span class="font-semibold text-slate-700">${opt}</span>
-          </label>`).join('')}</div>`;
-      } else if (q.type === 'true-false') {
-        optionsHtml = `<div class="grid grid-cols-2 gap-2">${(q.options || [t.trueFalseTrue, t.trueFalseFalse]).map(opt => `
-          <label class="flex items-center justify-center gap-2 p-2 rounded-lg border border-slate-200 hover:bg-white hover:border-indigo-300 transition cursor-pointer text-xs font-bold">
-            <input type="radio" name="quiz-${idx}" class="accent-indigo-600" data-answer="${q.answer}" value="${opt}"> ${opt}
-          </label>`).join('')}</div>`;
-      } else if (q.type === 'fill-blank' || q.type === 'short-answer') {
-        optionsHtml = `<input type="text" id="quiz-sa-${idx}" class="custom-input w-full text-xs" placeholder="${q.type === 'fill-blank' ? t.fillBlank : t.shortAnswer}">`;
-      } else {
-        optionsHtml = `<div class="p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-xs italic text-indigo-700">${t.flashcardA}: <span onclick="this.nextElementSibling.classList.toggle('hidden')" class="cursor-pointer underline font-bold">Click to reveal</span><span class="hidden font-semibold block mt-1">${q.answer}</span></div>`;
+
+      let optionsInputs = '';
+      if (q.options && q.options.length) {
+        optionsInputs = `<div class="space-y-1.5 pt-1">
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Answer Options (Editable):</label>
+          ${q.options.map((opt, optIdx) => `
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-slate-400 w-4">${String.fromCharCode(65 + optIdx)}.</span>
+              <input type="text" value="${opt.replace(/"/g, '&quot;')}" oninput="updateQuizOptionText(${idx}, ${optIdx}, this.value)" class="custom-input w-full text-xs bg-white">
+            </div>
+          `).join('')}
+        </div>`;
       }
+
       card.innerHTML = `
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-900 text-white">${t.q} ${q.id}</span>
-          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${typeBadge} uppercase">${q.type.replace('-', ' ')}</span>
-          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${diffBadge} capitalize ml-auto">${q.difficulty}</span>
-        </div>
-        <p class="text-sm font-semibold text-slate-900 leading-relaxed">${q.question}</p>
-        ${optionsHtml}
-        <details class="text-xs"><summary class="cursor-pointer font-bold text-indigo-600 hover:text-indigo-700">💡 ${t.ans} &amp; ${t.exp}</summary>
-          <div class="mt-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200 space-y-1">
-            <div><b class="text-emerald-800">${t.ans}:</b> <span class="font-semibold text-emerald-900">${q.answer}</span></div>
-            <div><b class="text-emerald-700">${t.exp}:</b> <span class="text-emerald-800">${q.explanation}</span></div>
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-900 text-white">${t.q} ${q.id}</span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${typeBadge} uppercase">${q.type.replace('-', ' ')}</span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${diffBadge} capitalize">${q.difficulty}</span>
           </div>
-        </details>`;
+
+          <button onclick="deleteQuizQuestionAt(${idx})" class="text-xs text-red-500 hover:text-red-700 font-bold flex items-center gap-1">
+            <i class="fa-solid fa-trash-can"></i> Remove Question
+          </button>
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Question Text Prompt (Editable):</label>
+          <input type="text" value="${q.question.replace(/"/g, '&quot;')}" oninput="updateQuizQuestionText(${idx}, this.value)" class="custom-input w-full text-xs font-semibold text-slate-900 bg-white">
+        </div>
+
+        ${optionsInputs}
+
+        <div class="space-y-1 pt-1">
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Correct Answer (Editable):</label>
+          <input type="text" value="${(q.answer || '').replace(/"/g, '&quot;')}" oninput="updateQuizQuestionAnswer(${idx}, this.value)" class="custom-input w-full text-xs font-bold text-emerald-700 bg-emerald-50/50">
+        </div>
+      `;
       container.appendChild(card);
     });
     const btnDl = document.getElementById('studio-btn-download');
