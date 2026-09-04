@@ -537,11 +537,19 @@ window.openAddPlanModal = function(planIdToEdit = null) {
   const initialFeatures = editPlan && Array.isArray(editPlan.features) ? editPlan.features.join('\n') : '';
   const initialAllowedTools = editPlan && Array.isArray(editPlan.allowedToolIds) ? editPlan.allowedToolIds : 'all';
 
+  // Group tools by category section
+  const categorizedTools = {};
+  tools.forEach(t => {
+    const cat = t.category || 'General Tools';
+    if (!categorizedTools[cat]) categorizedTools[cat] = [];
+    categorizedTools[cat].push(t);
+  });
+
   const modal = document.createElement('div');
   modal.id = modalId;
   modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in';
   modal.innerHTML = `
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-xl w-full my-8 overflow-hidden relative">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full my-8 overflow-hidden relative">
       <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition z-10">
         <i class="fa-solid fa-xmark"></i>
       </button>
@@ -550,10 +558,10 @@ window.openAddPlanModal = function(planIdToEdit = null) {
         <h3 class="text-lg font-extrabold flex items-center gap-2">
           <i class="fa-solid fa-crown text-amber-400"></i> ${editPlan ? 'Edit Subscription Plan' : 'Create New Subscription Plan'}
         </h3>
-        <p class="text-xs text-slate-400">Configure price, duration, max file size limit, badge, and tool access permissions.</p>
+        <p class="text-xs text-slate-400">Configure price, duration, file limits, and select tool feature permissions by section.</p>
       </div>
 
-      <form onsubmit="handleSavePlanSubmit(event, '${editPlan ? editPlan.id : ''}')" class="p-6 space-y-4 max-h-[520px] overflow-y-auto">
+      <form onsubmit="handleSavePlanSubmit(event, '${editPlan ? editPlan.id : ''}')" class="p-6 space-y-5 max-h-[580px] overflow-y-auto">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="text-[10px] font-bold text-slate-500 uppercase">Plan Name <span class="text-red-500">*</span></label>
@@ -582,23 +590,60 @@ window.openAddPlanModal = function(planIdToEdit = null) {
 
         <div>
           <label class="text-[10px] font-bold text-slate-500 uppercase">Plan Features & Bullets (One per line)</label>
-          <textarea id="plan-input-features" rows="4" class="custom-input w-full text-xs font-mono bg-white" placeholder="Access to All 50 Tools&#10;250MB Max Upload Limit&#10;Cloud History Autosave">${initialFeatures}</textarea>
+          <textarea id="plan-input-features" rows="3" class="custom-input w-full text-xs font-mono bg-white" placeholder="Access to All 50 Tools&#10;250MB Max Upload Limit&#10;Cloud History Autosave">${initialFeatures}</textarea>
         </div>
 
-        <div class="space-y-2 pt-2 border-t border-slate-100">
-          <label class="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
-            <span>Included Tool Access Permissions</span>
-            <span class="text-indigo-600 font-extrabold">${tools.length} Total Tools Available</span>
-          </label>
-          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto space-y-1.5 text-xs">
-            ${tools.map(t => {
-              const isChecked = initialAllowedTools === 'all' || (Array.isArray(initialAllowedTools) && initialAllowedTools.includes(t.id));
+        <!-- Sectional Feature Selection -->
+        <div class="space-y-3 pt-3 border-t border-slate-200">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <label class="text-xs font-extrabold text-slate-800 uppercase flex items-center gap-1.5">
+                <i class="fa-solid fa-list-check text-indigo-600"></i> Subscription Plan Included Features
+              </label>
+              <p class="text-[11px] text-slate-500">Select individual tools or entire tool sections to grant access in this plan.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="window.toggleAllPlanTools(true)" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                <i class="fa-solid fa-check-double"></i> Select All Features
+              </button>
+              <button type="button" onclick="window.toggleAllPlanTools(false)" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                <i class="fa-solid fa-square-xmark"></i> Deselect All
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-3 max-h-64 overflow-y-auto p-3 bg-slate-50 rounded-2xl border border-slate-200">
+            ${Object.keys(categorizedTools).map(catName => {
+              const catTools = categorizedTools[catName];
+              const safeCatId = catName.replace(/[^a-zA-Z0-9]/g, '_');
               return `
-                <label class="flex items-center gap-2 cursor-pointer hover:bg-white p-1 rounded transition">
-                  <input type="checkbox" name="plan-tool-checkbox" value="${t.id}" ${isChecked ? 'checked' : ''} class="rounded text-indigo-600 focus:ring-indigo-500">
-                  <span class="font-semibold text-slate-800">${t.name}</span>
-                  <span class="text-[10px] text-slate-400">(${t.category})</span>
-                </label>
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                  <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <span class="font-extrabold text-xs text-slate-900 flex items-center gap-2">
+                      <i class="fa-solid fa-layer-group text-indigo-500"></i> ${catName}
+                      <span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold">${catTools.length} tools</span>
+                    </span>
+                    <div class="flex items-center gap-1.5">
+                      <button type="button" onclick="window.togglePlanSectionTools('${safeCatId}', true)" class="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 rounded text-[10px] font-bold transition">
+                        Select Section
+                      </button>
+                      <button type="button" onclick="window.togglePlanSectionTools('${safeCatId}', false)" class="px-2 py-1 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 rounded text-[10px] font-bold transition">
+                        Deselect Section
+                      </button>
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    ${catTools.map(t => {
+                      const isChecked = initialAllowedTools === 'all' || (Array.isArray(initialAllowedTools) && initialAllowedTools.includes(t.id));
+                      return `
+                        <label class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg border border-transparent hover:border-slate-200 transition text-xs">
+                          <input type="checkbox" name="plan-tool-checkbox" data-category="${safeCatId}" value="${t.id}" ${isChecked ? 'checked' : ''} class="rounded text-indigo-600 focus:ring-indigo-500">
+                          <span class="font-medium text-slate-800">${t.name}</span>
+                        </label>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
               `;
             }).join('')}
           </div>
@@ -624,6 +669,17 @@ window.openAddPlanModal = function(planIdToEdit = null) {
     </div>
   `;
   document.body.appendChild(modal);
+};
+
+// Global helper functions for section-based plan tool toggling
+window.toggleAllPlanTools = function(selectAll) {
+  const checkboxes = document.querySelectorAll('input[name="plan-tool-checkbox"]');
+  checkboxes.forEach(cb => cb.checked = !!selectAll);
+};
+
+window.togglePlanSectionTools = function(catId, selectAll) {
+  const checkboxes = document.querySelectorAll(`input[name="plan-tool-checkbox"][data-category="${catId}"]`);
+  checkboxes.forEach(cb => cb.checked = !!selectAll);
 };
 
 window.handleSavePlanSubmit = function(e, editPlanId) {
