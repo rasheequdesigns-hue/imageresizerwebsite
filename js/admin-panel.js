@@ -589,8 +589,13 @@ window.openAddPlanModal = function(planIdToEdit = null) {
         </div>
 
         <div>
-          <label class="text-[10px] font-bold text-slate-500 uppercase">Plan Features & Bullets (One per line)</label>
-          <textarea id="plan-input-features" rows="3" class="custom-input w-full text-xs font-mono bg-white" placeholder="Access to All 50 Tools&#10;250MB Max Upload Limit&#10;Cloud History Autosave">${initialFeatures}</textarea>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Plan Features & Bullets (One per line)</label>
+            <button type="button" onclick="window.autoGeneratePlanBullets()" class="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1">
+              <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> Auto-Generate Bullets
+            </button>
+          </div>
+          <textarea id="plan-input-features" rows="4" class="custom-input w-full text-xs font-mono bg-white" placeholder="Access to All 50 Tools&#10;250MB Max Upload Limit&#10;Cloud History Autosave">${initialFeatures}</textarea>
         </div>
 
         <!-- Sectional Feature Selection -->
@@ -680,6 +685,33 @@ window.toggleAllPlanTools = function(selectAll) {
 window.togglePlanSectionTools = function(catId, selectAll) {
   const checkboxes = document.querySelectorAll(`input[name="plan-tool-checkbox"][data-category="${catId}"]`);
   checkboxes.forEach(cb => cb.checked = !!selectAll);
+};
+
+window.autoGeneratePlanBullets = function() {
+  const duration = parseInt(document.getElementById('plan-input-duration')?.value || '30');
+  const maxSize = parseInt(document.getElementById('plan-input-maxsize')?.value || '250');
+  const selectedCbs = document.querySelectorAll('input[name="plan-tool-checkbox"]:checked');
+  const totalTools = (window.TOOLS || []).length;
+  
+  const bullets = [];
+  if (selectedCbs.length >= totalTools) {
+    bullets.push(`Access to All ${totalTools} Master Tools Unlocked`);
+  } else if (selectedCbs.length > 0) {
+    bullets.push(`Access to ${selectedCbs.length} Selected Pro Tools`);
+  } else {
+    bullets.push(`Access to Basic Suite Tools`);
+  }
+
+  bullets.push(`${maxSize}MB Max File Upload Limit`);
+  bullets.push(`${duration} Days Subscription Validity`);
+  bullets.push(`100% In-Browser WebAssembly Engine`);
+  bullets.push(`Private & Secure Workspace`);
+  bullets.push(`Priority Tech & Cloud Support`);
+
+  const featuresInput = document.getElementById('plan-input-features');
+  if (featuresInput) {
+    featuresInput.value = bullets.join('\n');
+  }
 };
 
 window.handleSavePlanSubmit = function(e, editPlanId) {
