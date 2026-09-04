@@ -323,7 +323,8 @@ class AuthSubscriptionEngine {
   /**
    * Login / Registration Modal
    */
-  static openAuthModal(initialTab = 'login') {
+  static openAuthModal(initialTab = 'login', pendingPlanId = null) {
+    this.pendingPlanId = pendingPlanId;
     const modalId = 'studiosuite-auth-modal';
     let existing = document.getElementById(modalId);
     if (existing) existing.remove();
@@ -444,6 +445,14 @@ class AuthSubscriptionEngine {
 
       document.getElementById('studiosuite-auth-modal')?.remove();
       this.renderHeaderAuthControls();
+
+      const pending = this.pendingPlanId;
+      this.pendingPlanId = null;
+      if (pending) {
+        setTimeout(() => {
+          this.openPaymentModal(pending);
+        }, 200);
+      }
     } catch (err) {
       if (errorDiv) {
         errorDiv.textContent = err.message || 'Authentication failed.';
@@ -475,12 +484,13 @@ class AuthSubscriptionEngine {
         <!-- Header -->
         <div class="p-8 bg-gradient-to-br from-indigo-900 via-indigo-800 to-purple-900 text-white text-center space-y-3 relative overflow-hidden">
           <div class="absolute -right-10 -bottom-10 opacity-10 text-9xl font-black">PRO</div>
-          <span class="px-3 py-1 rounded-full bg-white/10 text-white border border-white/20 text-xs font-bold tracking-wider uppercase">
-            <i class="fa-solid fa-crown text-amber-400 mr-1"></i> Unlock Master Capabilities
-          </span>
-          <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Choose Your StudioSuite Subscription</h2>
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-bold shadow-sm">
+            <i class="fa-solid fa-shield-check"></i>
+            <span>100% In-Browser WebAssembly Engine &bull; Private & Secure</span>
+          </div>
+          <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Choose Your Premium Plan</h2>
           <p class="text-xs sm:text-sm text-indigo-200 max-w-xl mx-auto">
-            100% In-Browser privacy engine. Process heavy PDF files, vector exports, and high-DPI prepress without file size caps.
+            Scan UPI QR Code to upgrade instantly. 100% Client-side privacy & unlimited WebAssembly processing power.
           </p>
         </div>
 
@@ -491,7 +501,7 @@ class AuthSubscriptionEngine {
               const isCurrent = user && user.planId === plan.id;
               const isPopular = plan.badge === 'Popular' || plan.id === 'pro-monthly';
               const featuresList = Array.isArray(plan.features) ? plan.features : [
-                `Access to ${plan.maxFileSizeMB || 200}MB File Processing`,
+                `Access to ${plan.maxFileSizeMB || 250}MB File Processing`,
                 `Duration: ${plan.durationDays || 30} Days`,
                 'Client-Side WebAssembly Engine',
                 'Cloud History & Settings Sync'
@@ -524,8 +534,9 @@ class AuthSubscriptionEngine {
                         <i class="fa-solid fa-check"></i> Current Active Plan
                       </button>
                     ` : `
-                      <button onclick="AuthSubscriptionEngine.openPaymentModal('${plan.id}')" class="w-full ${isPopular ? 'btn-gradient' : 'bg-slate-900 hover:bg-slate-800 text-white'} py-2.5 rounded-xl text-xs font-extrabold transition shadow-md">
-                        ${plan.priceINR === 0 ? 'Select Free' : `Subscribe for ₹${plan.priceINR}`}
+                      <button onclick="AuthSubscriptionEngine.openPaymentModal('${plan.id}')" class="w-full ${isPopular ? 'btn-gradient' : 'bg-slate-900 hover:bg-slate-800 text-white'} py-2.5 rounded-xl text-xs font-extrabold transition shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-qrcode"></i>
+                        <span>${plan.priceINR === 0 ? 'Select Free' : `Pay ₹${plan.priceINR} via UPI QR`}</span>
                       </button>
                     `}
                   </div>
@@ -535,7 +546,7 @@ class AuthSubscriptionEngine {
           </div>
 
           <p class="text-center text-xs text-slate-400 mt-6">
-            <i class="fa-solid fa-shield-check text-indigo-600 mr-1"></i> All payments processed in Indian Rupees (₹ INR). Verified instantly in your account and recorded in Admin Panel.
+            <i class="fa-solid fa-shield-check text-indigo-600 mr-1"></i> All payments processed in Indian Rupees (₹ INR). Verified instantly via UTR reference number and recorded in Admin Panel.
           </p>
         </div>
       </div>
@@ -551,7 +562,7 @@ class AuthSubscriptionEngine {
     let user = this.getCurrentUser();
     if (!user) {
       document.getElementById('studiosuite-sub-modal')?.remove();
-      this.openAuthModal('register');
+      this.openAuthModal('register', planId);
       if (window.showToast) window.showToast('Please sign in or create an account to subscribe', 'info');
       return;
     }
@@ -569,8 +580,8 @@ class AuthSubscriptionEngine {
     }
 
     const adminUpi = window.AdminPanelEngine ? AdminPanelEngine.getAdminUpi() : (localStorage.getItem('studiosuite_admin_upi') || 'merchant@upi');
-    const qrData = `upi://pay?pa=${encodeURIComponent(adminUpi)}&pn=StudioSuitePRO&am=${plan.priceINR}&cu=INR`;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrData)}`;
+    const rawUpiUri = `upi://pay?pa=${encodeURIComponent(adminUpi)}&pn=StudioSuitePRO&am=${plan.priceINR}&cu=INR`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(rawUpiUri)}`;
 
     const modalId = 'studiosuite-pay-modal';
     let existing = document.getElementById(modalId);
@@ -585,24 +596,30 @@ class AuthSubscriptionEngine {
           <i class="fa-solid fa-xmark"></i>
         </button>
 
-        <div class="p-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-center space-y-2">
+        <!-- Premium Payment Modal Header -->
+        <div class="p-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 text-white text-center space-y-2">
           <div class="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center text-2xl mx-auto shadow-inner">
             <i class="fa-solid fa-qrcode"></i>
           </div>
-          <h3 class="text-xl font-extrabold">Pay via UPI & Verify UTR / RRN</h3>
-          <p class="text-xs text-emerald-100">Scan QR or Pay to Admin UPI ID to activate ${plan.name}</p>
+          <h3 class="text-xl font-extrabold">Pay via UPI QR & Activate Premium</h3>
+          <p class="text-xs text-emerald-100">Scan QR Code or Pay to UPI ID to unlock ${plan.name}</p>
+          <div class="pt-1">
+            <span class="px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-bold inline-flex items-center gap-1">
+              <i class="fa-solid fa-lock"></i> 100% In-Browser WebAssembly Engine &bull; Private & Secure
+            </span>
+          </div>
         </div>
 
         <div class="p-6 space-y-5">
           <!-- Summary Box -->
           <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
             <div class="flex justify-between font-bold text-slate-700">
-              <span>Selected Plan:</span>
+              <span>Selected Premium Plan:</span>
               <span class="text-indigo-600 font-extrabold">${plan.name}</span>
             </div>
             <div class="flex justify-between font-bold text-slate-700">
-              <span>Duration & Limit:</span>
-              <span class="text-slate-900 font-extrabold">${plan.durationDays} Days &bull; ${plan.maxFileSizeMB || 250}MB</span>
+              <span>Duration & File Limit:</span>
+              <span class="text-slate-900 font-extrabold">${plan.durationDays} Days &bull; ${plan.maxFileSizeMB || 250}MB Limit</span>
             </div>
             <div class="flex justify-between font-bold text-slate-700 pt-2 border-t border-slate-200 text-sm">
               <span>Total Payable Amount:</span>
@@ -610,18 +627,28 @@ class AuthSubscriptionEngine {
             </div>
           </div>
 
-          <!-- QR Code & UPI ID Box -->
+          <!-- QR Code Box -->
           <div class="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 text-center space-y-3">
-            <p class="text-xs font-bold text-emerald-900 uppercase">Scan QR with GPay / PhonePe / Paytm / BHIM</p>
-            <div class="w-44 h-44 mx-auto bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-center">
+            <div class="flex items-center justify-between text-xs font-bold text-emerald-900">
+              <span><i class="fa-solid fa-camera mr-1"></i> Scan with UPI App</span>
+              <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-md">GPay / PhonePe / Paytm / BHIM</span>
+            </div>
+
+            <div class="w-48 h-48 mx-auto bg-white p-2.5 rounded-2xl border border-slate-200 shadow-md flex items-center justify-center relative group">
               <img src="${qrUrl}" alt="UPI QR Code" class="w-full h-full object-contain">
             </div>
 
-            <div>
-              <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">Or Copy Admin Receiving UPI ID:</label>
+            <!-- Mobile Direct UPI App Launcher -->
+            <a href="${rawUpiUri}" class="sm:hidden block w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-md text-center">
+              <i class="fa-solid fa-mobile-screen mr-1"></i> Tap to Open UPI App on Mobile
+            </a>
+
+            <!-- UPI ID & Copy -->
+            <div class="pt-1">
+              <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">Admin Receiving UPI ID:</label>
               <div class="flex gap-2">
                 <input type="text" id="pay-upi-id-input" class="custom-input w-full text-xs font-mono font-bold text-slate-900 bg-white" value="${adminUpi}" readonly>
-                <button type="button" onclick="AuthSubscriptionEngine.copyAdminUpi()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold whitespace-nowrap shadow-sm">
+                <button type="button" onclick="AuthSubscriptionEngine.copyAdminUpi()" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold whitespace-nowrap shadow-sm transition">
                   <i class="fa-solid fa-copy"></i> Copy
                 </button>
               </div>
@@ -635,11 +662,13 @@ class AuthSubscriptionEngine {
                 Enter 12-Digit UPI Payment UTR / RRN Ref No <span class="text-red-500">*</span>
               </label>
               <input type="text" id="pay-utr-number" required placeholder="e.g. 424589012345" maxlength="16" class="custom-input w-full text-sm font-mono font-bold text-slate-900 tracking-wider">
-              <p class="text-[11px] text-slate-500 mt-1">You will find the 12-digit UTR / RRN / Ref number in your UPI app transaction details receipt.</p>
+              <p class="text-[11px] text-slate-500 mt-1">
+                <i class="fa-solid fa-circle-info text-indigo-500 mr-1"></i> Check your UPI app transaction details for the 12-digit Ref / UTR / RRN number.
+              </p>
             </div>
 
-            <button type="submit" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white py-3.5 text-xs rounded-2xl font-extrabold shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2">
-              <i class="fa-solid fa-shield-check"></i> Verify UTR & Activate Plan (₹${plan.priceINR})
+            <button type="submit" class="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:opacity-95 text-white py-3.5 text-xs rounded-2xl font-extrabold shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-shield-check"></i> Verify UTR & Activate Premium (₹${plan.priceINR})
             </button>
           </form>
         </div>
