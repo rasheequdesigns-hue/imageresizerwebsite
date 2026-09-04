@@ -213,7 +213,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <h3 class="font-bold text-base mb-1 text-slate-900 flex items-center gap-1.5">
           ${tool.name}
-          ${!isAllowedForUser ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-extrabold border border-amber-200">PRO ONLY</span>` : ''}
         </h3>
         <p class="text-xs text-muted leading-relaxed">${tool.description}</p>`;
       toolGrid.appendChild(card);

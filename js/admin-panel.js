@@ -532,10 +532,19 @@ window.openAddPlanModal = function(planIdToEdit = null) {
 
   const plans = AuthSubscriptionEngine.getPlans();
   const editPlan = planIdToEdit ? plans.find(p => p.id === planIdToEdit) : null;
+  const freePlan = plans.find(p => p.id === 'free');
   const tools = window.TOOLS || [];
 
   const initialFeatures = editPlan && Array.isArray(editPlan.features) ? editPlan.features.join('\n') : '';
-  const initialAllowedTools = editPlan && Array.isArray(editPlan.allowedToolIds) ? editPlan.allowedToolIds : 'all';
+  
+  // When editing: load plan's allowed tool IDs.
+  // When creating a NEW plan: default ONLY to Free plan's features, all other features DESELECTED.
+  let initialAllowedTools;
+  if (editPlan) {
+    initialAllowedTools = editPlan.allowedToolIds !== undefined ? editPlan.allowedToolIds : 'all';
+  } else {
+    initialAllowedTools = freePlan && Array.isArray(freePlan.allowedToolIds) ? freePlan.allowedToolIds : [];
+  }
 
   // Group tools by category section
   const categorizedTools = {};
