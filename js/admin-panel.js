@@ -44,7 +44,7 @@ class AdminPanelEngine {
 
   /**
    * Feature / Tool Enable-Disable Management
-   * Default: ALL tools disabled
+   * Default: ALL tools enabled on first launch
    */
   static getAllToolIds() {
     if (window.TOOLS && Array.isArray(window.TOOLS)) {
@@ -55,23 +55,31 @@ class AdminPanelEngine {
 
   static getEnabledFeatures() {
     let stored = localStorage.getItem(this.STORAGE_FEATURES);
-    if (stored) {
+    if (stored !== null) {
       try {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) return parsed;
       } catch (e) {}
     }
-    localStorage.setItem(this.STORAGE_FEATURES, JSON.stringify([]));
-    return [];
+    // Default: seed with all tool IDs (requires window.TOOLS to be loaded)
+    const all = this.getAllToolIds();
+    if (all.length > 0) {
+      localStorage.setItem(this.STORAGE_FEATURES, JSON.stringify(all));
+      return all;
+    }
+    // window.TOOLS not yet defined — return null sentinel so callers treat as "all enabled"
+    return null;
   }
 
   static isFeatureEnabled(toolId) {
     const enabled = this.getEnabledFeatures();
+    // null = all tools are enabled (TOOLS list not yet initialised)
+    if (enabled === null) return true;
     return enabled.includes(toolId);
   }
 
   static setFeatureEnabled(toolId, enabled) {
-    const current = this.getEnabledFeatures();
+    const current = this.getEnabledFeatures() || this.getAllToolIds();
     const idx = current.indexOf(toolId);
     if (enabled && idx === -1) current.push(toolId);
     if (!enabled && idx !== -1) current.splice(idx, 1);
@@ -882,7 +890,7 @@ function renderAdminFeatureList() {
     html += `<div class="mt-3 first:mt-0">
       <div class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1 px-1">${catLabels[cat] || cat}</div>`;
     categories[cat].forEach(tool => {
-      const isEnabled = AdminPanelEngine.isFeatureEnabled(tool.id);
+    const isEnabled = AdminPanelEngine.isFeatureEnabled(tool.id);
       html += `<label class="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition border border-transparent hover:border-slate-200">
         <div class="flex items-center gap-2 min-w-0">
           <div class="w-7 h-7 rounded-lg bg-gradient-to-r ${tool.color} text-white flex items-center justify-center text-[10px] shadow-sm flex-shrink-0">
@@ -901,7 +909,7 @@ function renderAdminFeatureList() {
     html += `</div>`;
   });
 
-  const enabledCount = AdminPanelEngine.getEnabledFeatures().length;
+  const enabledCount = (AdminPanelEngine.getEnabledFeatures() || []).length;
   const totalCount = tools.length;
   html = `<div class="text-[11px] font-bold text-slate-600 mb-2 px-1 flex justify-between">
     <span><i class="fa-solid fa-sliders text-indigo-600"></i> ${enabledCount} / ${totalCount} tools enabled</span>

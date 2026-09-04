@@ -219,3 +219,198 @@ body {
   .tool-card { padding: 0.85rem; }
   .tool-icon-wrapper { width: 36px; height: 36px; font-size: 1.1rem; }
 }
+
+/* ============================================================
+   Interactive UI Tokens: Crop, Drag-and-Drop, Split Comparison
+   ============================================================ */
+
+/* Drag and Drop Card Styles */
+.draggable-card {
+  user-select: none;
+  cursor: grab;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.draggable-card:active {
+  cursor: grabbing;
+}
+.draggable-card.is-dragging {
+  opacity: 0.45;
+  transform: scale(0.96);
+  border: 2px dashed #4f46e5 !important;
+}
+.draggable-card.drag-over {
+  border: 2px solid #6366f1 !important;
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.25);
+}
+
+/* Crop Canvas Interactive Overlay */
+.crop-container {
+  position: relative;
+  display: inline-block;
+  user-select: none;
+  touch-action: none;
+}
+.crop-box {
+  position: absolute;
+  border: 2px dashed #4f46e5;
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.55);
+  cursor: move;
+  pointer-events: auto;
+}
+.crop-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background-color: #ffffff;
+  border: 2px solid #4f46e5;
+  border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.crop-handle-nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.crop-handle-n  { top: -6px; left: calc(50% - 6px); cursor: ns-resize; }
+.crop-handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.crop-handle-e  { top: calc(50% - 6px); right: -6px; cursor: ew-resize; }
+.crop-handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.crop-handle-s  { bottom: -6px; left: calc(50% - 6px); cursor: ns-resize; }
+.crop-handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.crop-handle-w  { top: calc(50% - 6px); left: -6px; cursor: ew-resize; }
+
+/* Interactive Before/After Visual Comparison Slider */
+.compare-container {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  height: 380px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  user-select: none;
+}
+.compare-image-original,
+.compare-image-compressed {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.compare-overlay-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
+  border-right: 2px solid #ffffff;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.25);
+}
+.compare-divider-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4f46e5;
+  font-size: 14px;
+  cursor: ew-resize;
+  pointer-events: none;
+}
+.compare-badge-left {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(15, 23, 42, 0.75);
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+.compare-badge-right {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(16, 185, 129, 0.85);
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+
+/* Excel Data Preview Table */
+.excel-preview-container {
+  max-height: 380px;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid #e2e8f0;
+}
+.excel-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: monospace;
+}
+.excel-preview-table th {
+  background-color: #f1f5f9;
+  color: #334155;
+  font-weight: 700;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  text-align: left;
+}
+.excel-preview-table td {
+  padding: 6px 12px;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+  white-space: nowrap;
+}
+.excel-preview-table tr:nth-child(even) td {
+  background-color: #f8fafc;
+}
+.excel-preview-table tr:hover td {
+  background-color: #e0e7ff;
+}
+
+/* High-Resolution Full-Page Preview Modal */
+.preview-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.preview-modal-dialog {
+  background: #ffffff;
+  border-radius: 20px;
+  max-width: 900px;
+  max-height: 90vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+}
+

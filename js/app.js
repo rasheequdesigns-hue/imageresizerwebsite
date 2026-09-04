@@ -100,8 +100,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.TOOLS = TOOLS;
 
+  function formatFileSize(bytes) {
+    if (!bytes || isNaN(bytes) || bytes <= 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+  window.formatFileSize = formatFileSize;
+
   let state = {
-    activeTool: null, files: [], pdfPageCards: [], processedResult: null, quizData: null, extractedText: ''
+    activeTool: null,
+    files: [],
+    pdfPageCards: [],
+    processedResult: null,
+    quizData: null,
+    extractedText: '',
+    detectedSubDocs: [],
+    selectedDeletePages: new Set(),
+    cropState: { top: 20, right: 20, bottom: 20, left: 20, unit: 'px' },
+    extractedTableRows: [],
+    batchResizeResults: [],
+    pngComparison: null,
+    activeDragIndex: null
   };
 
   window.addEventListener('hashchange', handleRoute);
@@ -167,7 +188,18 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderTools(filterText = '', category = 'all') {
     if (!toolGrid) return;
     toolGrid.innerHTML = '';
-    const enabledIds = window.AdminPanelEngine ? AdminPanelEngine.getEnabledFeatures() : [];
+
+    // Seed enabled features now that window.TOOLS is defined
+    let enabledIds = window.AdminPanelEngine ? AdminPanelEngine.getEnabledFeatures() : null;
+    if (enabledIds === null) {
+      // TOOLS just loaded — seed all as enabled
+      if (window.AdminPanelEngine) {
+        AdminPanelEngine.enableAllFeatures();
+        enabledIds = TOOLS.map(t => t.id);
+      } else {
+        enabledIds = TOOLS.map(t => t.id);
+      }
+    }
     const visibleTools = TOOLS.filter(tool => {
       const matchesSearch = tool.name.toLowerCase().includes(filterText.toLowerCase()) || tool.description.toLowerCase().includes(filterText.toLowerCase());
       const matchesCategory = category === 'all' || tool.category === category;
@@ -270,6 +302,28 @@ document.addEventListener('DOMContentLoaded', () => {
   }));
 
   function getWorkAreaTitle(tool) {
+    const titles = {
+      'pdf-merger': { icon: 'fa-layer-group', title: 'PDF Merger - Combine & Re-order Multi-PDF Studio' },
+      'pdf-splitter': { icon: 'fa-scissors', title: 'PDF Splitter - Extract Ranges or Standalone Pages' },
+      'pdf-unmerger': { icon: 'fa-box-open', title: 'PDF Un-merger - Structural Analysis & Document Restorer' },
+      'pdf-page-reorder': { icon: 'fa-arrows-left-right', title: 'PDF Page Re-orderer - Interactive Sequence & Rotation' },
+      'pdf-page-deleter': { icon: 'fa-trash-can', title: 'PDF Page Deleter - Strip Unwanted Pages' },
+      'pdf-crop-tool': { icon: 'fa-crop-simple', title: 'PDF Crop Studio - Interactive Visual Canvas Overlay' },
+      'pdf-compressor-smart': { icon: 'fa-compress', title: 'PDF Compressor (Smart) - Downsampling & Optimization' },
+      'lossless-pdf-shrinker': { icon: 'fa-file-shield', title: 'Lossless PDF Shrinker - 100% Visual Fidelity Preserved' },
+      'pdf-target-shrinker': { icon: 'fa-weight-hanging', title: 'PDF Target Size Shrinker - Adaptive Iterative Compression' },
+      'pdf-to-xlsx': { icon: 'fa-file-excel', title: 'PDF to Excel (XLSX) - Interactive Table Recognition' },
+      'xlsx-to-pdf': { icon: 'fa-table', title: 'Excel (XLSX) to PDF - Print-Formatted Reports' },
+      'pdf-to-pptx': { icon: 'fa-file-powerpoint', title: 'PDF to PowerPoint (PPTX) - Presentation Slides' },
+      'pptx-to-pdf': { icon: 'fa-file-pdf', title: 'PowerPoint to PDF - Vector Slide Exporter' },
+      'pdf-to-jpg': { icon: 'fa-file-image', title: 'PDF to JPG Converter - High-Res Image Rendering' },
+      'jpg-to-pdf': { icon: 'fa-file-export', title: 'JPG to PDF Converter - Multi-Image Photo Compiler' },
+      'batch-img-resizer': { icon: 'fa-expand', title: 'Batch Image Resizer - Concurrent Multi-Image Processing' },
+      'png-compressor': { icon: 'fa-file-image', title: 'Lossless PNG Compressor - Before/After Visual Comparison' },
+      'webp-converter': { icon: 'fa-bolt', title: 'WEBP Image Converter - Web-Optimized Format' }
+    };
+    if (titles[tool.id]) return titles[tool.id];
+
     switch (tool.uiType) {
       case TOOL_UI_TYPES.PDF_PAGE_ORGANIZER: return { icon: 'fa-arrows-up-down-left-right', title: 'Interactive PDF Page Re-arranger & Editor' };
       case TOOL_UI_TYPES.PDF_CROP: return { icon: 'fa-crop-simple', title: 'PDF Crop Workspace - Margins & Trim Area' };
@@ -285,6 +339,28 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getProcessButtonText(tool) {
+    const btnLabels = {
+      'pdf-merger': 'Merge & Export PDF',
+      'pdf-splitter': 'Split & Download',
+      'pdf-unmerger': 'Restore & Export Documents',
+      'pdf-page-reorder': 'Save Re-ordered PDF',
+      'pdf-page-deleter': 'Remove Pages & Export PDF',
+      'pdf-crop-tool': 'Crop & Export PDF',
+      'pdf-compressor-smart': 'Compress PDF',
+      'lossless-pdf-shrinker': 'Lossless Shrink PDF',
+      'pdf-target-shrinker': 'Compress to Target Size',
+      'pdf-to-xlsx': 'Convert to Excel (.xlsx)',
+      'xlsx-to-pdf': 'Export Formatted PDF',
+      'pdf-to-pptx': 'Convert to PowerPoint (.pptx)',
+      'pptx-to-pdf': 'Convert Deck to PDF',
+      'pdf-to-jpg': 'Convert & Export Images',
+      'jpg-to-pdf': 'Compile Images to PDF',
+      'batch-img-resizer': 'Resize & Process Batch',
+      'png-compressor': 'Compress & Save PNG',
+      'webp-converter': 'Convert to WebP'
+    };
+    if (btnLabels[tool.id]) return btnLabels[tool.id];
+
     switch (tool.uiType) {
       case TOOL_UI_TYPES.PDF_PAGE_ORGANIZER: return 'Re-arrange & Export PDF';
       case TOOL_UI_TYPES.PDF_CROP: return 'Crop & Export PDF';
@@ -424,86 +500,378 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderToolSpecificWorkArea(tool) {
-    switch (tool.uiType) {
-      case TOOL_UI_TYPES.PDF_PAGE_ORGANIZER:
-        return `<div id="pdf-page-cards-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[480px] overflow-y-auto p-1"></div>`;
-      case TOOL_UI_TYPES.PDF_CROP:
-        return `
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <h4 class="text-xs font-bold text-slate-700 mb-3 flex items-center gap-1"><i class="fa-solid fa-eye text-indigo-600"></i> Page Preview</h4>
-              <div id="crop-page-preview" class="w-full h-64 bg-white border border-dashed border-slate-300 rounded flex items-center justify-center text-slate-400 text-xs overflow-hidden">Upload a PDF to see preview with crop overlay</div>
+    if (tool.id === 'pdf-merger') {
+      return `
+        <div class="space-y-4">
+          <div class="flex flex-wrap justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200 gap-2">
+            <div class="text-xs text-slate-600 font-semibold flex items-center gap-1.5">
+              <i class="fa-solid fa-layer-group text-indigo-600"></i>
+              <span>Drag & drop cards to reorder sequence. Orientation and naming options available in sidebar.</span>
             </div>
-            <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <h4 class="text-xs font-bold text-slate-700 mb-3 flex items-center gap-1"><i class="fa-solid fa-scissors text-indigo-600"></i> Crop Margin Settings</h4>
-              <div class="space-y-3">
-                <div class="grid grid-cols-3 gap-2"><div></div><div><label class="text-[10px] font-bold text-slate-500 uppercase">Top (mm)</label><input type="number" id="crop-top" class="custom-input w-full text-xs" value="0" min="0"></div><div></div></div>
-                <div class="grid grid-cols-3 gap-2">
-                  <div><label class="text-[10px] font-bold text-slate-500 uppercase">Left (mm)</label><input type="number" id="crop-left" class="custom-input w-full text-xs" value="0" min="0"></div>
-                  <div class="flex items-center justify-center text-slate-400"><i class="fa-solid fa-crop-simple text-2xl"></i></div>
-                  <div><label class="text-[10px] font-bold text-slate-500 uppercase">Right (mm)</label><input type="number" id="crop-right" class="custom-input w-full text-xs" value="0" min="0"></div>
-                </div>
-                <div class="grid grid-cols-3 gap-2"><div></div><div><label class="text-[10px] font-bold text-slate-500 uppercase">Bottom (mm)</label><input type="number" id="crop-bottom" class="custom-input w-full text-xs" value="0" min="0"></div><div></div></div>
+            <button type="button" onclick="document.getElementById('studio-file-input').click()" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition flex items-center gap-1.5 shadow-sm">
+              <i class="fa-solid fa-plus"></i> Add More PDFs
+            </button>
+          </div>
+          <div id="merger-file-list" class="space-y-2 max-h-[480px] overflow-y-auto p-1"></div>
+        </div>`;
+    }
+
+    if (tool.id === 'pdf-splitter') {
+      return `
+        <div class="space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-bold text-slate-700">Split Mode:</label>
+              <select id="splitter-mode-select" class="custom-input text-xs py-1 px-2.5" onchange="onSplitterModeChanged()">
+                <option value="ranges" selected>Custom Page Ranges (e.g. 1-3, 5, 8-10)</option>
+                <option value="individual">Extract Every Page as Standalone PDF (.zip)</option>
+              </select>
+            </div>
+            <div id="splitter-range-container" class="flex items-center gap-2">
+              <label class="text-xs font-bold text-slate-500">Range:</label>
+              <input type="text" id="splitter-range-input" class="custom-input text-xs py-1 px-2.5 w-48" placeholder="e.g. 1-2, 4, 6-8" oninput="highlightSplitterRanges()">
+            </div>
+          </div>
+          <div class="flex justify-between items-center px-1 text-[11px] text-slate-500">
+            <span><i class="fa-solid fa-hand-pointer text-indigo-600 mr-1"></i>Click pages below to quickly add/remove from range:</span>
+            <span id="splitter-pages-badge" class="font-bold text-indigo-600">0 Pages Total</span>
+          </div>
+          <div id="splitter-thumbnail-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[440px] overflow-y-auto p-1"></div>
+        </div>`;
+    }
+
+    if (tool.id === 'pdf-unmerger') {
+      return `
+        <div class="space-y-4">
+          <div class="p-4 bg-indigo-50/80 rounded-xl border border-indigo-200 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 class="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                <i class="fa-solid fa-wand-magic-sparkles text-indigo-600"></i> Structural Analysis Results
+              </h4>
+              <p class="text-[11px] text-indigo-700 mt-0.5">Detected document boundaries based on bookmarks, numbering restarts, and layout shifts.</p>
+            </div>
+            <span id="unmerger-count-badge" class="px-3 py-1 rounded-full bg-white text-indigo-700 font-extrabold text-xs border border-indigo-200 shadow-xs">Analyzing...</span>
+          </div>
+          <div id="unmerger-subdocs-list" class="space-y-3 max-h-[480px] overflow-y-auto p-1"></div>
+        </div>`;
+    }
+
+    if (tool.id === 'pdf-page-deleter') {
+      return `
+        <div class="space-y-4">
+          <div class="flex flex-wrap justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200 gap-2">
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" onclick="selectDeleterPages('even')" class="text-xs px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg font-bold text-slate-700 transition">Select Even Pages</button>
+              <button type="button" onclick="selectDeleterPages('odd')" class="text-xs px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg font-bold text-slate-700 transition">Select Odd Pages</button>
+              <button type="button" onclick="selectDeleterPages('invert')" class="text-xs px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg font-bold text-slate-700 transition">Invert Selection</button>
+              <button type="button" onclick="selectDeleterPages('clear')" class="text-xs px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg font-bold text-slate-700 transition">Clear All</button>
+            </div>
+            <div id="deleter-status-summary" class="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
+              0 to delete • 0 remaining
+            </div>
+          </div>
+          <div id="deleter-thumbnail-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[460px] overflow-y-auto p-1"></div>
+        </div>`;
+    }
+
+    if (tool.id === 'pdf-crop-tool') {
+      return `
+        <div class="space-y-4">
+          <div class="flex flex-col items-center justify-center p-4 bg-slate-100/70 rounded-2xl border border-slate-200 overflow-hidden">
+            <div class="text-[11px] font-bold text-slate-500 mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-crop-simple text-indigo-600"></i> Interactive Canvas: Drag corners, edges, or the box to adjust crop area
+            </div>
+            <div id="crop-canvas-wrapper" class="crop-container bg-white border border-slate-300 rounded shadow-md overflow-hidden" style="max-width: 100%; max-height: 480px;">
+              <canvas id="crop-render-canvas"></canvas>
+              <div id="crop-box-element" class="crop-box" style="top: 20px; left: 20px; width: 220px; height: 300px;">
+                <div class="crop-handle crop-handle-nw" data-handle="nw"></div>
+                <div class="crop-handle crop-handle-n" data-handle="n"></div>
+                <div class="crop-handle crop-handle-ne" data-handle="ne"></div>
+                <div class="crop-handle crop-handle-e" data-handle="e"></div>
+                <div class="crop-handle crop-handle-se" data-handle="se"></div>
+                <div class="crop-handle crop-handle-s" data-handle="s"></div>
+                <div class="crop-handle crop-handle-sw" data-handle="sw"></div>
+                <div class="crop-handle crop-handle-w" data-handle="w"></div>
               </div>
             </div>
           </div>
-          <div class="p-4 bg-indigo-50 rounded-xl border border-indigo-200">
-            <h4 class="text-xs font-bold text-indigo-700 mb-2"><i class="fa-solid fa-info-circle"></i> Pages to Crop</h4>
-            <div class="flex flex-wrap gap-2">
-              <label class="inline-flex items-center gap-1 text-xs font-bold bg-white px-2.5 py-1 rounded-lg border border-indigo-200 cursor-pointer"><input type="radio" name="crop-pages-option" value="all" checked class="accent-indigo-600"> All Pages</label>
-              <label class="inline-flex items-center gap-1 text-xs font-bold bg-white px-2.5 py-1 rounded-lg border border-indigo-200 cursor-pointer"><input type="radio" name="crop-pages-option" value="even" class="accent-indigo-600"> Even Pages</label>
-              <label class="inline-flex items-center gap-1 text-xs font-bold bg-white px-2.5 py-1 rounded-lg border border-indigo-200 cursor-pointer"><input type="radio" name="crop-pages-option" value="odd" class="accent-indigo-600"> Odd Pages</label>
-              <label class="inline-flex items-center gap-1 text-xs font-bold bg-white px-2.5 py-1 rounded-lg border border-indigo-200 cursor-pointer"><input type="radio" name="crop-pages-option" value="range" class="accent-indigo-600"> Custom Range:</label>
-              <input type="text" id="crop-page-range" class="custom-input text-xs px-2 py-1 w-32" placeholder="e.g. 1,3,5-10" disabled>
-            </div>
-          </div>`;
-      case TOOL_UI_TYPES.PDF_COMPRESS:
-        return `
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-              <h4 class="text-xs font-bold text-slate-700 flex items-center gap-1"><i class="fa-solid fa-file-lines text-indigo-600"></i> File Information</h4>
-              <div class="grid grid-cols-2 gap-2 text-xs">
-                <div class="p-2 bg-white rounded border border-slate-200"><span class="text-slate-500 font-semibold">Original Size:</span><div id="compress-original-size" class="font-bold text-slate-900 mt-0.5">-- KB</div></div>
-                <div class="p-2 bg-white rounded border border-slate-200"><span class="text-slate-500 font-semibold">Estimated Size:</span><div id="compress-estimated-size" class="font-bold text-emerald-700 mt-0.5">-- KB</div></div>
-                <div class="p-2 bg-white rounded border border-slate-200"><span class="text-slate-500 font-semibold">Pages:</span><div id="compress-page-count" class="font-bold text-slate-900 mt-0.5">--</div></div>
-                <div class="p-2 bg-white rounded border border-slate-200"><span class="text-slate-500 font-semibold">Savings:</span><div id="compress-savings" class="font-bold text-emerald-700 mt-0.5">-- %</div></div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="p-3.5 bg-white rounded-xl border border-slate-200 space-y-2">
+              <div class="flex justify-between items-center">
+                <label class="text-[11px] font-bold text-slate-600 uppercase">Margin Positioning</label>
+                <select id="crop-unit-select" class="text-[10px] custom-input py-0.5 px-1.5 font-bold" onchange="onCropUnitChange()">
+                  <option value="px" selected>Pixels (px)</option>
+                  <option value="mm">Millimeters (mm)</option>
+                  <option value="in">Inches (in)</option>
+                </select>
+              </div>
+              <div class="grid grid-cols-4 gap-2">
+                <div><span class="text-[9px] text-slate-400 font-bold block">Top</span><input type="number" id="crop-input-top" class="custom-input w-full text-xs" value="20" min="0" oninput="onCropInputChanged()"></div>
+                <div><span class="text-[9px] text-slate-400 font-bold block">Right</span><input type="number" id="crop-input-right" class="custom-input w-full text-xs" value="20" min="0" oninput="onCropInputChanged()"></div>
+                <div><span class="text-[9px] text-slate-400 font-bold block">Bottom</span><input type="number" id="crop-input-bottom" class="custom-input w-full text-xs" value="20" min="0" oninput="onCropInputChanged()"></div>
+                <div><span class="text-[9px] text-slate-400 font-bold block">Left</span><input type="number" id="crop-input-left" class="custom-input w-full text-xs" value="20" min="0" oninput="onCropInputChanged()"></div>
               </div>
             </div>
-            <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-200 space-y-2">
-              <h4 class="text-xs font-bold text-emerald-800 flex items-center gap-1"><i class="fa-solid fa-shield-check"></i> Compression Strategy</h4>
-              <ul class="text-[11px] text-emerald-800 space-y-1 leading-relaxed">
-                <li>✓ Downsample high-res images to target DPI</li><li>✓ Re-encode JPEG2000 / Flate streams</li>
-                <li>✓ Remove redundant fonts & metadata</li><li>✓ De-duplicate embedded resources</li><li>✓ Optimize content stream structure</li>
-              </ul>
+            <div class="p-3.5 bg-white rounded-xl border border-slate-200 space-y-2">
+              <label class="text-[11px] font-bold text-slate-600 uppercase block">Crop Scope</label>
+              <div class="flex flex-wrap gap-2 text-xs">
+                <label class="inline-flex items-center gap-1 font-bold text-slate-700 cursor-pointer"><input type="radio" name="crop-scope-radio" value="all" checked class="accent-indigo-600"> All Pages</label>
+                <label class="inline-flex items-center gap-1 font-bold text-slate-700 cursor-pointer"><input type="radio" name="crop-scope-radio" value="current" class="accent-indigo-600"> Current Page</label>
+                <label class="inline-flex items-center gap-1 font-bold text-slate-700 cursor-pointer"><input type="radio" name="crop-scope-radio" value="range" class="accent-indigo-600" onchange="document.getElementById('crop-custom-range').disabled = !this.checked"> Custom Range:</label>
+                <input type="text" id="crop-custom-range" placeholder="e.g. 1-3, 5" class="custom-input text-xs py-0.5 px-2 w-24" disabled>
+              </div>
             </div>
-          </div>`;
-      case TOOL_UI_TYPES.IMAGE_PREVIEW:
-        return `
+          </div>
+        </div>`;
+    }
+
+    if (tool.id === 'pdf-compressor-smart') {
+      return `
+        <div class="space-y-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <h4 class="text-xs font-bold text-slate-700 mb-3 flex items-center gap-1"><i class="fa-solid fa-image text-indigo-600"></i> Original Preview</h4>
-              <div id="image-original-preview" class="w-full h-56 bg-white border border-slate-200 rounded flex items-center justify-center overflow-hidden"><span class="text-slate-400 text-xs">Image preview here</span></div>
-              <div id="image-original-info" class="mt-2 text-[11px] text-slate-500"></div>
+            <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+              <h4 class="text-xs font-bold text-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-indigo-600"></i> Original Document</h4>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="p-2.5 bg-white rounded-lg border border-slate-200"><span class="text-slate-400 font-bold text-[10px]">ORIGINAL SIZE</span><div id="compress-orig-size" class="font-extrabold text-slate-900 mt-0.5 text-sm">--</div></div>
+                <div class="p-2.5 bg-white rounded-lg border border-slate-200"><span class="text-slate-400 font-bold text-[10px]">PAGE COUNT</span><div id="compress-orig-pages" class="font-extrabold text-slate-900 mt-0.5 text-sm">--</div></div>
+              </div>
             </div>
-            <div class="p-4 bg-indigo-50 rounded-xl border border-indigo-200">
-              <h4 class="text-xs font-bold text-indigo-800 mb-3 flex items-center gap-1"><i class="fa-solid fa-magnifying-glass-plus text-indigo-600"></i> Output Preview</h4>
-              <div id="image-output-preview" class="w-full h-56 bg-white border-2 border-dashed border-indigo-300 rounded flex items-center justify-center overflow-hidden"><span class="text-indigo-400 text-xs">Processed result preview</span></div>
-              <div id="image-output-info" class="mt-2 text-[11px] text-indigo-700"></div>
+            <div class="p-4 bg-indigo-50 rounded-xl border border-indigo-200 space-y-3">
+              <h4 class="text-xs font-bold text-indigo-900 flex items-center gap-1.5"><i class="fa-solid fa-sliders text-indigo-600"></i> Compression Preset</h4>
+              <select id="smart-compress-preset" class="custom-input w-full text-xs">
+                <option value="low">Low Compression (300 DPI sampling - Highest Quality)</option>
+                <option value="medium" selected>Recommended (150 DPI sampling - Balanced)</option>
+                <option value="high">Extreme Compression (72 DPI sampling - Smallest Size)</option>
+              </select>
+              <p class="text-[11px] text-indigo-700">Downsamples raster images, re-encodes JPEG streams, and strips redundant object references.</p>
             </div>
-          </div>`;
-      case TOOL_UI_TYPES.CONVERTER_SIMPLE:
-        return `
-          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-            <h4 class="text-xs font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-right-left text-indigo-600"></i> Conversion Workflow</h4>
-            <div class="flex flex-wrap items-center gap-3 text-xs">
-              <div id="converter-source-info" class="px-4 py-2 bg-white rounded-xl border-2 border-slate-300 font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-file-lines"></i> Source File</div>
-              <i class="fa-solid fa-arrow-right text-indigo-500 text-lg"></i>
-              <div class="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-bold flex items-center gap-2"><i class="fa-solid fa-gears"></i> Processing Engine</div>
-              <i class="fa-solid fa-arrow-right text-indigo-500 text-lg"></i>
-              <div id="converter-target-info" class="px-4 py-2 bg-emerald-50 rounded-xl border-2 border-emerald-300 font-bold text-emerald-800 flex items-center gap-2"><i class="fa-solid fa-file-export"></i> Output Format</div>
+          </div>
+          <div id="compress-metric-result" class="hidden p-4 bg-emerald-50 rounded-xl border border-emerald-200 animate-fade-in">
+            <h4 class="text-xs font-extrabold text-emerald-800 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-circle-check"></i> Compression Complete</h4>
+            <div class="grid grid-cols-3 gap-2 text-center text-xs">
+              <div class="p-2.5 bg-white rounded-lg border border-emerald-200"><span class="text-slate-400 font-bold text-[10px] block">ORIGINAL</span><div id="comp-res-orig" class="font-extrabold text-slate-800 mt-0.5">--</div></div>
+              <div class="p-2.5 bg-white rounded-lg border border-emerald-200"><span class="text-slate-400 font-bold text-[10px] block">COMPRESSED</span><div id="comp-res-new" class="font-extrabold text-emerald-700 mt-0.5">--</div></div>
+              <div class="p-2.5 bg-white rounded-lg border border-emerald-200"><span class="text-slate-400 font-bold text-[10px] block">SAVED</span><div id="comp-res-saved" class="font-extrabold text-emerald-700 mt-0.5">--</div></div>
             </div>
-            <div id="converter-extra-info" class="text-[11px] text-slate-500 bg-white p-3 rounded-lg border border-slate-200"></div>
-          </div>`;
+          </div>
+        </div>`;
+    }
+
+    if (tool.id === 'lossless-pdf-shrinker') {
+      return `
+        <div class="space-y-4">
+          <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg flex-shrink-0"><i class="fa-solid fa-shield-check"></i></div>
+            <div>
+              <h4 class="text-xs font-bold text-emerald-900">100% Visual Fidelity Preserved</h4>
+              <p class="text-[11px] text-emerald-700">Strictly preserves 100% visual fidelity and image resolution. Removes EXIF profiles, XML metadata, annotations, unreferenced objects, and compacts streams.</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4 text-xs">
+            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200"><span class="text-slate-400 font-bold text-[10px] block">CURRENT FILE SIZE</span><div id="lossless-orig-size" class="font-extrabold text-slate-900 text-base mt-0.5">--</div></div>
+            <div class="p-3.5 bg-white rounded-xl border border-slate-200"><span class="text-slate-400 font-bold text-[10px] block">STATUS</span><div id="lossless-status" class="font-bold text-indigo-600 text-sm mt-0.5">Ready for optimization</div></div>
+          </div>
+          <div id="lossless-metric-result" class="hidden p-4 bg-emerald-50 rounded-xl border border-emerald-200 animate-fade-in">
+            <div class="grid grid-cols-3 gap-2 text-center text-xs">
+              <div class="p-2 bg-white rounded border border-emerald-200"><span class="text-slate-400 text-[10px] font-bold block">BEFORE</span><div id="lossless-res-orig" class="font-bold text-slate-800">--</div></div>
+              <div class="p-2 bg-white rounded border border-emerald-200"><span class="text-slate-400 text-[10px] font-bold block">AFTER</span><div id="lossless-res-new" class="font-bold text-emerald-700">--</div></div>
+              <div class="p-2 bg-white rounded border border-emerald-200"><span class="text-slate-400 text-[10px] font-bold block">SAVINGS</span><div id="lossless-res-saved" class="font-bold text-emerald-700">--</div></div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    if (tool.id === 'pdf-target-shrinker') {
+      return `
+        <div class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <span class="text-slate-400 font-bold text-[10px] block">CURRENT FILE SIZE</span>
+              <div id="target-shrinker-orig-size" class="text-base font-extrabold text-slate-900">--</div>
+            </div>
+            <div class="p-4 bg-indigo-50 rounded-xl border border-indigo-200 space-y-2">
+              <label class="text-[10px] font-bold text-indigo-900 uppercase block">Target Maximum Size</label>
+              <div class="flex gap-2">
+                <input type="number" id="target-size-number" class="custom-input flex-1 text-xs" value="2" min="0.1" step="0.1">
+                <select id="target-size-unit" class="custom-input text-xs px-2">
+                  <option value="MB" selected>MB</option>
+                  <option value="KB">KB</option>
+                </select>
+              </div>
+              <p class="text-[10px] text-indigo-700">Executes an iterative downsampling/compression loop dynamically adjusting DPI and quality settings until target size is met.</p>
+            </div>
+          </div>
+          <div id="target-shrinker-feedback" class="hidden p-4 rounded-xl text-xs space-y-2 animate-fade-in"></div>
+        </div>`;
+    }
+
+    if (tool.id === 'pdf-to-xlsx') {
+      return `
+        <div class="space-y-4">
+          <div class="flex justify-between items-center p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+            <div class="text-xs text-emerald-800 font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-table-cells text-emerald-600"></i> In-Browser Interactive Table Data Preview
+            </div>
+            <span id="excel-preview-stat" class="text-[10px] font-bold bg-white text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">0 Rows</span>
+          </div>
+          <div id="excel-interactive-preview" class="excel-preview-container bg-white p-2">
+            <p class="text-slate-400 text-xs text-center py-10">Upload a PDF to extract tables and see interactive spreadsheet preview here.</p>
+          </div>
+        </div>`;
+    }
+
+    if (tool.id === 'xlsx-to-pdf') {
+      return `
+        <div class="space-y-4">
+          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <h4 class="text-xs font-bold text-slate-800" id="xlsx-file-name">Spreadsheet Document</h4>
+              <p class="text-[11px] text-slate-500" id="xlsx-file-details">--</p>
+            </div>
+            <div class="flex gap-2 text-xs">
+              <select id="xlsx-paper-orientation" class="custom-input text-xs py-1 px-2 font-bold">
+                <option value="portrait">Portrait</option>
+                <option value="landscape" selected>Landscape</option>
+              </select>
+              <select id="xlsx-paper-size" class="custom-input text-xs py-1 px-2 font-bold">
+                <option value="A4" selected>A4 Paper</option>
+                <option value="Letter">Letter</option>
+              </select>
+            </div>
+          </div>
+          <div id="xlsx-preview-container" class="excel-preview-container bg-white p-2"></div>
+        </div>`;
+    }
+
+    if (tool.id === 'pdf-to-pptx') {
+      return `
+        <div class="p-8 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-4">
+          <div class="w-16 h-16 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-3xl mx-auto shadow-inner">
+            <i class="fa-solid fa-file-powerpoint"></i>
+          </div>
+          <div>
+            <h4 class="text-sm font-extrabold text-slate-900">PDF to PowerPoint Presentation Deck</h4>
+            <p class="text-xs text-slate-500 max-w-md mx-auto mt-1">Converts multi-page PDF documents into .pptx presentation slide decks. Renders each page as a high-resolution slide layer while creating editable slide objects.</p>
+          </div>
+          <div id="pptx-pages-badge" class="inline-block px-3 py-1 rounded-full bg-orange-50 text-orange-700 font-extrabold text-xs border border-orange-200">-- Pages Detected</div>
+        </div>`;
+    }
+
+    if (tool.id === 'pptx-to-pdf') {
+      return `
+        <div class="p-8 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-4">
+          <div class="w-16 h-16 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-3xl mx-auto shadow-inner">
+            <i class="fa-solid fa-file-pdf"></i>
+          </div>
+          <div>
+            <h4 class="text-sm font-extrabold text-slate-900">PowerPoint Deck to PDF Converter</h4>
+            <p class="text-xs text-slate-500 max-w-md mx-auto mt-1">Upload .pptx or .ppt files. Converts presentation decks into crisp, static PDF documents while preserving fonts, vector shapes, slide ratios, and background styles.</p>
+          </div>
+          <div id="pptx-pdf-details" class="text-xs font-bold text-slate-600 bg-white px-4 py-2 rounded-xl border border-slate-200 inline-block">Upload a presentation to convert</div>
+        </div>`;
+    }
+
+    if (tool.id === 'pdf-to-jpg') {
+      return `
+        <div class="space-y-4">
+          <div class="flex flex-wrap justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200 gap-2">
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-bold text-slate-700">Resolution:</label>
+              <select id="pdf-jpg-dpi" class="custom-input text-xs py-1 px-2" onchange="runPdfToJpgExtraction()">
+                <option value="1">Web (72 DPI)</option>
+                <option value="2" selected>Medium (150 DPI)</option>
+                <option value="4">High Print (300 DPI)</option>
+              </select>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-bold text-slate-500">Page Range:</label>
+              <input type="text" id="pdf-jpg-range" placeholder="All (or e.g. 1-3, 5)" class="custom-input text-xs py-1 px-2 w-40" onchange="runPdfToJpgExtraction()">
+            </div>
+          </div>
+          <div id="pdf-jpg-gallery" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[460px] overflow-y-auto p-1"></div>
+        </div>`;
+    }
+
+    if (tool.id === 'jpg-to-pdf') {
+      return `
+        <div class="space-y-4">
+          <div class="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-arrows-up-down-left-right text-indigo-600"></i>Drag and drop photos to reorder sequence before compiling</span>
+            <button type="button" onclick="document.getElementById('studio-file-input').click()" class="text-xs px-2.5 py-1 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition">+ Add Photos</button>
+          </div>
+          <div id="jpg-pdf-gallery" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[460px] overflow-y-auto p-1"></div>
+        </div>`;
+    }
+
+    if (tool.id === 'batch-img-resizer') {
+      return `
+        <div class="space-y-4">
+          <div class="flex flex-wrap justify-between items-center p-3.5 bg-slate-50 rounded-xl border border-slate-200 gap-2">
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-bold text-slate-700">Resize Mode:</label>
+              <select id="batch-resizer-mode" class="custom-input text-xs py-1 px-2.5" onchange="onBatchModeChanged()">
+                <option value="fixed" selected>Fixed Dimensions (Width/Height)</option>
+                <option value="percent">Percentage Scale (e.g. 50%, 75%)</option>
+                <option value="target-size">Target File Size Limit (e.g. < 500 KB)</option>
+              </select>
+            </div>
+            <div id="batch-mode-inputs" class="flex items-center gap-2 text-xs">
+              <input type="number" id="batch-width" placeholder="Width (px)" class="custom-input py-1 px-2 w-24">
+              <span>×</span>
+              <input type="number" id="batch-height" placeholder="Height (px)" class="custom-input py-1 px-2 w-24">
+              <label class="inline-flex items-center gap-1 font-bold text-slate-600 ml-1"><input type="checkbox" id="batch-lock-aspect" checked class="accent-indigo-600"> Lock Aspect</label>
+            </div>
+          </div>
+          <div id="batch-resizer-gallery" class="space-y-2 max-h-[440px] overflow-y-auto p-1"></div>
+        </div>`;
+    }
+
+    if (tool.id === 'png-compressor') {
+      return `
+        <div class="space-y-4">
+          <div class="text-center">
+            <span class="text-xs font-bold text-slate-600"><i class="fa-solid fa-arrows-left-right text-indigo-600 mr-1.5"></i>Drag the center divider horizontally to compare Original vs Lossless Compressed</span>
+          </div>
+          <div id="png-compare-wrapper" class="compare-container bg-slate-100">
+            <span class="compare-badge-left">ORIGINAL</span>
+            <span class="compare-badge-right">LOSSLESS PNG</span>
+            <img id="png-compare-orig" class="compare-image-original" src="" alt="Original PNG">
+            <div id="png-compare-overlay" class="compare-overlay-wrapper">
+              <img id="png-compare-comp" class="compare-image-compressed" src="" alt="Compressed PNG">
+            </div>
+            <div id="png-compare-divider" class="compare-divider-handle" style="left: 50%;">
+              <i class="fa-solid fa-arrows-left-right text-xs"></i>
+            </div>
+          </div>
+          <div id="png-metrics-card" class="grid grid-cols-4 gap-2 text-center text-xs">
+            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200"><span class="text-[10px] text-slate-400 font-bold block">ORIGINAL</span><div id="png-metric-orig" class="font-extrabold text-slate-800 mt-0.5">-- KB</div></div>
+            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200"><span class="text-[10px] text-slate-400 font-bold block">OPTIMIZED</span><div id="png-metric-comp" class="font-extrabold text-emerald-700 mt-0.5">-- KB</div></div>
+            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200"><span class="text-[10px] text-slate-400 font-bold block">SAVED</span><div id="png-metric-saved" class="font-extrabold text-emerald-700 mt-0.5">-- KB</div></div>
+            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200"><span class="text-[10px] text-slate-400 font-bold block">REDUCTION</span><div id="png-metric-percent" class="font-extrabold text-emerald-700 mt-0.5">-- %</div></div>
+          </div>
+        </div>`;
+    }
+
+    if (tool.id === 'webp-converter') {
+      return `
+        <div class="space-y-4">
+          <div class="flex flex-wrap justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200 gap-2">
+            <div class="flex items-center gap-3">
+              <label class="text-xs font-bold text-slate-700">Quality: <span id="webp-quality-val" class="text-indigo-600 font-extrabold">80%</span></label>
+              <input type="range" id="webp-quality-range" min="10" max="100" value="80" class="w-32 accent-indigo-600" oninput="document.getElementById('webp-quality-val').textContent = this.value + '%'">
+            </div>
+            <label class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
+              <input type="checkbox" id="webp-lossless-check" class="accent-indigo-600"> Lossless Mode (100% Quality)
+            </label>
+          </div>
+          <div id="webp-batch-gallery" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[460px] overflow-y-auto p-1"></div>
+        </div>`;
+    }
+
+    // Default Fallbacks
+    switch (tool.uiType) {
+      case TOOL_UI_TYPES.PDF_PAGE_ORGANIZER:
+        return `<div id="pdf-page-cards-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[480px] overflow-y-auto p-1"></div>`;
       case TOOL_UI_TYPES.OCR_TRANSLATE:
         return `
           <div class="space-y-3">
@@ -534,12 +902,6 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="p-3 bg-white rounded-xl border border-slate-200"><div class="text-[10px] font-bold text-slate-500 uppercase">Difficulty</div><div id="quiz-stat-difficulty" class="text-xl font-extrabold text-amber-700 mt-0.5">--</div></div>
             </div>
           </div>`;
-      case TOOL_UI_TYPES.DESIGN_PREPRESS:
-        return `
-          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 class="text-xs font-bold text-slate-700 mb-3 flex items-center gap-1"><i class="fa-solid fa-ruler-combined text-indigo-600"></i> Prepress Visualization</h4>
-            <div id="design-preview-area" class="w-full h-72 bg-white border border-slate-200 rounded flex items-center justify-center"><span class="text-slate-400 text-xs">Prepress preview area with bleed and crop mark visualization</span></div>
-          </div>`;
       default:
         return `
           <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
@@ -553,53 +915,91 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function handleStudioFiles(newFiles) {
-    state.files = [...state.files, ...newFiles];
     const tool = state.activeTool; if (!tool) return;
+    
+    // For single-file tools, replace; for multi-file tools, append
+    if (tool.multiple) {
+      state.files = [...state.files, ...newFiles];
+    } else {
+      state.files = [newFiles[0]];
+    }
+
     const dropzone = document.getElementById('studio-dropzone');
     const workArea = document.getElementById('studio-work-area');
     if (dropzone) dropzone.classList.add('hidden');
     if (workArea) workArea.classList.remove('hidden');
-    const file = newFiles[0]; if (!file) return;
+
+    const file = state.files[0]; if (!file) return;
     const countBadge = document.getElementById('studio-item-count-badge');
     if (countBadge) countBadge.textContent = `${state.files.length} File${state.files.length > 1 ? 's' : ''}`;
-    const fileInfoName = document.getElementById('file-info-name');
-    const fileInfoSize = document.getElementById('file-info-size');
-    const fileInfoDate = document.getElementById('file-info-date');
-    if (fileInfoName) fileInfoName.textContent = file.name;
-    if (fileInfoSize) fileInfoSize.textContent = formatFileSize(file.size);
-    if (fileInfoDate) fileInfoDate.textContent = new Date(file.lastModified).toLocaleString();
+
+    // Tool-specific initialization
+    if (tool.id === 'pdf-merger') {
+      renderMergerFileList();
+      return;
+    }
+
+    if (tool.id === 'jpg-to-pdf') {
+      renderJpgToPdfGallery();
+      return;
+    }
+
+    if (tool.id === 'batch-img-resizer') {
+      renderBatchResizerGallery();
+      return;
+    }
+
+    if (tool.id === 'webp-converter') {
+      renderWebpBatchGallery();
+      return;
+    }
+
+    if (tool.id === 'png-compressor') {
+      runPngLosslessComparison(file);
+      return;
+    }
 
     if (file.type.includes('pdf')) {
-      showToast('Rendering PDF page thumbnails...', 'info');
+      showToast('Analyzing and rendering PDF document...', 'info');
       try {
         const buffer = await file.arrayBuffer();
         state.pdfPageCards = await PDFEngine.renderPageThumbnails(buffer);
         if (countBadge) countBadge.textContent = `${state.pdfPageCards.length} Pages`;
-        if (tool.uiType === TOOL_UI_TYPES.PDF_PAGE_ORGANIZER) renderPageOrganizerGrid();
-        if (tool.uiType === TOOL_UI_TYPES.PDF_COMPRESS) {
-          const pc = document.getElementById('compress-page-count');
-          const orig = document.getElementById('compress-original-size');
-          if (pc) pc.textContent = state.pdfPageCards.length.toString();
-          if (orig) orig.textContent = formatFileSize(file.size);
-          updateCompressionEstimate(file.size);
+
+        if (tool.id === 'pdf-splitter') renderSplitterGrid();
+        else if (tool.id === 'pdf-unmerger') runUnmergerAnalysis();
+        else if (tool.id === 'pdf-page-reorder') renderPageOrganizerGrid();
+        else if (tool.id === 'pdf-page-deleter') renderDeleterGrid();
+        else if (tool.id === 'pdf-crop-tool') initInteractiveCropCanvas();
+        else if (tool.id === 'pdf-compressor-smart') initSmartCompressorView(file.size);
+        else if (tool.id === 'lossless-pdf-shrinker') initLosslessShrinkView(file.size);
+        else if (tool.id === 'pdf-target-shrinker') initTargetShrinkView(file.size);
+        else if (tool.id === 'pdf-to-xlsx') runPdfToExcelAnalysis();
+        else if (tool.id === 'pdf-to-pptx') initPdfToPptxView();
+        else if (tool.id === 'pdf-to-jpg') runPdfToJpgExtraction();
+        else if (tool.uiType === TOOL_UI_TYPES.PDF_PAGE_ORGANIZER) renderPageOrganizerGrid();
+
+        if (tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR || tool.uiType === TOOL_UI_TYPES.OCR_TRANSLATE) {
+          await extractPdfTextForQuizOrAI(file);
         }
-        if (tool.uiType === TOOL_UI_TYPES.PDF_CROP) {
-          const preview = document.getElementById('crop-page-preview');
-          if (preview && state.pdfPageCards[0]) preview.innerHTML = `<img src="${state.pdfPageCards[0].dataUrl}" class="max-w-full max-h-full object-contain">`;
-        }
-        if (tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR || tool.uiType === TOOL_UI_TYPES.OCR_TRANSLATE) await extractPdfTextForQuizOrAI(file);
-      } catch (e) { console.error(e); showToast('Could not render PDF. File may be encrypted or corrupted.', 'error'); }
-    } else if (file.type.startsWith('image/') && (tool.uiType === TOOL_UI_TYPES.IMAGE_PREVIEW || tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR)) {
+      } catch (e) {
+        console.error(e);
+        showToast('Could not load PDF document. Please verify the file is not password-protected or corrupted.', 'error');
+      }
+    } else if (tool.id === 'xlsx-to-pdf') {
+      runXlsxToPdfPreview(file);
+    } else if (tool.id === 'pptx-to-pdf') {
+      initPptxToPdfView(file);
+    } else if (file.type.startsWith('image/')) {
       renderImagePreview(file);
       if (tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR) {
-        showToast('Running OCR on image for quiz content extraction...', 'info');
         try {
           const text = await runOCROnImage(file);
           state.extractedText = text;
           const qet = document.getElementById('quiz-extracted-text');
           if (qet) qet.value = text;
           updateQuizStats();
-        } catch (e) { showToast('OCR processing will be simulated from image data.', 'info'); }
+        } catch (e) {}
       }
     } else if (tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR && (file.name.endsWith('.txt') || file.name.endsWith('.docx'))) {
       try {
@@ -608,213 +1008,783 @@ document.addEventListener('DOMContentLoaded', () => {
         const qet = document.getElementById('quiz-extracted-text');
         if (qet) qet.value = text;
         updateQuizStats();
-        showToast('Content extracted successfully.', 'success');
       } catch (e) { console.error(e); }
     }
-
-    updateConverterInfo(file);
-    document.querySelectorAll('input[name="crop-pages-option"]').forEach(r => r.addEventListener('change', () => {
-      const cpr = document.getElementById('crop-page-range');
-      if (cpr) cpr.disabled = r.value !== 'range';
-    }));
-    const qec = document.getElementById('quiz-enable-custom-text');
-    if (qec) qec.addEventListener('change', () => { const qet = document.getElementById('quiz-extracted-text'); if (qet) { qet.readOnly = !qec.checked; if (qec.checked) qet.focus(); } });
   }
 
-  function updateCompressionEstimate(origSize) {
-    const level = document.getElementById('ctrl-compression-level')?.value || 'medium';
-    const factor = { low: 0.85, medium: 0.6, high: 0.4, max: 0.25 }[level] || 0.6;
-    const estSize = Math.round(origSize * factor);
-    const estEl = document.getElementById('compress-estimated-size');
-    const savingsEl = document.getElementById('compress-savings');
-    if (estEl) estEl.textContent = formatFileSize(estSize);
-    if (savingsEl) savingsEl.textContent = `${Math.round((1 - factor) * 100)}%`;
-  }
-
-  function updateConverterInfo(file) {
-    const tool = state.activeTool; if (!tool) return;
-    const srcInfo = document.getElementById('converter-source-info');
-    const targetInfo = document.getElementById('converter-target-info');
-    const extra = document.getElementById('converter-extra-info');
-    if (srcInfo) { const ext = file.name.split('.').pop().toUpperCase(); srcInfo.innerHTML = `<i class="fa-solid fa-file-lines"></i> ${ext} • ${formatFileSize(file.size)}`; }
-    if (targetInfo) {
-      const tm = { 'pdf-to-docx': 'DOCX', 'docx-to-pdf': 'PDF', 'pdf-to-xlsx': 'XLSX', 'xlsx-to-pdf': 'PDF', 'pdf-to-pptx': 'PPTX', 'pptx-to-pdf': 'PDF', 'pdf-to-jpg': 'JPG', 'jpg-to-pdf': 'PDF' };
-      targetInfo.innerHTML = `<i class="fa-solid fa-file-export"></i> ${tm[tool.id] || 'OUTPUT'}`;
-    }
-    if (extra) extra.innerHTML = `<div class="flex flex-wrap gap-3"><span><i class="fa-solid fa-file-signature"></i> <b>Source:</b> ${file.name}</span><span><i class="fa-solid fa-hashtag"></i> <b>Pages detected:</b> ${state.pdfPageCards.length || 'N/A'}</span></div>`;
-  }
-
-  function renderImagePreview(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const orig = document.getElementById('image-original-preview');
-        const origInfo = document.getElementById('image-original-info');
-        if (orig) orig.innerHTML = `<img src="${e.target.result}" class="max-w-full max-h-full object-contain">`;
-        if (origInfo) origInfo.innerHTML = `<b>Dimensions:</b> ${img.width} × ${img.height}px &nbsp;|&nbsp; <b>Size:</b> ${formatFileSize(file.size)} &nbsp;|&nbsp; <b>Format:</b> ${file.type}`;
+  // --- 1. PDF MERGER CONTROLS & GALLERY ---
+  window.renderMergerFileList = function() {
+    const list = document.getElementById('merger-file-list');
+    if (!list) return;
+    list.innerHTML = '';
+    state.files.forEach((f, idx) => {
+      const card = document.createElement('div');
+      card.className = 'draggable-card p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between shadow-xs';
+      card.draggable = true;
+      card.ondragstart = (e) => { state.activeDragIndex = idx; card.classList.add('is-dragging'); };
+      card.ondragend = () => { card.classList.remove('is-dragging'); };
+      card.ondragover = (e) => { e.preventDefault(); card.classList.add('drag-over'); };
+      card.ondragleave = () => { card.classList.remove('drag-over'); };
+      card.ondrop = (e) => {
+        e.preventDefault();
+        card.classList.remove('drag-over');
+        if (state.activeDragIndex !== null && state.activeDragIndex !== idx) {
+          const moved = state.files.splice(state.activeDragIndex, 1)[0];
+          state.files.splice(idx, 0, moved);
+          renderMergerFileList();
+        }
       };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
 
-  async function runOCROnImage(file) {
-    try {
-      if (!window.Tesseract) throw new Error('Tesseract not available');
-      const worker = await window.Tesseract.createWorker('eng');
-      const ret = await worker.recognize(file);
-      await worker.terminate();
-      return sanitizeExtractedContent(ret.data.text || '');
-    } catch (e) {
-      return sanitizeExtractedContent(`[Image: ${file.name}] Photosynthesis is the process by which plants convert light energy into chemical energy stored in glucose. It occurs in chloroplasts, using chlorophyll to capture sunlight. The inputs are carbon dioxide, water, and light; outputs include glucose and oxygen. Cellular respiration is the complementary process that breaks down glucose to release ATP energy, occurring in mitochondria. Key terms: ATP, NADPH, Calvin cycle, Krebs cycle, glycolysis, electron transport chain.`);
+      card.innerHTML = `
+        <div class="flex items-center gap-3">
+          <span class="cursor-grab text-slate-400 hover:text-indigo-600 p-1 text-sm"><i class="fa-solid fa-grip-vertical"></i></span>
+          <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-extrabold text-xs">${idx + 1}</div>
+          <div>
+            <h5 class="text-xs font-extrabold text-slate-900">${f.name}</h5>
+            <p class="text-[10px] text-slate-400">${formatFileSize(f.size)}</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="moveMergerFile(${idx}, -1)" ${idx === 0 ? 'disabled class="opacity-20"' : 'class="text-slate-500 hover:text-indigo-600 p-1"'} title="Move Up"><i class="fa-solid fa-arrow-up"></i></button>
+          <button type="button" onclick="moveMergerFile(${idx}, 1)" ${idx === state.files.length - 1 ? 'disabled class="opacity-20"' : 'class="text-slate-500 hover:text-indigo-600 p-1"'} title="Move Down"><i class="fa-solid fa-arrow-down"></i></button>
+          <button type="button" onclick="removeMergerFile(${idx})" class="text-rose-500 hover:text-rose-700 p-1 text-xs" title="Remove"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+      `;
+      list.appendChild(card);
+    });
+
+    const badge = document.getElementById('studio-item-count-badge');
+    if (badge) badge.textContent = `${state.files.length} PDFs Queued`;
+  };
+
+  window.moveMergerFile = function(fromIdx, direction) {
+    const toIdx = fromIdx + direction;
+    if (toIdx < 0 || toIdx >= state.files.length) return;
+    const moved = state.files.splice(fromIdx, 1)[0];
+    state.files.splice(toIdx, 0, moved);
+    renderMergerFileList();
+  };
+
+  window.removeMergerFile = function(idx) {
+    state.files.splice(idx, 1);
+    if (state.files.length === 0) {
+      document.getElementById('studio-dropzone')?.classList.remove('hidden');
+      document.getElementById('studio-work-area')?.classList.add('hidden');
+    } else {
+      renderMergerFileList();
     }
-  }
+  };
 
-  function sanitizeExtractedContent(raw) {
-    if (!raw) return '';
-    let text = raw;
-    text = text.replace(/\u0000-\u0008\u000b-\u001f/g, '');
-    text = text.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n');
-    const lines = text.split('\n');
-    const lineCounts = {};
-    lines.forEach(l => { const t = l.trim(); if (t.length >= 3 && t.length <= 80) lineCounts[t] = (lineCounts[t] || 0) + 1; });
-    const repeated = new Set(Object.keys(lineCounts).filter(k => lineCounts[k] >= 3));
-    const filtered = [];
-    for (const l of lines) {
-      const t = l.trim();
-      if (repeated.has(t)) continue;
-      if (/^page\s*\d+(\s*of\s*\d+)?$/i.test(t)) continue;
-      if (/^\d+\s*\/\s*\d+$/.test(t)) continue;
-      if (/^\d+$/.test(t) && t.length <= 4) continue;
-      if (/^(chapter|section|part|unit|lesson)\s*\d+[:.\-\s]*$/i.test(t)) continue;
-      if (/^(chapter|section|part|unit|lesson)\s*\d+[:.\-\s]*[A-Z].{0,80}$/i.test(t)) continue;
-      if (/^(https?:\/\/|www\.)\S+$/i.test(t)) continue;
-      if (/^[\p{L}\s]{1,60}$/u.test(t) && t === t.toUpperCase() && t.split(/\s+/).length <= 7 && t.length <= 50) continue;
-      if (t.length > 0 && t.length <= 3) continue;
-      if (/^[-_=*.•]{3,}$/.test(t)) continue;
-      filtered.push(l);
-    }
-    let out = filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-    const sentences = out.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 25);
-    if (sentences.length < 4) out = sentences.join(' ') || out;
-    return out;
-  }
-
-  async function extractPdfTextForQuizOrAI(file) {
-    const buffer = await file.arrayBuffer();
-    let text = '';
-    try {
-      const pdfjsLib = window['pdfjs-dist/build/pdf'];
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
-      for (let i = 1; i <= pdfDoc.numPages; i++) {
-        const page = await pdfDoc.getPage(i);
-        const content = await page.getTextContent();
-        text += content.items.map(item => item.str).join(' ') + '\n\n';
-      }
-    } catch (e) { text = generateSampleContent(file.name); }
-    text = sanitizeExtractedContent(text);
-    if (!text.trim()) text = generateSampleContent(file.name);
-    state.extractedText = text;
-    const ocrArea = document.getElementById('ocr-extracted-text');
-    if (ocrArea) ocrArea.value = text;
-    const quizArea = document.getElementById('quiz-extracted-text');
-    if (quizArea) quizArea.value = text;
-    updateQuizStats();
-  }
-
-  function generateSampleContent(filename) {
-    return `Sample document content from ${filename}:
-
-Artificial Intelligence (AI) refers to the simulation of human intelligence in machines programmed to think and learn like humans. The term AI was first coined in 1956 at the Dartmouth Conference by John McCarthy.
-
-Key areas of AI include:
-1. Machine Learning (ML): Systems that learn from experience without explicit programming
-2. Natural Language Processing (NLP): Understanding and generating human language
-3. Computer Vision: Interpreting visual information from the world
-4. Robotics: Physical systems that interact with the environment
-
-Deep Learning is a subset of Machine Learning using neural networks with many layers. It enabled breakthroughs in image recognition, speech processing, and game playing.
-
-Ethical considerations in AI include bias, privacy, transparency, and impact on employment. Responsible AI development emphasizes fairness, accountability, and human oversight.
-
-The future of AI promises advances in healthcare diagnostics, climate modeling, personalized education, and scientific discovery. Notable AI milestones include Deep Blue defeating Kasparov (1997), AlphaGo (2016), and large language models (2020s).`;
-  }
-
-  async function extractTextFromDoc(file) {
-    if (file.name.endsWith('.txt')) return await file.text();
-    if (file.name.endsWith('.docx') && window.mammoth) {
-      const buffer = await file.arrayBuffer();
-      const result = await window.mammoth.extractRawText({ arrayBuffer: buffer });
-      return result.value || '';
-    }
-    return generateSampleContent(file.name);
-  }
-
-  function updateQuizStats() {
-    const len = (state.extractedText || '').length;
-    const lenBadge = document.getElementById('quiz-content-length');
-    if (lenBadge) lenBadge.textContent = `${len.toLocaleString()} chars`;
-    const qcNum = document.getElementById('ctrl-question-count');
-    const qcNum2 = document.getElementById('ctrl-question-count-num');
-    const n = qcNum?.value || qcNum2?.value || '10';
-    if (document.getElementById('quiz-stat-questions')) document.getElementById('quiz-stat-questions').textContent = n;
-    const langEl = document.getElementById('ctrl-quiz-language');
-    if (document.getElementById('quiz-stat-language') && langEl) {
-      const t = langEl.options?.[langEl.selectedIndex]?.text || 'English';
-      document.getElementById('quiz-stat-language').textContent = t.split(' ')[0];
-    }
-    const typeEl = document.getElementById('ctrl-quiz-type');
-    if (document.getElementById('quiz-stat-type') && typeEl) document.getElementById('quiz-stat-type').textContent = typeEl.value.toUpperCase();
-    const diffEl = document.getElementById('ctrl-difficulty-level');
-    if (document.getElementById('quiz-stat-difficulty') && diffEl) {
-      const d = diffEl.value;
-      document.getElementById('quiz-stat-difficulty').textContent = d.charAt(0).toUpperCase() + d.slice(1);
-    }
-  }
-
-  function renderPageOrganizerGrid() {
-    const grid = document.getElementById('pdf-page-cards-grid'); if (!grid) return;
+  // --- 2. PDF SPLITTER ---
+  window.renderSplitterGrid = function() {
+    const grid = document.getElementById('splitter-thumbnail-grid');
+    const badge = document.getElementById('splitter-pages-badge');
+    if (badge) badge.textContent = `${state.pdfPageCards.length} Pages Total`;
+    if (!grid) return;
     grid.innerHTML = '';
+
+    state.pdfPageCards.forEach(card => {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'splitter-page-card p-2 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-indigo-500 transition relative flex flex-col items-center shadow-xs';
+      cardEl.dataset.page = card.pageNum;
+      cardEl.onclick = () => toggleSplitterPage(card.pageNum);
+      cardEl.innerHTML = `
+        <div class="flex justify-between items-center w-full mb-1">
+          <span class="text-[10px] font-bold text-slate-600">Page ${card.pageNum}</span>
+          <span class="splitter-check-indicator w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-white"></span>
+        </div>
+        <div class="w-full h-32 flex items-center justify-center bg-slate-50 rounded overflow-hidden">
+          <img src="${card.dataUrl}" class="max-h-full max-w-full object-contain">
+        </div>
+      `;
+      grid.appendChild(cardEl);
+    });
+
+    highlightSplitterRanges();
+  };
+
+  window.onSplitterModeChanged = function() {
+    const mode = document.getElementById('splitter-mode-select')?.value;
+    const rangeBox = document.getElementById('splitter-range-container');
+    if (rangeBox) rangeBox.style.display = mode === 'individual' ? 'none' : 'flex';
+  };
+
+  window.toggleSplitterPage = function(pageNum) {
+    const input = document.getElementById('splitter-range-input');
+    if (!input) return;
+    let parts = input.value.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+    const strNum = String(pageNum);
+    if (parts.includes(strNum)) {
+      parts = parts.filter(p => p !== strNum);
+    } else {
+      parts.push(strNum);
+    }
+    input.value = parts.join(', ');
+    highlightSplitterRanges();
+  };
+
+  window.highlightSplitterRanges = function() {
+    const input = document.getElementById('splitter-range-input');
+    const rangeStr = input?.value || '';
+    const totalPages = state.pdfPageCards.length;
+    const groups = PDFEngine.parsePageRanges(rangeStr, totalPages);
+    const included = new Set();
+    groups.forEach(g => g.pages.forEach(p => included.add(p)));
+
+    document.querySelectorAll('.splitter-page-card').forEach(cardEl => {
+      const p = parseInt(cardEl.dataset.page);
+      const isInc = included.has(p);
+      const indicator = cardEl.querySelector('.splitter-check-indicator');
+      if (isInc) {
+        cardEl.classList.add('border-indigo-600', 'bg-indigo-50/20');
+        if (indicator) {
+          indicator.className = 'splitter-check-indicator w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px]';
+          indicator.innerHTML = '<i class="fa-solid fa-check"></i>';
+        }
+      } else {
+        cardEl.classList.remove('border-indigo-600', 'bg-indigo-50/20');
+        if (indicator) {
+          indicator.className = 'splitter-check-indicator w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-white';
+          indicator.innerHTML = '';
+        }
+      }
+    });
+  };
+
+  // --- 3. PDF UN-MERGER ---
+  window.runUnmergerAnalysis = async function() {
+    if (!state.files[0]) return;
+    const buffer = await state.files[0].arrayBuffer();
+    state.detectedSubDocs = await PDFEngine.unmergePDF(buffer);
+    renderUnmergerList();
+  };
+
+  window.renderUnmergerList = function() {
+    const list = document.getElementById('unmerger-subdocs-list');
+    const badge = document.getElementById('unmerger-count-badge');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (badge) badge.textContent = `${state.detectedSubDocs.length} Constituent Document${state.detectedSubDocs.length > 1 ? 's' : ''}`;
+
+    state.detectedSubDocs.forEach((doc, idx) => {
+      const card = document.createElement('div');
+      card.className = 'p-4 bg-white border border-slate-200 rounded-xl shadow-xs space-y-3';
+      const thumbs = doc.pages.slice(0, 4).map(p => {
+        const c = state.pdfPageCards.find(card => card.pageNum === p);
+        return c ? `<div class="w-14 h-18 bg-slate-50 rounded border border-slate-200 overflow-hidden flex items-center justify-center flex-shrink-0"><img src="${c.dataUrl}" class="max-h-full max-w-full object-contain"></div>` : '';
+      }).join('');
+
+      card.innerHTML = `
+        <div class="flex flex-wrap justify-between items-center gap-2">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">${idx + 1}</div>
+            <div>
+              <h5 class="text-xs font-extrabold text-slate-900">${doc.title}</h5>
+              <p class="text-[10px] text-slate-500 font-bold">Pages ${doc.startPage} – ${doc.endPage} (${doc.pageCount} Pages)</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            ${idx > 0 ? `<button type="button" onclick="mergeUnmergerWithPrevious(${idx})" class="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 rounded transition"><i class="fa-solid fa-link"></i> Merge with Prev</button>` : ''}
+          </div>
+        </div>
+        <div class="flex items-center gap-2 overflow-x-auto py-1">
+          ${thumbs}
+          ${doc.pages.length > 4 ? `<div class="w-14 h-18 bg-slate-100 rounded border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500 flex-shrink-0">+${doc.pages.length - 4} more</div>` : ''}
+        </div>
+      `;
+      list.appendChild(card);
+    });
+  };
+
+  window.mergeUnmergerWithPrevious = function(idx) {
+    if (idx <= 0) return;
+    const prev = state.detectedSubDocs[idx - 1];
+    const curr = state.detectedSubDocs[idx];
+    prev.endPage = curr.endPage;
+    prev.pages = [...prev.pages, ...curr.pages];
+    prev.pageCount = prev.pages.length;
+    state.detectedSubDocs.splice(idx, 1);
+    renderUnmergerList();
+  };
+
+  // --- 4. PDF PAGE RE-ORDERER ---
+  window.renderPageOrganizerGrid = function() {
+    const grid = document.getElementById('pdf-page-cards-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
     state.pdfPageCards.forEach((card, index) => {
       if (card.deleted) return;
       const cardEl = document.createElement('div');
-      cardEl.className = 'thumb-card p-2 bg-white border border-slate-200 rounded-xl relative shadow-sm flex flex-col items-center justify-between group';
+      cardEl.className = 'draggable-card thumb-card p-2 bg-white border border-slate-200 rounded-xl relative shadow-sm flex flex-col items-center justify-between group';
+      cardEl.draggable = true;
+      cardEl.ondragstart = () => { state.activeDragIndex = index; cardEl.classList.add('is-dragging'); };
+      cardEl.ondragend = () => { cardEl.classList.remove('is-dragging'); };
+      cardEl.ondragover = (e) => { e.preventDefault(); cardEl.classList.add('drag-over'); };
+      cardEl.ondragleave = () => { cardEl.classList.remove('drag-over'); };
+      cardEl.ondrop = (e) => {
+        e.preventDefault();
+        cardEl.classList.remove('drag-over');
+        if (state.activeDragIndex !== null && state.activeDragIndex !== index) {
+          const moved = state.pdfPageCards.splice(state.activeDragIndex, 1)[0];
+          state.pdfPageCards.splice(index, 0, moved);
+          renderPageOrganizerGrid();
+        }
+      };
+
       cardEl.innerHTML = `
         <div class="flex justify-between items-center w-full mb-1">
           <span class="text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">Page ${card.pageNum}</span>
-          <button type="button" onclick="deleteStudioPageAt(${index})" class="text-red-500 hover:text-red-700 text-xs font-bold" title="Delete Page"><i class="fa-solid fa-trash-can"></i></button>
+          <div class="flex items-center gap-1">
+            <button type="button" onclick="openFullPagePdfModal(${card.pageNum})" class="text-slate-400 hover:text-indigo-600 text-[11px]" title="Full Page Modal Preview"><i class="fa-solid fa-expand"></i></button>
+            <button type="button" onclick="deleteStudioPageAt(${index})" class="text-rose-500 hover:text-rose-700 text-xs font-bold" title="Delete Page"><i class="fa-solid fa-trash-can"></i></button>
+          </div>
         </div>
-        <div class="w-full h-32 flex items-center justify-center bg-slate-50 rounded overflow-hidden my-1">
+        <div class="w-full h-32 flex items-center justify-center bg-slate-50 rounded overflow-hidden my-1 cursor-pointer" onclick="openFullPagePdfModal(${card.pageNum})">
           <img src="${card.dataUrl}" class="max-h-full max-w-full object-contain transition-transform duration-300" style="transform: rotate(${card.rotation}deg)">
         </div>
         <div class="flex justify-between items-center w-full pt-1.5 border-t border-slate-100 text-xs text-slate-600">
-          <button type="button" onclick="moveStudioPageAt(${index}, -1)" ${index === 0 ? 'disabled class="opacity-30"' : ''} title="Move Left"><i class="fa-solid fa-arrow-left"></i></button>
-          <button type="button" onclick="rotateStudioPageAt(${index})" class="hover:text-indigo-600 font-semibold flex items-center gap-0.5" title="Rotate 90°"><i class="fa-solid fa-rotate-right"></i> ${card.rotation}°</button>
-          <button type="button" onclick="moveStudioPageAt(${index}, 1)" ${index === state.pdfPageCards.length - 1 ? 'disabled class="opacity-30"' : ''} title="Move Right"><i class="fa-solid fa-arrow-right"></i></button>
+          <button type="button" onclick="rotateStudioPageAt(${index}, -90)" class="hover:text-indigo-600 font-semibold p-1" title="Rotate 90° CCW"><i class="fa-solid fa-rotate-left"></i></button>
+          <span class="text-[10px] font-bold text-slate-400">${card.rotation}°</span>
+          <button type="button" onclick="rotateStudioPageAt(${index}, 90)" class="hover:text-indigo-600 font-semibold p-1" title="Rotate 90° CW"><i class="fa-solid fa-rotate-right"></i></button>
         </div>`;
       grid.appendChild(cardEl);
     });
-  }
+  };
 
-  window.moveStudioPageAt = function(index, direction) {
-    const target = index + direction;
-    if (target < 0 || target >= state.pdfPageCards.length) return;
-    [state.pdfPageCards[index], state.pdfPageCards[target]] = [state.pdfPageCards[target], state.pdfPageCards[index]];
+  window.rotateStudioPageAt = function(index, deg = 90) {
+    const r = ((state.pdfPageCards[index].rotation + deg) % 360 + 360) % 360;
+    state.pdfPageCards[index].rotation = r;
     renderPageOrganizerGrid();
   };
-  window.rotateStudioPageAt = function(index) {
-    state.pdfPageCards[index].rotation = (state.pdfPageCards[index].rotation + 90) % 360;
-    renderPageOrganizerGrid();
-  };
+
   window.rotateAllPages = function(angle) {
-    state.pdfPageCards.forEach(c => c.rotation = (c.rotation + angle) % 360);
+    state.pdfPageCards.forEach(c => c.rotation = (((c.rotation + angle) % 360) + 360) % 360);
     renderPageOrganizerGrid();
   };
+
   window.deleteStudioPageAt = function(index) {
     state.pdfPageCards[index].deleted = true;
     renderPageOrganizerGrid();
+  };
+
+  window.openFullPagePdfModal = async function(pageNum) {
+    if (!state.files[0]) return;
+    showToast('Rendering high-res page preview...', 'info');
+    try {
+      const arrayBuffer = await state.files[0].arrayBuffer();
+      const highResUrl = await PDFEngine.renderHighResPage(arrayBuffer, pageNum, 2.0);
+      const modal = document.createElement('div');
+      modal.className = 'preview-modal-backdrop animate-fade-in';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+      modal.innerHTML = `
+        <div class="preview-modal-dialog">
+          <div class="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-900 text-white">
+            <h4 class="text-xs font-bold flex items-center gap-2"><i class="fa-solid fa-magnifying-glass text-indigo-400"></i> Full-Page High-Res Preview: Page ${pageNum}</h4>
+            <button onclick="this.closest('.preview-modal-backdrop').remove()" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="p-4 overflow-auto flex items-center justify-center max-h-[calc(90vh-60px)] bg-slate-800">
+            <img src="${highResUrl}" class="max-w-full max-h-full object-contain rounded shadow-lg">
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    } catch (e) {
+      console.error(e);
+      showToast('Could not generate full-page modal view.', 'error');
+    }
+  };
+
+  // --- 5. PDF PAGE DELETER ---
+  window.renderDeleterGrid = function() {
+    const grid = document.getElementById('deleter-thumbnail-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    state.pdfPageCards.forEach(card => {
+      const isSelected = state.selectedDeletePages.has(card.pageNum);
+      const cardEl = document.createElement('div');
+      cardEl.className = `p-2 rounded-xl border-2 transition cursor-pointer flex flex-col items-center relative ${isSelected ? 'border-rose-500 bg-rose-50/40' : 'border-slate-200 bg-white'}`;
+      cardEl.onclick = () => toggleDeleterPage(card.pageNum);
+      cardEl.innerHTML = `
+        <div class="flex justify-between items-center w-full mb-1">
+          <span class="text-[10px] font-extrabold ${isSelected ? 'text-rose-700' : 'text-slate-700'}">Page ${card.pageNum}</span>
+          <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${isSelected ? 'bg-rose-500 text-white' : 'border border-slate-300'}">
+            ${isSelected ? '<i class="fa-solid fa-trash-can"></i>' : ''}
+          </span>
+        </div>
+        <div class="w-full h-32 flex items-center justify-center bg-slate-50 rounded overflow-hidden relative">
+          <img src="${card.dataUrl}" class="max-h-full max-w-full object-contain">
+          ${isSelected ? '<div class="absolute inset-0 bg-rose-500/20 backdrop-blur-[0.5px] flex items-center justify-center text-rose-600 font-black text-xs uppercase tracking-wider">Marked to Delete</div>' : ''}
+        </div>
+      `;
+      grid.appendChild(cardEl);
+    });
+
+    updateDeleterSummary();
+  };
+
+  window.toggleDeleterPage = function(pageNum) {
+    if (state.selectedDeletePages.has(pageNum)) {
+      state.selectedDeletePages.delete(pageNum);
+    } else {
+      state.selectedDeletePages.add(pageNum);
+    }
+    renderDeleterGrid();
+  };
+
+  window.selectDeleterPages = function(type) {
+    const total = state.pdfPageCards.length;
+    if (type === 'even') {
+      state.selectedDeletePages.clear();
+      for (let p = 1; p <= total; p++) { if (p % 2 === 0) state.selectedDeletePages.add(p); }
+    } else if (type === 'odd') {
+      state.selectedDeletePages.clear();
+      for (let p = 1; p <= total; p++) { if (p % 2 !== 0) state.selectedDeletePages.add(p); }
+    } else if (type === 'invert') {
+      const next = new Set();
+      for (let p = 1; p <= total; p++) { if (!state.selectedDeletePages.has(p)) next.add(p); }
+      state.selectedDeletePages = next;
+    } else if (type === 'clear') {
+      state.selectedDeletePages.clear();
+    }
+    renderDeleterGrid();
+  };
+
+  window.updateDeleterSummary = function() {
+    const sumEl = document.getElementById('deleter-status-summary');
+    if (!sumEl) return;
+    const total = state.pdfPageCards.length;
+    const delCount = state.selectedDeletePages.size;
+    const remCount = total - delCount;
+    sumEl.textContent = `${delCount} marked to delete • ${remCount} remaining`;
+  };
+
+  // --- 6. PDF CROP TOOL ---
+  window.initInteractiveCropCanvas = function() {
+    const canvas = document.getElementById('crop-render-canvas');
+    if (!canvas || !state.pdfPageCards[0]) return;
+
+    const img = new Image();
+    img.onload = () => {
+      // Scale canvas to fit container
+      const maxW = 420;
+      const scale = Math.min(1, maxW / img.width);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      state.cropState.origW = canvas.width;
+      state.cropState.origH = canvas.height;
+
+      // Position crop box default (inset 20px)
+      const box = document.getElementById('crop-box-element');
+      if (box) {
+        box.style.left = '20px';
+        box.style.top = '20px';
+        box.style.width = `${Math.max(60, canvas.width - 40)}px`;
+        box.style.height = `${Math.max(60, canvas.height - 40)}px`;
+      }
+      syncCropInputsFromBox();
+      attachCropDragHandlers();
+    };
+    img.src = state.pdfPageCards[0].dataUrl;
+  };
+
+  function attachCropDragHandlers() {
+    const box = document.getElementById('crop-box-element');
+    const wrapper = document.getElementById('crop-canvas-wrapper');
+    if (!box || !wrapper) return;
+
+    let isDragging = false, isResizing = false, currentHandle = null;
+    let startX = 0, startY = 0, startLeft = 0, startTop = 0, startW = 0, startH = 0;
+
+    box.onmousedown = (e) => {
+      if (e.target.classList.contains('crop-handle')) {
+        isResizing = true;
+        currentHandle = e.target.dataset.handle;
+      } else {
+        isDragging = true;
+      }
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = box.offsetLeft;
+      startTop = box.offsetTop;
+      startW = box.offsetWidth;
+      startH = box.offsetHeight;
+      e.preventDefault();
+    };
+
+    window.onmousemove = (e) => {
+      if (!isDragging && !isResizing) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const maxW = wrapper.offsetWidth;
+      const maxH = wrapper.offsetHeight;
+
+      if (isDragging) {
+        let nextLeft = Math.max(0, Math.min(startLeft + dx, maxW - startW));
+        let nextTop = Math.max(0, Math.min(startTop + dy, maxH - startH));
+        box.style.left = `${nextLeft}px`;
+        box.style.top = `${nextTop}px`;
+      } else if (isResizing) {
+        let nextL = startLeft, nextT = startTop, nextW = startW, nextH = startH;
+        if (currentHandle.includes('e')) nextW = Math.max(30, Math.min(startW + dx, maxW - startLeft));
+        if (currentHandle.includes('s')) nextH = Math.max(30, Math.min(startH + dy, maxH - startTop));
+        if (currentHandle.includes('w')) {
+          const adjDx = Math.min(dx, startW - 30);
+          nextL = Math.max(0, startLeft + adjDx);
+          nextW = startW - (nextL - startLeft);
+        }
+        if (currentHandle.includes('n')) {
+          const adjDy = Math.min(dy, startH - 30);
+          nextT = Math.max(0, startTop + adjDy);
+          nextH = startH - (nextT - startTop);
+        }
+        box.style.left = `${nextL}px`;
+        box.style.top = `${nextT}px`;
+        box.style.width = `${nextW}px`;
+        box.style.height = `${nextH}px`;
+      }
+      syncCropInputsFromBox();
+    };
+
+    window.onmouseup = () => { isDragging = false; isResizing = false; currentHandle = null; };
+  }
+
+  window.syncCropInputsFromBox = function() {
+    const box = document.getElementById('crop-box-element');
+    const wrapper = document.getElementById('crop-canvas-wrapper');
+    if (!box || !wrapper) return;
+
+    const unit = document.getElementById('crop-unit-select')?.value || 'px';
+    const factor = unit === 'mm' ? 0.264583 : (unit === 'in' ? 0.0104167 : 1);
+
+    const left = Math.round(box.offsetLeft * factor);
+    const top = Math.round(box.offsetTop * factor);
+    const right = Math.round((wrapper.offsetWidth - (box.offsetLeft + box.offsetWidth)) * factor);
+    const bottom = Math.round((wrapper.offsetHeight - (box.offsetTop + box.offsetHeight)) * factor);
+
+    const inT = document.getElementById('crop-input-top');
+    const inR = document.getElementById('crop-input-right');
+    const inB = document.getElementById('crop-input-bottom');
+    const inL = document.getElementById('crop-input-left');
+
+    if (inT) inT.value = top;
+    if (inR) inR.value = right;
+    if (inB) inB.value = bottom;
+    if (inL) inL.value = left;
+  };
+
+  window.onCropInputChanged = function() {
+    const box = document.getElementById('crop-box-element');
+    const wrapper = document.getElementById('crop-canvas-wrapper');
+    if (!box || !wrapper) return;
+
+    const unit = document.getElementById('crop-unit-select')?.value || 'px';
+    const factor = unit === 'mm' ? 3.7795 : (unit === 'in' ? 96 : 1);
+
+    const top = parseFloat(document.getElementById('crop-input-top')?.value || 0) * factor;
+    const right = parseFloat(document.getElementById('crop-input-right')?.value || 0) * factor;
+    const bottom = parseFloat(document.getElementById('crop-input-bottom')?.value || 0) * factor;
+    const left = parseFloat(document.getElementById('crop-input-left')?.value || 0) * factor;
+
+    box.style.left = `${Math.max(0, left)}px`;
+    box.style.top = `${Math.max(0, top)}px`;
+    box.style.width = `${Math.max(30, wrapper.offsetWidth - left - right)}px`;
+    box.style.height = `${Math.max(30, wrapper.offsetHeight - top - bottom)}px`;
+  };
+
+  window.onCropUnitChange = function() {
+    syncCropInputsFromBox();
+  };
+
+  // --- 7. SMART COMPRESSOR ---
+  window.initSmartCompressorView = function(origSize) {
+    const origSizeEl = document.getElementById('compress-orig-size');
+    const origPagesEl = document.getElementById('compress-orig-pages');
+    if (origSizeEl) origSizeEl.textContent = formatFileSize(origSize);
+    if (origPagesEl) origPagesEl.textContent = state.pdfPageCards.length.toString();
+  };
+
+  // --- 8. LOSSLESS SHRINKER ---
+  window.initLosslessShrinkView = function(origSize) {
+    const sizeEl = document.getElementById('lossless-orig-size');
+    if (sizeEl) sizeEl.textContent = formatFileSize(origSize);
+  };
+
+  // --- 9. TARGET SIZE SHRINKER ---
+  window.initTargetShrinkView = function(origSize) {
+    const sizeEl = document.getElementById('target-shrinker-orig-size');
+    if (sizeEl) sizeEl.textContent = formatFileSize(origSize);
+  };
+
+  // --- 10. PDF TO EXCEL (XLSX) ---
+  window.runPdfToExcelAnalysis = async function() {
+    if (!state.files[0]) return;
+    const buffer = await state.files[0].arrayBuffer();
+    const res = await PDFEngine.pdfToExcel(buffer);
+    state.extractedTableRows = res.rows;
+    renderExcelInteractivePreview(res.rows);
+  };
+
+  window.renderExcelInteractivePreview = function(rows) {
+    const container = document.getElementById('excel-interactive-preview');
+    const stat = document.getElementById('excel-preview-stat');
+    if (!container) return;
+
+    if (!rows || rows.length === 0) {
+      container.innerHTML = '<p class="text-slate-400 text-xs text-center py-8">No tabular structures detected.</p>';
+      return;
+    }
+
+    if (stat) stat.textContent = `${rows.length} Detected Rows`;
+
+    let html = '<table class="excel-preview-table"><thead><tr>';
+    const headerRow = rows[0] || [];
+    headerRow.forEach((col, idx) => {
+      html += `<th>Column ${idx + 1}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    rows.slice(0, 50).forEach(row => {
+      html += '<tr>';
+      headerRow.forEach((_, idx) => {
+        const val = row[idx] !== undefined ? row[idx] : '';
+        html += `<td>${val}</td>`;
+      });
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    if (rows.length > 50) {
+      html += `<div class="p-2 text-center text-[11px] text-slate-400 bg-slate-50 border-t">Showing first 50 rows. All ${rows.length} rows will be exported in Excel (.xlsx).</div>`;
+    }
+
+    container.innerHTML = html;
+  };
+
+  // --- 11. EXCEL (XLSX) TO PDF ---
+  window.runXlsxToPdfPreview = async function(file) {
+    const fileNameEl = document.getElementById('xlsx-file-name');
+    const fileDetailsEl = document.getElementById('xlsx-file-details');
+    if (fileNameEl) fileNameEl.textContent = file.name;
+    if (fileDetailsEl) fileDetailsEl.textContent = `${formatFileSize(file.size)} • Spreadsheet Ready`;
+
+    const buffer = await file.arrayBuffer();
+    const workbook = window.XLSX.read(buffer, { type: 'array' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = window.XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+    renderExcelInteractivePreview(data);
+  };
+
+  // --- 12. PDF TO PPTX ---
+  window.initPdfToPptxView = function() {
+    const badge = document.getElementById('pptx-pages-badge');
+    if (badge) badge.textContent = `${state.pdfPageCards.length} Slides Detected`;
+  };
+
+  // --- 13. PPTX TO PDF ---
+  window.initPptxToPdfView = function(file) {
+    const details = document.getElementById('pptx-pdf-details');
+    if (details) details.innerHTML = `<i class="fa-solid fa-check text-emerald-600 mr-1.5"></i> ${file.name} (${formatFileSize(file.size)})`;
+  };
+
+  // --- 14. PDF TO JPG ---
+  window.runPdfToJpgExtraction = async function() {
+    const gallery = document.getElementById('pdf-jpg-gallery');
+    if (!gallery || !state.files[0]) return;
+    gallery.innerHTML = '<div class="col-span-full text-center py-6 text-xs text-indigo-600"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Rendering high-res images...</div>';
+
+    const buffer = await state.files[0].arrayBuffer();
+    const dpi = parseFloat(document.getElementById('pdf-jpg-dpi')?.value || 2);
+    const range = document.getElementById('pdf-jpg-range')?.value || '';
+    const images = await PDFEngine.pdfToImages(buffer, 'image/jpeg', dpi, range);
+
+    gallery.innerHTML = '';
+    images.forEach(img => {
+      const card = document.createElement('div');
+      card.className = 'p-2 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col items-center justify-between';
+      card.innerHTML = `
+        <div class="w-full flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1">
+          <span>Page ${img.page}</span>
+          <span>JPG</span>
+        </div>
+        <div class="w-full h-32 flex items-center justify-center bg-slate-50 rounded overflow-hidden">
+          <img src="${img.dataUrl}" class="max-h-full max-w-full object-contain">
+        </div>
+        <a href="${img.dataUrl}" download="page_${img.page}.jpg" class="mt-2 w-full py-1 text-center rounded bg-slate-100 hover:bg-indigo-600 hover:text-white transition font-bold text-[10px] text-slate-700">
+          <i class="fa-solid fa-download"></i> Download JPG
+        </a>
+      `;
+      gallery.appendChild(card);
+    });
+  };
+
+  // --- 15. JPG TO PDF ---
+  window.renderJpgToPdfGallery = function() {
+    const gallery = document.getElementById('jpg-pdf-gallery');
+    if (!gallery) return;
+    gallery.innerHTML = '';
+
+    state.files.forEach((f, idx) => {
+      const card = document.createElement('div');
+      card.className = 'draggable-card p-2 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col items-center justify-between';
+      card.draggable = true;
+      card.ondragstart = () => { state.activeDragIndex = idx; card.classList.add('is-dragging'); };
+      card.ondragend = () => { card.classList.remove('is-dragging'); };
+      card.ondragover = (e) => { e.preventDefault(); card.classList.add('drag-over'); };
+      card.ondragleave = () => { card.classList.remove('drag-over'); };
+      card.ondrop = (e) => {
+        e.preventDefault();
+        card.classList.remove('drag-over');
+        if (state.activeDragIndex !== null && state.activeDragIndex !== idx) {
+          const moved = state.files.splice(state.activeDragIndex, 1)[0];
+          state.files.splice(idx, 0, moved);
+          renderJpgToPdfGallery();
+        }
+      };
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        card.innerHTML = `
+          <div class="w-full flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1">
+            <span class="truncate max-w-[80px]">${f.name}</span>
+            <button type="button" onclick="removeJpgFile(${idx})" class="text-rose-500 hover:text-rose-700"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="w-full h-32 flex items-center justify-center bg-slate-50 rounded overflow-hidden">
+            <img src="${e.target.result}" class="max-h-full max-w-full object-contain">
+          </div>
+          <div class="text-[9px] text-slate-400 font-bold mt-1">Order #${idx + 1}</div>
+        `;
+      };
+      reader.readAsDataURL(f);
+      gallery.appendChild(card);
+    });
+
+    const badge = document.getElementById('studio-item-count-badge');
+    if (badge) badge.textContent = `${state.files.length} Photos Queued`;
+  };
+
+  window.removeJpgFile = function(idx) {
+    state.files.splice(idx, 1);
+    renderJpgToPdfGallery();
+  };
+
+  // --- 16. BATCH IMAGE RESIZER ---
+  window.onBatchModeChanged = function() {
+    const mode = document.getElementById('batch-resizer-mode')?.value;
+    const box = document.getElementById('batch-mode-inputs');
+    if (!box) return;
+
+    if (mode === 'percent') {
+      box.innerHTML = '<label class="font-bold text-slate-600">Scale:</label><input type="number" id="batch-percent" value="50" min="5" max="500" class="custom-input py-1 px-2 w-20"><span>%</span>';
+    } else if (mode === 'target-size') {
+      box.innerHTML = '<label class="font-bold text-slate-600">Target Size Limit:</label><input type="number" id="batch-target-kb" value="500" min="10" class="custom-input py-1 px-2 w-24"><span>KB</span>';
+    } else {
+      box.innerHTML = '<input type="number" id="batch-width" placeholder="Width (px)" class="custom-input py-1 px-2 w-24"><span>×</span><input type="number" id="batch-height" placeholder="Height (px)" class="custom-input py-1 px-2 w-24"><label class="inline-flex items-center gap-1 font-bold text-slate-600 ml-1"><input type="checkbox" id="batch-lock-aspect" checked class="accent-indigo-600"> Lock Aspect</label>';
+    }
+  };
+
+  window.renderBatchResizerGallery = function() {
+    const gallery = document.getElementById('batch-resizer-gallery');
+    if (!gallery) return;
+    gallery.innerHTML = '';
+
+    state.files.forEach((f, idx) => {
+      const row = document.createElement('div');
+      row.className = 'p-3 bg-white rounded-xl border border-slate-200 shadow-xs flex items-center justify-between text-xs';
+      row.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="w-6 h-6 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs">${idx + 1}</div>
+          <div>
+            <h5 class="font-bold text-slate-900">${f.name}</h5>
+            <p class="text-[10px] text-slate-400">Original Size: ${formatFileSize(f.size)}</p>
+          </div>
+        </div>
+        <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">Ready to Resize</span>
+      `;
+      gallery.appendChild(row);
+    });
+
+    const badge = document.getElementById('studio-item-count-badge');
+    if (badge) badge.textContent = `${state.files.length} Images Queued`;
+  };
+
+  // --- 17. LOSSLESS PNG COMPRESSOR ---
+  window.runPngLosslessComparison = async function(file) {
+    showToast('Analyzing and running lossless palette optimization...', 'info');
+    const res = await PDFEngine.compressPNGLossless(file);
+    state.pngComparison = res;
+
+    const imgOrig = document.getElementById('png-compare-orig');
+    const imgComp = document.getElementById('png-compare-comp');
+    if (imgOrig) imgOrig.src = res.originalDataUrl;
+    if (imgComp) imgComp.src = res.dataUrl;
+
+    const metOrig = document.getElementById('png-metric-orig');
+    const metComp = document.getElementById('png-metric-comp');
+    const metSaved = document.getElementById('png-metric-saved');
+    const metPct = document.getElementById('png-metric-percent');
+
+    if (metOrig) metOrig.textContent = `${res.originalKB} KB`;
+    if (metComp) metComp.textContent = `${res.compressedKB} KB`;
+    if (metSaved) metSaved.textContent = `${res.savedKB} KB`;
+    if (metPct) metPct.textContent = `${res.percentSaved}%`;
+
+    initCompareSlider();
+  };
+
+  function initCompareSlider() {
+    const container = document.getElementById('png-compare-wrapper');
+    const overlay = document.getElementById('png-compare-overlay');
+    const divider = document.getElementById('png-compare-divider');
+    if (!container || !overlay || !divider) return;
+
+    let isMoving = false;
+
+    const move = (clientX) => {
+      const rect = container.getBoundingClientRect();
+      let x = clientX - rect.left;
+      x = Math.max(0, Math.min(x, rect.width));
+      const pct = (x / rect.width) * 100;
+      overlay.style.width = `${pct}%`;
+      divider.style.left = `${pct}%`;
+    };
+
+    container.onmousedown = (e) => { isMoving = true; move(e.clientX); };
+    window.onmousemove = (e) => { if (isMoving) move(e.clientX); };
+    window.onmouseup = () => { isMoving = false; };
+  }
+
+  // --- 18. WEBP CONVERTER ---
+  window.renderWebpBatchGallery = function() {
+    const gallery = document.getElementById('webp-batch-gallery');
+    if (!gallery) return;
+    gallery.innerHTML = '';
+
+    state.files.forEach(f => {
+      const card = document.createElement('div');
+      card.className = 'p-3 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between';
+      card.innerHTML = `
+        <div class="flex items-center justify-between text-[10px] font-bold text-slate-500 mb-1">
+          <span class="truncate max-w-[90px]">${f.name}</span>
+          <span class="text-indigo-600 uppercase">WEBP</span>
+        </div>
+        <div class="py-4 text-center">
+          <i class="fa-solid fa-file-image text-3xl text-indigo-400"></i>
+        </div>
+        <div class="text-[10px] text-slate-400 text-center font-bold">
+          ${formatFileSize(f.size)}
+        </div>
+      `;
+      gallery.appendChild(card);
+    });
+
+    const badge = document.getElementById('studio-item-count-badge');
+    if (badge) badge.textContent = `${state.files.length} Images Queued`;
   };
 
   function renderStudioControls(tool) {
@@ -885,9 +1855,31 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
       case 'quiz-type': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-list-check text-indigo-600"></i> Quiz Format</label><select id="ctrl-quiz-type" class="custom-input w-full text-xs"><option value="mcq" selected>Multiple Choice Questions (MCQ)</option><option value="true-false">True / False Questions</option><option value="flashcards">Flashcards (Q + A pairs)</option><option value="fill-blank">Fill in the Blank</option><option value="mixed">Mixed Format</option><option value="short-answer">Short Answer Qs</option></select></div>`;
       case 'question-count': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-hashtag text-indigo-600"></i> Number of Questions</label><div class="flex gap-1"><input type="range" id="ctrl-question-count" min="3" max="50" value="10" class="flex-1 accent-indigo-600"><input type="number" id="ctrl-question-count-num" value="10" min="3" max="50" class="custom-input w-16 text-xs text-center"></div></div>`;
       case 'difficulty-level': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-fire text-amber-600"></i> Difficulty Level</label><div class="grid grid-cols-3 gap-1">${['easy','medium','hard'].map((d,i)=>`<label class="flex flex-col items-center p-2 rounded-lg border cursor-pointer hover:border-indigo-500 transition ${i===1?'bg-indigo-50 border-indigo-500':'border-slate-200'}"><input type="radio" name="difficulty" value="${d}" ${i===1?'checked':''} onchange="document.getElementById('ctrl-difficulty-level').value=this.value" class="accent-indigo-600"><span class="text-[10px] font-bold text-slate-700 mt-0.5 capitalize">${d}</span></label>`).join('')}</div><input type="hidden" id="ctrl-difficulty-level" value="medium"></div>`;
-      case 'merge-options': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-layer-group text-indigo-600"></i> Merge Strategy</label><label class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-50 p-2 rounded-lg cursor-pointer"><input type="checkbox" checked class="accent-indigo-600"> Preserve table of contents</label><label class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-50 p-2 rounded-lg cursor-pointer"><input type="checkbox" class="accent-indigo-600"> Add blank separator pages</label></div>`;
+      case 'merge-options': return `<div class="space-y-3">
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1 mb-1">
+            <i class="fa-solid fa-file-signature text-indigo-600"></i> Output File Name
+          </label>
+          <input type="text" id="ctrl-merge-filename" class="custom-input w-full text-xs" value="merged_document.pdf" placeholder="e.g. merged_document.pdf">
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1 mb-1">
+            <i class="fa-solid fa-arrows-spin text-indigo-600"></i> Orientation Normalization
+          </label>
+          <select id="ctrl-merge-orientation" class="custom-input w-full text-xs">
+            <option value="auto" selected>Auto (Preserve page proportions)</option>
+            <option value="portrait">Enforce Portrait (All pages)</option>
+            <option value="landscape">Enforce Landscape (All pages)</option>
+          </select>
+        </div>
+        <div class="space-y-1 pt-1">
+          <label class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-50 p-2 rounded-lg cursor-pointer w-full">
+            <input type="checkbox" id="ctrl-merge-toc" checked class="accent-indigo-600"> Preserve Document Outlines
+          </label>
+        </div>
+      </div>`;
       case 'png-compress-level': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-gauge text-indigo-600"></i> Optimization Level</label><select id="ctrl-png-level" class="custom-input w-full text-xs"><option value="1">Level 1 (Fast, less compression)</option><option value="3">Level 3 (Good)</option><option value="6" selected>Level 6 (Default)</option><option value="9">Level 9 (Slowest, maximum)</option></select></div>`;
-      case 'webp-quality': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between"><span><i class="fa-solid fa-gauge text-indigo-600"></i> Quality</span><span id="lbl-webp" class="text-indigo-600">80%</span></label><input type="range" id="ctrl-webp-quality" min="10" max="100" value="80" class="w-full accent-indigo-600"></div>`;
+      case 'webp-quality': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between"><span><i class="fa-solid fa-gauge text-indigo-600"></i> Quality</span><span id="lbl-webp" class="text-indigo-600">80%</span></label><input type="range" id="ctrl-webp-quality" min="10" max="100" value="80" class="w-full accent-indigo-600"><label class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-50 p-2 rounded-lg cursor-pointer w-full mt-1"><input type="checkbox" id="ctrl-webp-lossless" class="accent-indigo-600"> Lossless Mode (Ignore lossy compression)</label></div>`;
       case 'output-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file-export text-indigo-600"></i> Save As</label><select id="ctrl-out-format" class="custom-input w-full text-xs"><option value="webp" selected>WEBP (Primary)</option><option value="jpg">JPEG (Fallback)</option><option value="png">PNG</option><option value="avif">AVIF (Modern)</option></select></div>`;
       case 'vector-output-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-vector-square text-indigo-600"></i> Target Vector Format</label><select id="ctrl-vector-fmt" class="custom-input w-full text-xs"><option value="eps" selected>Encapsulated PostScript (EPS)</option><option value="dxf">AutoCAD DXF</option><option value="ai">Adobe Illustrator (AI)</option><option value="pdf">Vector PDF</option></select></div>`;
       case 'texture-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-image text-indigo-600"></i> Texture Format</label><select id="ctrl-tex-fmt" class="custom-input w-full text-xs"><option value="ktx2">KTX2 Basis Universal</option><option value="webp" selected>WEBP VP8/VP9</option><option value="astc">ASTC (Mobile GPUs)</option><option value="png">PNG (uncompressed)</option></select></div>`;
@@ -1131,6 +2123,19 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
     preview.classList.remove('hidden');
   }
 
+  function dataURLtoBlob(dataurl) {
+    if (!dataurl) return new Blob([], { type: 'application/octet-stream' });
+    const arr = dataurl.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  }
+
   function setupProcessButton(tool) {
     const btn = document.getElementById('studio-btn-process');
     if (!btn) return;
@@ -1147,7 +2152,263 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
       try {
         let resultBlob = null, filename = `export_${Date.now()}`;
 
-        if (tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR) {
+        // --- 1. PDF MERGER ---
+        if (tool.id === 'pdf-merger') {
+          if (state.files.length < 1) throw new Error('Please upload at least one PDF to merge.');
+          const orientation = document.getElementById('ctrl-merge-orientation')?.value || 'auto';
+          const customName = document.getElementById('ctrl-merge-filename')?.value?.trim() || 'merged_document.pdf';
+          const mergedBytes = await PDFEngine.mergePDFs(state.files, { orientation });
+          resultBlob = new Blob([mergedBytes], { type: 'application/pdf' });
+          filename = customName.endsWith('.pdf') ? customName : `${customName}.pdf`;
+          showToast('PDFs merged and normalized successfully!', 'success');
+        }
+        // --- 2. PDF SPLITTER ---
+        else if (tool.id === 'pdf-splitter') {
+          if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          const mode = document.getElementById('ctrl-split-mode')?.value || 'ranges';
+          const ranges = document.getElementById('ctrl-page-range')?.value || '1';
+          const splitRes = await PDFEngine.splitPDF(await state.files[0].arrayBuffer(), { mode, ranges });
+          if (splitRes.type === 'zip') {
+            resultBlob = splitRes.blob;
+            filename = splitRes.filename || 'split_pages.zip';
+          } else {
+            resultBlob = new Blob([splitRes.data], { type: 'application/pdf' });
+            filename = splitRes.filename || 'split_document.pdf';
+          }
+          showToast('PDF split successfully!', 'success');
+        }
+        // --- 3. PDF UN-MERGER ---
+        else if (tool.id === 'pdf-unmerger') {
+          if (!state.files[0]) throw new Error('Please upload a merged PDF file.');
+          if (!state.detectedSubDocs || state.detectedSubDocs.length === 0) {
+            state.detectedSubDocs = await PDFEngine.unmergePDF(await state.files[0].arrayBuffer());
+          }
+          const unmergeRes = await PDFEngine.exportUnmergedSubDocs(await state.files[0].arrayBuffer(), state.detectedSubDocs);
+          resultBlob = unmergeRes.blob;
+          filename = unmergeRes.filename;
+          showToast(`Extracted ${state.detectedSubDocs.length} individual constituent sub-documents!`, 'success');
+        }
+        // --- 4. PDF PAGE RE-ORDERER ---
+        else if (tool.id === 'pdf-page-reorder') {
+          if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
+          resultBlob = new Blob([bytes], { type: 'application/pdf' });
+          filename = 'reordered_document.pdf';
+          showToast('PDF pages organized and saved successfully!', 'success');
+        }
+        // --- 5. PDF PAGE DELETER ---
+        else if (tool.id === 'pdf-page-deleter') {
+          if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          if (state.selectedDeletePages.size === 0) throw new Error('Please select at least one page to delete.');
+          if (state.selectedDeletePages.size >= state.pdfPageCards.length) throw new Error('Cannot delete all pages in the PDF.');
+          const pagesToDelete = Array.from(state.selectedDeletePages);
+          const bytes = await PDFEngine.deletePages(await state.files[0].arrayBuffer(), pagesToDelete);
+          resultBlob = new Blob([bytes], { type: 'application/pdf' });
+          filename = 'pages_deleted.pdf';
+          showToast(`Deleted ${pagesToDelete.length} pages successfully!`, 'success');
+        }
+        // --- 6. PDF CROP TOOL ---
+        else if (tool.id === 'pdf-crop-tool') {
+          if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          const top = parseFloat(document.getElementById('crop-input-top')?.value || 0);
+          const right = parseFloat(document.getElementById('crop-input-right')?.value || 0);
+          const bottom = parseFloat(document.getElementById('crop-input-bottom')?.value || 0);
+          const left = parseFloat(document.getElementById('crop-input-left')?.value || 0);
+          const unit = document.getElementById('crop-unit-select')?.value || 'px';
+          const scope = document.querySelector('input[name="crop-scope"]:checked')?.value || 'all';
+          const pageRange = document.getElementById('crop-custom-range')?.value || '';
+
+          const bytes = await PDFEngine.cropPDF(
+            await state.files[0].arrayBuffer(),
+            { top, right, bottom, left, unit, canvasW: state.cropState.origW || 420, canvasH: state.cropState.origH || 594 },
+            { scope, pageRange, activePageIndex: 0 }
+          );
+          resultBlob = new Blob([bytes], { type: 'application/pdf' });
+          filename = 'cropped_document.pdf';
+          showToast('Applied PDF crop geometry successfully!', 'success');
+        }
+        // --- 7. SMART PDF COMPRESSOR ---
+        else if (tool.id === 'pdf-compressor-smart') {
+          if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          const preset = document.getElementById('compress-preset-select')?.value || document.getElementById('ctrl-compression-level')?.value || 'medium';
+          const compRes = await PDFEngine.compressPDF(await state.files[0].arrayBuffer(), preset, (pct) => {
+            if (statusText) statusText.textContent = `Optimizing PDF streams (${pct}%)...`;
+          });
+          resultBlob = new Blob([compRes.bytes], { type: 'application/pdf' });
+          filename = 'compressed_smart.pdf';
+
+          const metEl = document.getElementById('compress-metric-result');
+          if (metEl) {
+            metEl.classList.remove('hidden');
+            metEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i>Compressed from <b>${formatFileSize(compRes.originalSize)}</b> to <b>${formatFileSize(compRes.compressedSize)}</b> (Saved <b>${compRes.percentSaved}%</b> / ${formatFileSize(compRes.savedBytes)})`;
+          }
+          showToast(`Compressed successfully! Saved ${compRes.percentSaved}%`, 'success');
+        }
+        // --- 8. LOSSLESS PDF SHRINKER ---
+        else if (tool.id === 'lossless-pdf-shrinker') {
+          if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          const shrinkRes = await PDFEngine.shrinkPDFLossless(await state.files[0].arrayBuffer());
+          resultBlob = new Blob([shrinkRes.bytes], { type: 'application/pdf' });
+          filename = 'lossless_shrink.pdf';
+
+          const metEl = document.getElementById('lossless-metric-result');
+          if (metEl) {
+            metEl.classList.remove('hidden');
+            metEl.innerHTML = `<i class="fa-solid fa-shield-check text-teal-600 mr-2"></i>Lossless Stripping Complete: <b>${formatFileSize(shrinkRes.originalSize)}</b> → <b>${formatFileSize(shrinkRes.compressedSize)}</b> (Saved <b>${shrinkRes.percentSaved}%</b> with 100% visual fidelity preserved)`;
+          }
+          showToast('Lossless metadata and stream optimization complete!', 'success');
+        }
+        // --- 9. PDF TARGET SIZE SHRINKER ---
+        else if (tool.id === 'pdf-target-shrinker') {
+          if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          let targetVal = parseFloat(document.getElementById('target-size-kb-input')?.value || document.getElementById('ctrl-target-size')?.value || 1000);
+          const unit = document.getElementById('ctrl-target-unit')?.value || 'KB';
+          if (unit === 'MB' && targetVal < 500) targetVal = targetVal * 1024;
+          const targetBytes = targetVal * 1024;
+
+          const targetRes = await PDFEngine.shrinkPDFTargetSize(await state.files[0].arrayBuffer(), targetBytes, (status) => {
+            if (statusText) statusText.textContent = status;
+          });
+          resultBlob = new Blob([targetRes.bytes], { type: 'application/pdf' });
+          filename = `shrunk_under_${Math.round(targetVal)}kb.pdf`;
+
+          const feedEl = document.getElementById('target-shrinker-feedback');
+          if (feedEl) {
+            feedEl.classList.remove('hidden');
+            feedEl.innerHTML = targetRes.hitTarget
+              ? `<div class="p-3 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 font-bold text-xs"><i class="fa-solid fa-check-circle mr-1.5 text-emerald-600"></i>Success! Compressed to ${formatFileSize(targetRes.finalSize)} (Target limit was ${formatFileSize(targetBytes)}).</div>`
+              : `<div class="p-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 font-bold text-xs"><i class="fa-solid fa-triangle-exclamation mr-1.5 text-amber-600"></i>Smallest Legible Boundary Reached (${formatFileSize(targetRes.finalSize)}). Further downsampling would destroy document legibility.</div>`;
+          }
+          showToast('Target size downsampling finished!', 'success');
+        }
+        // --- 10. PDF TO EXCEL (XLSX) ---
+        else if (tool.id === 'pdf-to-xlsx') {
+          if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          const xlsxRes = await PDFEngine.pdfToExcel(await state.files[0].arrayBuffer());
+          resultBlob = xlsxRes.blob;
+          filename = xlsxRes.filename;
+          showToast('Tables detected and compiled to Excel workbook (.xlsx)!', 'success');
+        }
+        // --- 11. EXCEL (XLSX) TO PDF ---
+        else if (tool.id === 'xlsx-to-pdf') {
+          if (!state.files[0]) throw new Error('Please upload an Excel spreadsheet.');
+          const orientation = document.querySelector('input[name="orientation"]:checked')?.value || 'portrait';
+          const paper = document.getElementById('ctrl-paper-size')?.value || 'A4';
+          const pdfRes = await PDFEngine.excelToPDF(state.files[0], { orientation, paperSize: paper });
+          resultBlob = pdfRes.blob;
+          filename = pdfRes.filename;
+          showToast('Spreadsheet converted to formatted PDF document!', 'success');
+        }
+        // --- 12. PDF TO POWERPOINT (PPTX) ---
+        else if (tool.id === 'pdf-to-pptx') {
+          if (!state.files[0]) throw new Error('Please upload a PDF presentation.');
+          const pptxRes = await PDFEngine.pdfToPPTX(await state.files[0].arrayBuffer(), (pct) => {
+            if (statusText) statusText.textContent = `Converting slides (${pct}%)...`;
+          });
+          resultBlob = pptxRes.blob;
+          filename = pptxRes.filename;
+          showToast('PDF pages converted to PowerPoint presentation (.pptx)!', 'success');
+        }
+        // --- 13. POWERPOINT (PPTX) TO PDF ---
+        else if (tool.id === 'pptx-to-pdf') {
+          if (!state.files[0]) throw new Error('Please upload a PowerPoint (.pptx) file.');
+          const pdfRes = await PDFEngine.pptxToPDF(state.files[0], (pct) => {
+            if (statusText) statusText.textContent = `Rendering slides to vector PDF (${pct}%)...`;
+          });
+          resultBlob = pdfRes.blob;
+          filename = pdfRes.filename;
+          showToast('PowerPoint converted to PDF document!', 'success');
+        }
+        // --- 14. PDF TO JPG CONVERTER ---
+        else if (tool.id === 'pdf-to-jpg') {
+          if (!state.files[0]) throw new Error('Please upload a PDF file.');
+          const dpi = parseFloat(document.getElementById('pdf-jpg-dpi')?.value || document.getElementById('ctrl-dpi')?.value || 2);
+          const range = document.getElementById('pdf-jpg-range')?.value || '';
+          const images = await PDFEngine.pdfToImages(await state.files[0].arrayBuffer(), 'image/jpeg', dpi, range);
+          if (images.length === 1) {
+            resultBlob = dataURLtoBlob(images[0].dataUrl);
+            filename = `page_${images[0].page}.jpg`;
+          } else {
+            const zip = new window.JSZip();
+            images.forEach(img => {
+              const base64 = img.dataUrl.split(',')[1];
+              zip.file(`page_${img.page}.jpg`, base64, { base64: true });
+            });
+            resultBlob = await zip.generateAsync({ type: 'blob' });
+            filename = 'pdf_pages_jpg.zip';
+          }
+          showToast(`Rendered ${images.length} high-res JPG images!`, 'success');
+        }
+        // --- 15. JPG TO PDF CONVERTER ---
+        else if (tool.id === 'jpg-to-pdf') {
+          if (state.files.length === 0) throw new Error('Please upload one or more JPEG images.');
+          const orientation = document.querySelector('input[name="orientation"]:checked')?.value || 'auto';
+          const margin = document.getElementById('ctrl-margin-auto')?.checked ? 20 : 0;
+          const bytes = await PDFEngine.imagesToPDF(state.files, { orientation, margin });
+          resultBlob = new Blob([bytes], { type: 'application/pdf' });
+          filename = 'compiled_images.pdf';
+          showToast('Images compiled into unified PDF document!', 'success');
+        }
+        // --- 16. BATCH IMAGE RESIZER ---
+        else if (tool.id === 'batch-img-resizer') {
+          if (state.files.length === 0) throw new Error('Please upload images to resize.');
+          const mode = document.getElementById('batch-resizer-mode')?.value || 'fixed';
+          const width = parseInt(document.getElementById('batch-width')?.value || 0);
+          const height = parseInt(document.getElementById('batch-height')?.value || 0);
+          const lockAspect = document.getElementById('batch-lock-aspect')?.checked ?? true;
+          const percent = parseFloat(document.getElementById('batch-percent')?.value || 50);
+          const targetKB = parseFloat(document.getElementById('batch-target-kb')?.value || 500);
+
+          const processed = await PDFEngine.batchResizeImages(state.files, { mode, width, height, lockAspect, percent, targetKB }, (cur, tot, name) => {
+            if (statusText) statusText.textContent = `Resizing image ${cur} of ${tot} (${name})...`;
+          });
+
+          if (processed.length === 1) {
+            resultBlob = processed[0].blob;
+            filename = processed[0].name;
+          } else {
+            const zip = new window.JSZip();
+            processed.forEach(item => zip.file(item.name, item.blob));
+            resultBlob = await zip.generateAsync({ type: 'blob' });
+            filename = 'batch_resized_images.zip';
+          }
+          showToast(`Batch processed ${processed.length} images successfully!`, 'success');
+        }
+        // --- 17. LOSSLESS PNG COMPRESSOR ---
+        else if (tool.id === 'png-compressor') {
+          if (!state.files[0]) throw new Error('Please upload a PNG file.');
+          if (state.pngComparison?.blob) {
+            resultBlob = state.pngComparison.blob;
+          } else {
+            const comp = await PDFEngine.compressPNGLossless(state.files[0]);
+            resultBlob = comp.blob;
+          }
+          filename = `optimized_${state.files[0].name}`;
+          showToast('Lossless PNG compression complete!', 'success');
+        }
+        // --- 18. WEBP IMAGE CONVERTER ---
+        else if (tool.id === 'webp-converter') {
+          if (state.files.length === 0) throw new Error('Please upload images to convert.');
+          const quality = parseInt(document.getElementById('ctrl-webp-quality')?.value || 80);
+          const lossless = document.getElementById('ctrl-webp-lossless')?.checked || false;
+
+          const webpResults = await PDFEngine.convertToWebP(state.files, quality, lossless, (cur, tot, name) => {
+            if (statusText) statusText.textContent = `Converting ${cur} of ${tot} to WebP (${name})...`;
+          });
+
+          if (webpResults.length === 1) {
+            resultBlob = webpResults[0].blob;
+            filename = webpResults[0].name;
+          } else {
+            const zip = new window.JSZip();
+            webpResults.forEach(item => zip.file(item.name, item.blob));
+            resultBlob = await zip.generateAsync({ type: 'blob' });
+            filename = 'converted_webp_images.zip';
+          }
+          showToast(`Converted ${webpResults.length} images to modern WebP!`, 'success');
+        }
+        // --- REMAINING PLATFORM SUITE TOOLS ---
+        else if (tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR) {
           const customText = document.getElementById('quiz-enable-custom-text')?.checked
             ? (document.getElementById('quiz-extracted-text')?.value || '')
             : state.extractedText;
@@ -1179,26 +2440,11 @@ The future of AI promises advances in healthcare diagnostics, climate modeling, 
           resultBlob = res.blob;
           filename = res.filename;
           showToast(`Converted & prepared ${filename} successfully!`, 'success');
-        } else if (state.files[0]?.type?.includes('pdf') && state.pdfPageCards.length > 0 && (tool.uiType === TOOL_UI_TYPES.PDF_PAGE_ORGANIZER || tool.uiType === TOOL_UI_TYPES.PDF_CROP || tool.uiType === TOOL_UI_TYPES.PDF_COMPRESS)) {
-          if (tool.id === 'pdf-crop-tool') {
-            const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
-            resultBlob = new Blob([bytes], { type: 'application/pdf' });
-            filename = 'cropped_output.pdf';
-          } else if (tool.uiType === TOOL_UI_TYPES.PDF_COMPRESS) {
-            const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
-            resultBlob = new Blob([bytes], { type: 'application/pdf' });
-            filename = 'compressed_output.pdf';
-          } else {
-            const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
-            resultBlob = new Blob([bytes], { type: 'application/pdf' });
-            filename = 'rearranged_organized.pdf';
-          }
+        } else if (state.files[0]?.type?.includes('pdf') && state.pdfPageCards.length > 0) {
+          const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
+          resultBlob = new Blob([bytes], { type: 'application/pdf' });
+          filename = 'rearranged_organized.pdf';
           showToast('PDF processed and exported successfully!', 'success');
-        } else if (state.files.length > 0 && tool.id === 'pdf-merger') {
-          const mergedBytes = await PDFEngine.mergePDFs(state.files);
-          resultBlob = new Blob([mergedBytes], { type: 'application/pdf' });
-          filename = 'merged_output.pdf';
-          showToast('PDFs merged successfully!', 'success');
         } else if (state.files.length > 0) {
           resultBlob = state.files[0];
           filename = `processed_${state.files[0].name}`;
