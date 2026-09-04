@@ -143,9 +143,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const toolId = hash.replace('#tool/', '');
       const tool = TOOLS.find(t => t.id === toolId);
       const toolEnabled = window.AdminPanelEngine ? AdminPanelEngine.isFeatureEnabled(toolId) : false;
-      if (tool && toolStudioView && toolEnabled) {
+      const isAllowedForUser = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.isToolAllowedForUser(toolId) : true;
+
+      if (tool && toolStudioView && toolEnabled && isAllowedForUser) {
         toolStudioView.classList.remove('hidden');
         renderDedicatedToolStudioPage(tool);
+      } else if (tool && toolStudioView && !isAllowedForUser) {
+        mainApp.classList.remove('hidden');
+        window.location.hash = '#';
+        if (window.AuthSubscriptionEngine) AuthSubscriptionEngine.openProUpgradeLockModal(tool);
       } else if (tool && toolStudioView) {
         mainApp.classList.remove('hidden');
         window.location.hash = '#';
@@ -182,13 +188,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     visibleTools.forEach(tool => {
+      const isAllowedForUser = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.isToolAllowedForUser(tool.id) : true;
       const card = document.createElement('div');
-      card.className = 'tool-card animate-fade-in';
-      card.onclick = () => { window.location.hash = `#tool/${tool.id}`; };
+      card.className = `tool-card animate-fade-in relative ${!isAllowedForUser ? 'opacity-90 border-amber-200/80 bg-gradient-to-b from-white to-amber-50/30 shadow-sm' : ''}`;
+      
+      if (!isAllowedForUser) {
+        card.onclick = (e) => {
+          e.preventDefault();
+          if (window.AuthSubscriptionEngine) AuthSubscriptionEngine.openProUpgradeLockModal(tool);
+        };
+      } else {
+        card.onclick = () => { window.location.hash = `#tool/${tool.id}`; };
+      }
+
+      const badgeHtml = !isAllowedForUser 
+        ? `<span class="tool-badge bg-slate-900 text-amber-400 font-extrabold flex items-center gap-1 shadow-md"><i class="fa-solid fa-lock text-amber-400"></i> Locked (PRO)</span>`
+        : (tool.badge ? `<span class="tool-badge bg-gradient-to-r ${tool.color} text-white">${tool.badge}</span>` : '');
+
       card.innerHTML = `
-        ${tool.badge ? `<span class="tool-badge bg-gradient-to-r ${tool.color} text-white">${tool.badge}</span>` : ''}
-        <div class="tool-icon-wrapper bg-gradient-to-r ${tool.color} text-white"><i class="fa-solid ${tool.icon}"></i></div>
-        <h3 class="font-bold text-base mb-1 text-slate-900">${tool.name}</h3>
+        ${badgeHtml}
+        <div class="tool-icon-wrapper bg-gradient-to-r ${tool.color} text-white relative">
+          <i class="fa-solid ${tool.icon}"></i>
+          ${!isAllowedForUser ? `<div class="absolute inset-0 bg-slate-900/40 rounded-2xl flex items-center justify-center text-amber-400 text-base"><i class="fa-solid fa-lock"></i></div>` : ''}
+        </div>
+        <h3 class="font-bold text-base mb-1 text-slate-900 flex items-center gap-1.5">
+          ${tool.name}
+          ${!isAllowedForUser ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-extrabold border border-amber-200">PRO ONLY</span>` : ''}
+        </h3>
         <p class="text-xs text-muted leading-relaxed">${tool.description}</p>`;
       toolGrid.appendChild(card);
     });

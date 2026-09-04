@@ -230,6 +230,83 @@ class AuthSubscriptionEngine {
   }
 
   /**
+   * Tool Permission & User Plan Access Verification
+   */
+  static isToolAllowedForUser(toolId) {
+    const user = this.getCurrentUser();
+    const plans = this.getPlans();
+    const userPlanId = user ? user.planId : 'free';
+    const plan = plans.find(p => p.id === userPlanId) || plans.find(p => p.id === 'free');
+
+    if (!plan) return true;
+    if (plan.allowedToolIds === 'all' || !plan.allowedToolIds) return true;
+    if (Array.isArray(plan.allowedToolIds)) {
+      return plan.allowedToolIds.includes(toolId);
+    }
+    return true;
+  }
+
+  /**
+   * PRO Plan Upgrade Lock Modal for Restricted Free User Tools
+   */
+  static openProUpgradeLockModal(toolOrId) {
+    const tools = window.TOOLS || [];
+    const tool = typeof toolOrId === 'string' ? tools.find(t => t.id === toolOrId) : toolOrId;
+    const toolName = tool ? tool.name : 'this feature';
+    
+    const modalId = 'pro-upgrade-lock-modal';
+    let existing = document.getElementById(modalId);
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 text-center space-y-5 relative overflow-hidden">
+        <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition z-10">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="w-16 h-16 rounded-3xl bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center text-3xl mx-auto shadow-inner">
+          <i class="fa-solid fa-lock"></i>
+        </div>
+
+        <div class="space-y-2">
+          <span class="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-1">
+            <i class="fa-solid fa-crown text-amber-500"></i> PRO Plan Required
+          </span>
+          <h3 class="text-xl font-extrabold text-slate-900">No Access on Free Tier</h3>
+          <p class="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+            <strong>${toolName}</strong> is a PRO subscription feature. Upgrade your subscription plan to unlock full access to this tool and all master features.
+          </p>
+        </div>
+
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-left space-y-2 text-xs">
+          <p class="font-extrabold text-slate-800 flex items-center gap-1.5">
+            <i class="fa-solid fa-sparkles text-indigo-600"></i> What you unlock with PRO:
+          </p>
+          <ul class="space-y-1.5 text-slate-600 font-medium text-[11px]">
+            <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-500"></i> Full access to all 50+ master tools & AI features</li>
+            <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-500"></i> Up to 1GB Max File Upload limits</li>
+            <li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-500"></i> High-speed WebAssembly processing engine</li>
+          </ul>
+        </div>
+
+        <div class="flex flex-col gap-2 pt-2">
+          <button onclick="document.getElementById('${modalId}').remove(); AuthSubscriptionEngine.openSubscriptionModal();" class="w-full btn-gradient py-3 text-xs font-extrabold rounded-xl shadow-md transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-crown text-amber-300"></i> Upgrade Subscription Plan Now
+          </button>
+          <button onclick="document.getElementById('${modalId}').remove()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+            Dismiss
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+  }
+
+  /**
    * Header Auth & Subscription Controls Component Renderer
    */
   static renderHeaderAuthControls() {
