@@ -136,6 +136,17 @@ class AdminPanelEngine {
     localStorage.setItem(AuthSubscriptionEngine.STORAGE_PLANS, JSON.stringify(plans));
     return plans;
   }
+
+  static deletePayment(txId) {
+    let payments = JSON.parse(localStorage.getItem(AuthSubscriptionEngine.STORAGE_PAYMENTS) || '[]');
+    payments = payments.filter(p => p.txId !== txId);
+    localStorage.setItem(AuthSubscriptionEngine.STORAGE_PAYMENTS, JSON.stringify(payments));
+    return payments;
+  }
+
+  static clearAllPayments() {
+    localStorage.setItem(AuthSubscriptionEngine.STORAGE_PAYMENTS, JSON.stringify([]));
+  }
 }
 
 window.AdminPanelEngine = AdminPanelEngine;
@@ -284,9 +295,15 @@ function renderFullAdminPage() {
               <h3 class="font-extrabold text-lg text-slate-900 flex items-center gap-2">
                 <i class="fa-solid fa-receipt text-emerald-600"></i> Payment & Subscription Transactions (INR ₹)
               </h3>
-              <span class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg font-extrabold border border-emerald-200">
-                ${payments.length} Verified Payments
-              </span>
+              <div class="flex items-center gap-2">
+                <span class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg font-extrabold border border-emerald-200">
+                  ${payments.length} Verified Payments
+                </span>
+                ${payments.length > 0 ? `
+                <button onclick="if(confirm('Delete ALL payment records? This cannot be undone.')) { AdminPanelEngine.clearAllPayments(); renderFullAdminPage(); }" class="px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition">
+                  <i class="fa-solid fa-trash-can mr-1"></i> Clear All
+                </button>` : ''}
+              </div>
             </div>
 
             <div class="overflow-x-auto">
@@ -299,6 +316,7 @@ function renderFullAdminPage() {
                     <th class="p-3">Amount</th>
                     <th class="p-3">Date</th>
                     <th class="p-3">Status</th>
+                    <th class="p-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y">
@@ -310,8 +328,13 @@ function renderFullAdminPage() {
                       <td class="p-3 font-black text-emerald-600">₹${p.amountINR}</td>
                       <td class="p-3 text-slate-400">${new Date(p.timestamp).toLocaleString()}</td>
                       <td class="p-3"><span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">Verified</span></td>
+                      <td class="p-3 text-right">
+                        <button onclick="if(confirm('Delete this transaction record?')) { AdminPanelEngine.deletePayment('${p.txId}'); renderFullAdminPage(); }" class="text-red-500 hover:text-red-700 font-bold text-xs flex items-center gap-1 ml-auto">
+                          <i class="fa-solid fa-trash-can"></i> Delete
+                        </button>
+                      </td>
                     </tr>
-                  `).join('') : `<tr><td colspan="6" class="p-4 text-center text-slate-400 italic">No payments recorded yet. Subscriptions purchased by users will appear here.</td></tr>`}
+                  `).join('') : `<tr><td colspan="7" class="p-4 text-center text-slate-400 italic">No payments recorded yet. Subscriptions purchased by users will appear here.</td></tr>`}
                 </tbody>
               </table>
             </div>

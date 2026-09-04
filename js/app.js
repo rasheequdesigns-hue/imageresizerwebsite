@@ -175,6 +175,27 @@ document.addEventListener('DOMContentLoaded', () => {
       return matchesSearch && matchesCategory && isVisible;
     });
 
+    // --- Update live enabled feature count in hero section & "All N Tools" tab ---
+    const totalEnabled = enabledIds.length;
+    // Hero section count (the big heading mentions "50 tools")
+    const heroCount = document.querySelector('[data-tool-count]');
+    if (heroCount) heroCount.textContent = totalEnabled;
+    // "All X Tools" category tab
+    const allTab = document.querySelector('.category-tab[data-category="all"]');
+    if (allTab) allTab.textContent = `All ${totalEnabled} Tool${totalEnabled !== 1 ? 's' : ''}`;
+    // Per-category counts on tabs
+    document.querySelectorAll('.category-tab[data-category]').forEach(tab => {
+      const cat = tab.dataset.category;
+      if (cat === 'all') return;
+      const count = enabledIds.filter(id => {
+        const t = TOOLS.find(x => x.id === id);
+        return t && t.category === cat;
+      }).length;
+      // Strip old count "(N)" and append new
+      const baseLabel = tab.textContent.replace(/\s*\(\d+\)\s*$/, '').trim();
+      tab.textContent = `${baseLabel} (${count})`;
+    });
+
     if (visibleTools.length === 0) {
       const msg = document.createElement('div');
       msg.className = 'col-span-full text-center py-16 space-y-4 animate-fade-in';
@@ -201,8 +222,24 @@ document.addEventListener('DOMContentLoaded', () => {
         card.onclick = () => { window.location.hash = `#tool/${tool.id}`; };
       }
 
+      // Find the minimum required plan name for locked tools
+      let requiredPlanLabel = 'PRO';
+      if (!isAllowedForUser && window.AuthSubscriptionEngine) {
+        const allPlans = AuthSubscriptionEngine.getPlans();
+        const currentUserPlanId = AuthSubscriptionEngine.getCurrentUser()?.planId || 'free';
+        // Find the first plan (by price) that includes this tool
+        const sorted = [...allPlans].sort((a, b) => (a.priceINR || 0) - (b.priceINR || 0));
+        const requiredPlan = sorted.find(p => {
+          if (p.id === 'free') return false;
+          if (p.allowedToolIds === 'all') return true;
+          if (Array.isArray(p.allowedToolIds)) return p.allowedToolIds.includes(tool.id);
+          return true;
+        });
+        if (requiredPlan) requiredPlanLabel = requiredPlan.name + ' Only';
+      }
+
       const badgeHtml = !isAllowedForUser 
-        ? `<span class="tool-badge bg-slate-900 text-amber-400 font-extrabold flex items-center gap-1 shadow-md"><i class="fa-solid fa-lock text-amber-400"></i> Locked (PRO)</span>`
+        ? `<span class="tool-badge bg-slate-900 text-amber-400 font-extrabold flex items-center gap-1 shadow-md" style="font-size:0.55rem;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><i class="fa-solid fa-lock text-amber-400"></i> ${requiredPlanLabel}</span>`
         : (tool.badge ? `<span class="tool-badge bg-gradient-to-r ${tool.color} text-white">${tool.badge}</span>` : '');
 
       card.innerHTML = `
