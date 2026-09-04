@@ -568,30 +568,32 @@ class AuthSubscriptionEngine {
       return;
     }
 
+    const adminUpi = window.AdminPanelEngine ? AdminPanelEngine.getAdminUpi() : (localStorage.getItem('studiosuite_admin_upi') || 'merchant@upi');
+    const qrData = `upi://pay?pa=${encodeURIComponent(adminUpi)}&pn=StudioSuitePRO&am=${plan.priceINR}&cu=INR`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrData)}`;
+
     const modalId = 'studiosuite-pay-modal';
     let existing = document.getElementById(modalId);
     if (existing) existing.remove();
 
-    const mockTxId = 'UPI_INR_' + Math.floor(100000000 + Math.random() * 900000000);
-
     const modal = document.createElement('div');
     modal.id = modalId;
-    modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+    modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in overflow-y-auto';
     modal.innerHTML = `
-      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden relative">
-        <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition">
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full my-6 overflow-hidden relative">
+        <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition z-10">
           <i class="fa-solid fa-xmark"></i>
         </button>
 
         <div class="p-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-center space-y-2">
-          <div class="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center text-2xl mx-auto">
-            <i class="fa-solid fa-indian-rupee-sign"></i>
+          <div class="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center text-2xl mx-auto shadow-inner">
+            <i class="fa-solid fa-qrcode"></i>
           </div>
-          <h3 class="text-xl font-extrabold">Instant Subscription Payment</h3>
-          <p class="text-xs text-emerald-100">Pay in INR (₹) to activate ${plan.name}</p>
+          <h3 class="text-xl font-extrabold">Pay via UPI & Verify UTR / RRN</h3>
+          <p class="text-xs text-emerald-100">Scan QR or Pay to Admin UPI ID to activate ${plan.name}</p>
         </div>
 
-        <div class="p-6 space-y-4">
+        <div class="p-6 space-y-5">
           <!-- Summary Box -->
           <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
             <div class="flex justify-between font-bold text-slate-700">
@@ -599,33 +601,45 @@ class AuthSubscriptionEngine {
               <span class="text-indigo-600 font-extrabold">${plan.name}</span>
             </div>
             <div class="flex justify-between font-bold text-slate-700">
-              <span>Subscriber Email:</span>
-              <span class="text-slate-900 truncate max-w-[180px]">${user.email}</span>
+              <span>Duration & Limit:</span>
+              <span class="text-slate-900 font-extrabold">${plan.durationDays} Days &bull; ${plan.maxFileSizeMB || 250}MB</span>
             </div>
             <div class="flex justify-between font-bold text-slate-700 pt-2 border-t border-slate-200 text-sm">
-              <span>Total Payable:</span>
-              <span class="text-emerald-600 font-black">₹${plan.priceINR}</span>
+              <span>Total Payable Amount:</span>
+              <span class="text-emerald-600 font-black text-base">₹${plan.priceINR} INR</span>
             </div>
           </div>
 
-          <!-- Mock UPI / Card details -->
-          <form onsubmit="AuthSubscriptionEngine.handlePaymentSubmit(event, '${user.id}', '${plan.id}')" class="space-y-3">
-            <div>
-              <label class="text-[10px] font-bold text-slate-500 uppercase">Payment Method</label>
-              <select id="pay-method" class="custom-input w-full text-xs font-bold">
-                <option value="upi">UPI / GPay / PhonePe / Paytm</option>
-                <option value="card">Credit / Debit Card (INR)</option>
-                <option value="netbanking">Net Banking (Indian Banks)</option>
-              </select>
+          <!-- QR Code & UPI ID Box -->
+          <div class="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 text-center space-y-3">
+            <p class="text-xs font-bold text-emerald-900 uppercase">Scan QR with GPay / PhonePe / Paytm / BHIM</p>
+            <div class="w-44 h-44 mx-auto bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-center">
+              <img src="${qrUrl}" alt="UPI QR Code" class="w-full h-full object-contain">
             </div>
 
             <div>
-              <label class="text-[10px] font-bold text-slate-500 uppercase">Transaction ID / Reference Reference</label>
-              <input type="text" id="pay-txid" class="custom-input w-full text-xs font-mono" value="${mockTxId}" required>
+              <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">Or Copy Admin Receiving UPI ID:</label>
+              <div class="flex gap-2">
+                <input type="text" id="pay-upi-id-input" class="custom-input w-full text-xs font-mono font-bold text-slate-900 bg-white" value="${adminUpi}" readonly>
+                <button type="button" onclick="AuthSubscriptionEngine.copyAdminUpi()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold whitespace-nowrap shadow-sm">
+                  <i class="fa-solid fa-copy"></i> Copy
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- UTR / RRN Input Form -->
+          <form onsubmit="AuthSubscriptionEngine.handlePaymentSubmit(event, '${user.id}', '${plan.id}')" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Enter 12-Digit UPI Payment UTR / RRN Ref No <span class="text-red-500">*</span>
+              </label>
+              <input type="text" id="pay-utr-number" required placeholder="e.g. 424589012345" maxlength="16" class="custom-input w-full text-sm font-mono font-bold text-slate-900 tracking-wider">
+              <p class="text-[11px] text-slate-500 mt-1">You will find the 12-digit UTR / RRN / Ref number in your UPI app transaction details receipt.</p>
             </div>
 
-            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 text-xs rounded-xl font-extrabold shadow-lg shadow-emerald-600/30 transition">
-              Verify & Activate Subscription (₹${plan.priceINR})
+            <button type="submit" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white py-3.5 text-xs rounded-2xl font-extrabold shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-shield-check"></i> Verify UTR & Activate Plan (₹${plan.priceINR})
             </button>
           </form>
         </div>
@@ -635,19 +649,32 @@ class AuthSubscriptionEngine {
     document.body.appendChild(modal);
   }
 
+  static copyAdminUpi() {
+    const input = document.getElementById('pay-upi-id-input');
+    if (input) {
+      input.select();
+      navigator.clipboard.writeText(input.value);
+      if (window.showToast) window.showToast('Admin UPI ID copied to clipboard!', 'success');
+    }
+  }
+
   static handlePaymentSubmit(e, userId, planId) {
     e.preventDefault();
-    const txId = document.getElementById('pay-txid')?.value;
+    const utr = document.getElementById('pay-utr-number')?.value?.trim();
+    if (!utr || utr.length < 8) {
+      alert('Please enter a valid 12-digit UPI Payment UTR / RRN Reference Number.');
+      return;
+    }
 
     try {
-      this.subscribeUser(userId, planId, txId);
+      this.subscribeUser(userId, planId, utr);
       document.getElementById('studiosuite-pay-modal')?.remove();
       document.getElementById('studiosuite-sub-modal')?.remove();
 
       this.renderHeaderAuthControls();
 
       if (window.showToast) {
-        window.showToast('Payment verified! Your subscription is now ACTIVE.', 'success');
+        window.showToast(`Payment verified via UTR ${utr}! Your subscription is now ACTIVE.`, 'success');
       }
     } catch (err) {
       alert(err.message || 'Payment processing failed.');

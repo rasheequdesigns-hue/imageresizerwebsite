@@ -7,6 +7,16 @@ class AdminPanelEngine {
   static STORAGE_ADMIN_PASSCODE = 'studiosuite_admin_passcode';
   static STORAGE_FOOTER_CONTACT = 'studiosuite_footer_contact';
   static STORAGE_FEATURES = 'studiosuite_enabled_features';
+  static STORAGE_ADMIN_UPI = 'studiosuite_admin_upi';
+
+  static getAdminUpi() {
+    return localStorage.getItem(this.STORAGE_ADMIN_UPI) || 'merchant@upi';
+  }
+
+  static setAdminUpi(upiId) {
+    localStorage.setItem(this.STORAGE_ADMIN_UPI, (upiId || 'merchant@upi').trim());
+    return upiId;
+  }
 
   static getPasscode() {
     return localStorage.getItem(this.STORAGE_ADMIN_PASSCODE) || 'admin123';
@@ -382,12 +392,34 @@ function renderFullAdminPage() {
             </div>
           </div>
           
+          <!-- Admin UPI ID Settings Panel -->
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 class="font-extrabold text-base text-slate-900 uppercase flex items-center gap-2">
+                <i class="fa-solid fa-qrcode text-emerald-600"></i> Admin UPI ID Settings
+              </h3>
+              <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-extrabold">Active QR</span>
+            </div>
+
+            <form onsubmit="handleSaveAdminUpi(event)" class="space-y-3">
+              <div>
+                <label class="text-[10px] font-bold text-slate-500 uppercase">Receiving UPI ID (VPA)</label>
+                <input type="text" id="admin-upi-input" class="custom-input w-full text-xs font-mono font-bold text-slate-900" value="${AdminPanelEngine.getAdminUpi()}" placeholder="merchant@upi or 9876543210@paytm" required>
+                <p class="text-[11px] text-slate-400 mt-1">Subscribers will send UPI payments to this address and scan QR generated for this UPI ID.</p>
+              </div>
+
+              <button type="submit" class="w-full bg-emerald-600 text-white font-bold py-2 rounded-xl text-xs hover:bg-emerald-700 transition">
+                Save Admin UPI ID
+              </button>
+            </form>
+          </div>
+
           <!-- Plans CRUD -->
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 class="font-extrabold text-base text-slate-900 uppercase">Subscription Plans (INR ₹)</h3>
-              <button onclick="openAddPlanModal()" class="text-xs bg-emerald-600 text-white font-bold px-3 py-1 rounded-lg">
-                <i class="fa-solid fa-plus"></i> Add
+              <button onclick="openAddPlanModal()" class="text-xs bg-emerald-600 text-white font-bold px-3 py-1 rounded-lg hover:bg-emerald-500 transition">
+                <i class="fa-solid fa-plus"></i> Add Plan
               </button>
             </div>
 
@@ -399,11 +431,12 @@ function renderFullAdminPage() {
                     <span class="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-extrabold">₹${p.priceINR}</span>
                   </div>
                   <p class="text-xs text-slate-500">Duration: ${p.durationDays} days | Max File: ${p.maxFileSizeMB} MB</p>
-                  <div class="pt-2 flex justify-end gap-2 border-t border-slate-200 text-xs">
-                    <button onclick="AdminPanelEngine.deletePlan('${p.id}'); renderFullAdminPage();" class="text-red-500 hover:underline">Delete Plan</button>
+                  <div class="pt-2 flex justify-end gap-3 border-t border-slate-200 text-xs font-bold">
+                    <button onclick="openAddPlanModal('${p.id}')" class="text-indigo-600 hover:underline"><i class="fa-solid fa-pen-to-square mr-1"></i> Edit Plan</button>
+                    ${p.id !== 'free' ? `<button onclick="AdminPanelEngine.deletePlan('${p.id}'); renderFullAdminPage();" class="text-red-500 hover:underline"><i class="fa-solid fa-trash-can mr-1"></i> Delete</button>` : ''}
                   </div>
                 </div>
-              `).join('') : `<p class="text-xs text-slate-400 italic text-center py-2">No subscription plans created yet. Click "+ Add" above.</p>`}
+              `).join('') : `<p class="text-xs text-slate-400 italic text-center py-2">No subscription plans created yet. Click "+ Add Plan" above.</p>`}
             </div>
           </div>
 
@@ -492,14 +525,143 @@ window.deleteAdminUser = function(userId) {
   }
 };
 
-window.openAddPlanModal = function() {
-  const name = prompt('Plan Name:', 'Pro Special');
-  if (!name) return;
-  const priceINR = parseFloat(prompt('Price in INR (₹):', '999'));
-  const durationDays = parseInt(prompt('Duration in Days:', '30'));
-  const maxFileSizeMB = parseInt(prompt('Max File Size (MB):', '300'));
+window.openAddPlanModal = function(planIdToEdit = null) {
+  const modalId = 'admin-plan-crud-modal';
+  let existing = document.getElementById(modalId);
+  if (existing) existing.remove();
 
-  AdminPanelEngine.savePlan({ name, priceINR, durationDays, maxFileSizeMB });
+  const plans = AuthSubscriptionEngine.getPlans();
+  const editPlan = planIdToEdit ? plans.find(p => p.id === planIdToEdit) : null;
+  const tools = window.TOOLS || [];
+
+  const initialFeatures = editPlan && Array.isArray(editPlan.features) ? editPlan.features.join('\n') : '';
+  const initialAllowedTools = editPlan && Array.isArray(editPlan.allowedToolIds) ? editPlan.allowedToolIds : 'all';
+
+  const modal = document.createElement('div');
+  modal.id = modalId;
+  modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in';
+  modal.innerHTML = `
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-xl w-full my-8 overflow-hidden relative">
+      <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition z-10">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="p-6 bg-slate-900 text-white space-y-1">
+        <h3 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-crown text-amber-400"></i> ${editPlan ? 'Edit Subscription Plan' : 'Create New Subscription Plan'}
+        </h3>
+        <p class="text-xs text-slate-400">Configure price, duration, max file size limit, badge, and tool access permissions.</p>
+      </div>
+
+      <form onsubmit="handleSavePlanSubmit(event, '${editPlan ? editPlan.id : ''}')" class="p-6 space-y-4 max-h-[520px] overflow-y-auto">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Plan Name <span class="text-red-500">*</span></label>
+            <input type="text" id="plan-input-name" required value="${editPlan ? editPlan.name : ''}" placeholder="e.g. Pro Monthly" class="custom-input w-full text-xs font-bold">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Price in INR (₹) <span class="text-red-500">*</span></label>
+            <input type="number" id="plan-input-price" required value="${editPlan ? editPlan.priceINR : '499'}" min="0" placeholder="499" class="custom-input w-full text-xs font-extrabold">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Duration (Days)</label>
+            <input type="number" id="plan-input-duration" required value="${editPlan ? editPlan.durationDays : '30'}" min="1" placeholder="30" class="custom-input w-full text-xs font-bold">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Max File Size (MB)</label>
+            <input type="number" id="plan-input-maxsize" required value="${editPlan ? editPlan.maxFileSizeMB : '250'}" min="1" placeholder="250" class="custom-input w-full text-xs font-bold">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Badge Tag</label>
+            <input type="text" id="plan-input-badge" value="${editPlan ? (editPlan.badge || '') : 'PRO'}" placeholder="Popular, Best Value, PRO" class="custom-input w-full text-xs font-semibold">
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Plan Features & Bullets (One per line)</label>
+          <textarea id="plan-input-features" rows="4" class="custom-input w-full text-xs font-mono bg-white" placeholder="Access to All 50 Tools&#10;250MB Max Upload Limit&#10;Cloud History Autosave">${initialFeatures}</textarea>
+        </div>
+
+        <div class="space-y-2 pt-2 border-t border-slate-100">
+          <label class="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
+            <span>Included Tool Access Permissions</span>
+            <span class="text-indigo-600 font-extrabold">${tools.length} Total Tools Available</span>
+          </label>
+          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto space-y-1.5 text-xs">
+            ${tools.map(t => {
+              const isChecked = initialAllowedTools === 'all' || (Array.isArray(initialAllowedTools) && initialAllowedTools.includes(t.id));
+              return `
+                <label class="flex items-center gap-2 cursor-pointer hover:bg-white p-1 rounded transition">
+                  <input type="checkbox" name="plan-tool-checkbox" value="${t.id}" ${isChecked ? 'checked' : ''} class="rounded text-indigo-600 focus:ring-indigo-500">
+                  <span class="font-semibold text-slate-800">${t.name}</span>
+                  <span class="text-[10px] text-slate-400">(${t.category})</span>
+                </label>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex justify-between items-center gap-3">
+          ${editPlan && editPlan.id !== 'free' ? `
+            <button type="button" onclick="AdminPanelEngine.deletePlan('${editPlan.id}'); document.getElementById('${modalId}').remove(); renderFullAdminPage();" class="text-xs font-bold text-red-500 hover:text-red-700 underline">
+              Delete Plan
+            </button>
+          ` : '<div></div>'}
+
+          <div class="flex gap-2">
+            <button type="button" onclick="document.getElementById('${modalId}').remove()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition">
+              Cancel
+            </button>
+            <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-extrabold shadow-md transition">
+              ${editPlan ? 'Update Plan' : 'Create Plan'}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  `;
+  document.body.appendChild(modal);
+};
+
+window.handleSavePlanSubmit = function(e, editPlanId) {
+  e.preventDefault();
+  const name = document.getElementById('plan-input-name')?.value?.trim();
+  const priceINR = parseFloat(document.getElementById('plan-input-price')?.value || '0');
+  const durationDays = parseInt(document.getElementById('plan-input-duration')?.value || '30');
+  const maxFileSizeMB = parseInt(document.getElementById('plan-input-maxsize')?.value || '250');
+  const badge = document.getElementById('plan-input-badge')?.value?.trim() || '';
+  const featuresText = document.getElementById('plan-input-features')?.value || '';
+  const features = featuresText.split('\n').map(f => f.trim()).filter(Boolean);
+
+  const selectedToolInputs = document.querySelectorAll('input[name="plan-tool-checkbox"]:checked');
+  const allowedToolIds = Array.from(selectedToolInputs).map(cb => cb.value);
+
+  const planData = {
+    id: editPlanId || ('plan_' + Date.now()),
+    name,
+    priceINR,
+    currency: '₹',
+    durationDays,
+    maxFileSizeMB,
+    badge,
+    features,
+    allowedToolIds: allowedToolIds.length === (window.TOOLS || []).length ? 'all' : allowedToolIds
+  };
+
+  AdminPanelEngine.savePlan(planData);
+  document.getElementById('admin-plan-crud-modal')?.remove();
+  alert(`Subscription Plan "${name}" saved successfully!`);
+  renderFullAdminPage();
+};
+
+window.handleSaveAdminUpi = function(e) {
+  e.preventDefault();
+  const upiId = document.getElementById('admin-upi-input')?.value;
+  AdminPanelEngine.setAdminUpi(upiId);
+  alert(`Admin Receiving UPI ID updated to "${AdminPanelEngine.getAdminUpi()}"!`);
   renderFullAdminPage();
 };
 
