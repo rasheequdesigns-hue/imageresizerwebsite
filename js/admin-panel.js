@@ -576,11 +576,11 @@ window.openAddPlanModal = function(planIdToEdit = null) {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label class="text-[10px] font-bold text-slate-500 uppercase">Duration (Days)</label>
-            <input type="number" id="plan-input-duration" required value="${editPlan ? editPlan.durationDays : '30'}" min="1" placeholder="30" class="custom-input w-full text-xs font-bold">
+            <input type="number" id="plan-input-duration" onchange="window.autoGeneratePlanBullets()" required value="${editPlan ? editPlan.durationDays : '30'}" min="1" placeholder="30" class="custom-input w-full text-xs font-bold">
           </div>
           <div>
             <label class="text-[10px] font-bold text-slate-500 uppercase">Max File Size (MB)</label>
-            <input type="number" id="plan-input-maxsize" required value="${editPlan ? editPlan.maxFileSizeMB : '250'}" min="1" placeholder="250" class="custom-input w-full text-xs font-bold">
+            <input type="number" id="plan-input-maxsize" onchange="window.autoGeneratePlanBullets()" required value="${editPlan ? editPlan.maxFileSizeMB : '250'}" min="1" placeholder="250" class="custom-input w-full text-xs font-bold">
           </div>
           <div>
             <label class="text-[10px] font-bold text-slate-500 uppercase">Badge Tag</label>
@@ -642,7 +642,7 @@ window.openAddPlanModal = function(planIdToEdit = null) {
                       const isChecked = initialAllowedTools === 'all' || (Array.isArray(initialAllowedTools) && initialAllowedTools.includes(t.id));
                       return `
                         <label class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg border border-transparent hover:border-slate-200 transition text-xs">
-                          <input type="checkbox" name="plan-tool-checkbox" data-category="${safeCatId}" value="${t.id}" ${isChecked ? 'checked' : ''} class="rounded text-indigo-600 focus:ring-indigo-500">
+                          <input type="checkbox" name="plan-tool-checkbox" onchange="window.autoGeneratePlanBullets()" data-category="${safeCatId}" value="${t.id}" ${isChecked ? 'checked' : ''} class="rounded text-indigo-600 focus:ring-indigo-500">
                           <span class="font-medium text-slate-800">${t.name}</span>
                         </label>
                       `;
@@ -674,26 +674,38 @@ window.openAddPlanModal = function(planIdToEdit = null) {
     </div>
   `;
   document.body.appendChild(modal);
+
+  // Automatically trigger feature details population if new plan or features empty
+  if (!editPlan || !initialFeatures || initialFeatures.trim().length === 0) {
+    setTimeout(() => {
+      window.autoGeneratePlanBullets();
+    }, 50);
+  }
 };
 
 // Global helper functions for section-based plan tool toggling
 window.toggleAllPlanTools = function(selectAll) {
   const checkboxes = document.querySelectorAll('input[name="plan-tool-checkbox"]');
   checkboxes.forEach(cb => cb.checked = !!selectAll);
+  window.autoGeneratePlanBullets();
 };
 
 window.togglePlanSectionTools = function(catId, selectAll) {
   const checkboxes = document.querySelectorAll(`input[name="plan-tool-checkbox"][data-category="${catId}"]`);
   checkboxes.forEach(cb => cb.checked = !!selectAll);
+  window.autoGeneratePlanBullets();
 };
 
 window.autoGeneratePlanBullets = function() {
   const duration = parseInt(document.getElementById('plan-input-duration')?.value || '30');
   const maxSize = parseInt(document.getElementById('plan-input-maxsize')?.value || '250');
-  const selectedCbs = document.querySelectorAll('input[name="plan-tool-checkbox"]:checked');
-  const totalTools = (window.TOOLS || []).length;
+  const selectedCbs = Array.from(document.querySelectorAll('input[name="plan-tool-checkbox"]:checked'));
+  const tools = window.TOOLS || [];
+  const totalTools = tools.length;
   
   const bullets = [];
+  
+  // 1. Overall Tool Access Summary
   if (selectedCbs.length >= totalTools) {
     bullets.push(`Access to All ${totalTools} Master Tools Unlocked`);
   } else if (selectedCbs.length > 0) {
@@ -702,10 +714,43 @@ window.autoGeneratePlanBullets = function() {
     bullets.push(`Access to Basic Suite Tools`);
   }
 
+  // 2. Section-by-Section Feature Breakdown
+  const catMap = {};
+  selectedCbs.forEach(cb => {
+    const t = tools.find(x => x.id === cb.value);
+    if (t) {
+      const cat = t.category || 'General Tools';
+      catMap[cat] = (catMap[cat] || 0) + 1;
+    }
+  });
+
+  const categoryTitles = {
+    'pdf-core': 'PDF Core Engine',
+    'pdf-convert': 'PDF Converter Suite',
+    'image-tools': 'Image Resizer & Upscaler Studio',
+    'design-prepress': 'Design & Prepress Tools',
+    'print-packaging': 'Print & Packaging Engine',
+    'video-motion': 'Video & Audio Extractor Tools',
+    'fonts-typography': 'Typography & Font Tools',
+    'developer-tools': 'Developer & CSS Generators',
+    'cad-blueprints': 'CAD Blueprint Scaler',
+    'legal-medical': 'Legal & Medical DICOM Tools',
+    'publishing-ebooks': 'EPUB & Publishing Suite',
+    'threed-motion': '3D GLTF Texture Compressor',
+    'security-ai-data': 'Auto Quiz Creator & AI Features'
+  };
+
+  Object.keys(catMap).forEach(catKey => {
+    const catName = categoryTitles[catKey] || catKey;
+    const count = catMap[catKey];
+    bullets.push(`Includes ${catName} (${count} Tools)`);
+  });
+
+  // 3. Technical & Subscription Parameters
   bullets.push(`${maxSize}MB Max File Upload Limit`);
   bullets.push(`${duration} Days Subscription Validity`);
   bullets.push(`100% In-Browser WebAssembly Engine`);
-  bullets.push(`Private & Secure Workspace`);
+  bullets.push(`Private & Secure Cloud Workspace`);
   bullets.push(`Priority Tech & Cloud Support`);
 
   const featuresInput = document.getElementById('plan-input-features');
