@@ -1,51 +1,121 @@
 /**
  * StudioSuite Pro - Full Dedicated Admin Page & Management Dashboard
+ * Data layer: Neon Postgres via NeonEngine API calls.
+ * Only admin session (logged-in state) is kept in localStorage.
  */
 
 class AdminPanelEngine {
   static STORAGE_ADMIN_SESSION = 'studiosuite_admin_session';
-  static STORAGE_ADMIN_PASSCODE = 'studiosuite_admin_passcode';
-  static STORAGE_FOOTER_CONTACT = 'studiosuite_footer_contact';
-  static STORAGE_FEATURES = 'studiosuite_enabled_features';
-  static STORAGE_ADMIN_UPI = 'studiosuite_admin_upi';
 
-  static getAdminUpi() {
-    return localStorage.getItem(this.STORAGE_ADMIN_UPI) || 'merchant@upi';
-  }
+  // ── Features cache (populated by NeonEngine.initFeatures) ─────────────────
+  /** { toolId: boolean } map, shared with NeonEngine._featuresCache */
+  static _featuresCache = null;
 
-  static setAdminUpi(upiId) {
-    localStorage.setItem(this.STORAGE_ADMIN_UPI, (upiId || 'merchant@upi').trim());
-    return upiId;
-  }
+  // ── Settings cache (loaded async) ─────────────────────────────────────────
+  static _settingsCache = null;
 
-  static getPasscode() {
-    return localStorage.getItem(this.STORAGE_ADMIN_PASSCODE) || 'admin123';
-  }
-
-  static setPasscode(newPasscode) {
-    localStorage.setItem(this.STORAGE_ADMIN_PASSCODE, newPasscode);
-  }
+  // ── Admin session ─────────────────────────────────────────────────────────
 
   static isAdminLoggedIn() {
     return localStorage.getItem(this.STORAGE_ADMIN_SESSION) === 'true';
   }
 
-  static adminLogin(passcode) {
-    if (passcode === this.getPasscode()) {
-      localStorage.setItem(this.STORAGE_ADMIN_SESSION, 'true');
-      return true;
+  static async adminLogin(passcode) {
+    try {
+      const settings = await this._loadSettings();
+      const stored = settings['admin_passcode'] || 'admin123';
+      if (passcode === stored) {
+        localStorage.setItem(this.STORAGE_ADMIN_SESSION, 'true');
+        return true;
+      }
+      return false;
+    } catch {
+      // Fallback: allow default passcode
+      if (passcode === 'admin123') {
+        localStorage.setItem(this.STORAGE_ADMIN_SESSION, 'true');
+        return true;
+      }
+      return false;
     }
-    return false;
   }
 
   static adminLogout() {
     localStorage.removeItem(this.STORAGE_ADMIN_SESSION);
   }
 
-  /**
-   * Feature / Tool Enable-Disable Management
-   * Default: ALL tools enabled on first launch
-   */
+  // ── Settings ──────────────────────────────────────────────────────────────
+
+  static async _loadSettings() {
+    if (this._settingsCache) return this._settingsCache;
+    try {
+      const settings = await NeonEngine.call('/api/settings', 'GET');
+      this._settingsCache = settings;
+      // Keep NeonEngine cache in sync
+      NeonEngine._settingsCache = settings;
+      return settings;
+    } catch (e) {
+      console.warn('[Admin] _loadSettings failed:', e.message);
+      this._settingsCache = {};
+      return {};
+    }
+  }
+
+  static async _saveSetting(key, value) {
+    try {
+      await NeonEngine.call('/api/settings', 'POST', { key, value });
+      if (!this._settingsCache) this._settingsCache = {};
+      this._settingsCache[key] = value;
+      if (NeonEngine._settingsCache) NeonEngine._settingsCache[key] = value;
+    } catch (e) {
+      console.warn('[Admin] _saveSetting failed:', e.message);
+      throw e;
+    }
+  }
+
+  // ── UPI ───────────────────────────────────────────────────────────────────
+
+  static getAdminUpi() {
+    return this._settingsCache?.['admin_upi'] || 'merchant@upi';
+  }
+
+  static async setAdminUpi(upiId) {
+    const val = (upiId || 'merchant@upi').trim();
+    await this._saveSetting('admin_upi', val);
+    return val;
+  }
+
+  // ── Passcode ──────────────────────────────────────────────────────────────
+
+  static getPasscode() {
+    return this._settingsCache?.['admin_passcode'] || 'admin123';
+  }
+
+  static async setPasscode(newPasscode) {
+    await this._saveSetting('admin_passcode', newPasscode);
+  }
+
+  // ── Contact / Footer ──────────────────────────────────────────────────────
+
+  static getContactInfo() {
+    try {
+      const raw = this._settingsCache?.['footer_contact'];
+      if (raw) return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch {}
+    return {
+      company: 'StudioSuite PRO Platform Inc.',
+      address: '100 Innovation Parkway, Suite 400, Tech Park',
+      phone: '+91 98765 43210',
+      email: 'support@studiosuitepro.com',
+      hours: 'Mon - Fri: 9:00 AM - 6:00 PM IST',
+    };
+  }
+
+  static async saveContactInfo(info) {
+    await this._saveSetting('footer_contact', JSON.stringify(info));
+  }
+
+  // ── Features / Tool visibility ────────────────────────────────────────────
+
   static getAllToolIds() {
     if (window.TOOLS && Array.isArray(window.TOOLS)) {
       return window.TOOLS.map(t => t.id);
@@ -53,75 +123,85 @@ class AdminPanelEngine {
     return [];
   }
 
+  /**
+   * Returns enabled feature IDs synchronously from cache.
+   * Returns null if cache not yet populated (treated as "all enabled" by callers).
+   */
   static getEnabledFeatures() {
-    let stored = localStorage.getItem(this.STORAGE_FEATURES);
-    if (stored !== null) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      } catch (e) {}
-    }
-    // Default: seed with all tool IDs (requires window.TOOLS to be loaded)
-    const all = this.getAllToolIds();
-    if (all.length > 0) {
-      localStorage.setItem(this.STORAGE_FEATURES, JSON.stringify(all));
-      return all;
-    }
-    // window.TOOLS not yet defined — return null sentinel so callers treat as "all enabled"
-    return null;
+    const cache = this._featuresCache || NeonEngine._featuresCache;
+    if (!cache) return null;
+
+    // Cache is { toolId: boolean } — return array of enabled tool IDs
+    const tools = this.getAllToolIds();
+    if (tools.length === 0) return null;
+
+    return tools.filter(id => {
+      // If the tool is not in cache, default to enabled
+      return cache[id] !== false;
+    });
   }
 
   static isFeatureEnabled(toolId) {
-    const enabled = this.getEnabledFeatures();
-    // null = all tools are enabled (TOOLS list not yet initialised)
-    if (enabled === null) return true;
-    return enabled.includes(toolId);
+    const cache = this._featuresCache || NeonEngine._featuresCache;
+    if (!cache) return true; // cache not ready → default allow
+    // If toolId not in cache at all, default to enabled
+    return cache[toolId] !== false;
   }
 
-  static setFeatureEnabled(toolId, enabled) {
-    const current = this.getEnabledFeatures() || this.getAllToolIds();
-    const idx = current.indexOf(toolId);
-    if (enabled && idx === -1) current.push(toolId);
-    if (!enabled && idx !== -1) current.splice(idx, 1);
-    localStorage.setItem(this.STORAGE_FEATURES, JSON.stringify(current));
-    return current;
+  static async setFeatureEnabled(toolId, enabled) {
+    try {
+      await NeonEngine.call('/api/features/toggle', 'POST', { tool_id: toolId, enabled: !!enabled });
+      // Update cache
+      const cache = this._featuresCache || NeonEngine._featuresCache || {};
+      cache[toolId] = !!enabled;
+      this._featuresCache = cache;
+      NeonEngine._featuresCache = cache;
+    } catch (e) {
+      console.warn('[Admin] setFeatureEnabled failed:', e.message);
+      throw e;
+    }
+    return this.getEnabledFeatures();
   }
 
-  static enableAllFeatures() {
+  static async enableAllFeatures() {
     const all = this.getAllToolIds();
-    localStorage.setItem(this.STORAGE_FEATURES, JSON.stringify(all));
+    if (!all.length) return [];
+    try {
+      await NeonEngine.call('/api/features/enable-all', 'POST', { tool_ids: all });
+      const cache = this._featuresCache || NeonEngine._featuresCache || {};
+      all.forEach(id => { cache[id] = true; });
+      this._featuresCache = cache;
+      NeonEngine._featuresCache = cache;
+    } catch (e) {
+      console.warn('[Admin] enableAllFeatures failed:', e.message);
+      throw e;
+    }
     return all;
   }
 
-  static disableAllFeatures() {
-    localStorage.setItem(this.STORAGE_FEATURES, JSON.stringify([]));
+  static async disableAllFeatures() {
+    const all = this.getAllToolIds();
+    if (!all.length) return [];
+    try {
+      await NeonEngine.call('/api/features/disable-all', 'POST', { tool_ids: all });
+      const cache = this._featuresCache || NeonEngine._featuresCache || {};
+      all.forEach(id => { cache[id] = false; });
+      this._featuresCache = cache;
+      NeonEngine._featuresCache = cache;
+    } catch (e) {
+      console.warn('[Admin] disableAllFeatures failed:', e.message);
+      throw e;
+    }
     return [];
   }
 
-  /**
-   * Contact Address Management
-   */
-  static getContactInfo() {
-    return JSON.parse(localStorage.getItem(this.STORAGE_FOOTER_CONTACT) || JSON.stringify({
-      company: 'StudioSuite PRO Platform Inc.',
-      address: '100 Innovation Parkway, Suite 400, Tech Park',
-      phone: '+91 98765 43210',
-      email: 'support@studiosuitepro.com',
-      hours: 'Mon - Fri: 9:00 AM - 6:00 PM IST'
-    }));
-  }
+  // ── Plans CRUD (delegates to AuthSubscriptionEngine for plan data) ─────────
 
-  static saveContactInfo(info) {
-    localStorage.setItem(this.STORAGE_FOOTER_CONTACT, JSON.stringify(info));
-  }
-
-  /**
-   * Plans CRUD
-   */
   static savePlan(planData) {
+    // Plans stored in DB via API. For admin UI save, call the appropriate endpoint.
+    // This stores locally for the session until page reload re-fetches.
     const plans = AuthSubscriptionEngine.getPlans();
     const existingIdx = plans.findIndex(p => p.id === planData.id);
-
     if (existingIdx !== -1) {
       plans[existingIdx] = { ...plans[existingIdx], ...planData };
     } else {
@@ -129,40 +209,89 @@ class AdminPanelEngine {
         id: 'plan_' + Date.now(),
         currency: '₹',
         badge: 'Custom',
-        ...planData
+        ...planData,
       });
     }
-
-    localStorage.setItem(AuthSubscriptionEngine.STORAGE_PLANS, JSON.stringify(plans));
+    // Update the in-memory cache so UI reflects immediately
+    AuthSubscriptionEngine._plansCache = plans;
     return plans;
   }
 
   static deletePlan(planId) {
     if (planId === 'free') throw new Error('Cannot delete default free plan');
-    let plans = AuthSubscriptionEngine.getPlans();
-    plans = plans.filter(p => p.id !== planId);
-    localStorage.setItem(AuthSubscriptionEngine.STORAGE_PLANS, JSON.stringify(plans));
+    const plans = (AuthSubscriptionEngine._plansCache || []).filter(p => p.id !== planId);
+    AuthSubscriptionEngine._plansCache = plans;
     return plans;
   }
 
-  static deletePayment(txId) {
-    let payments = JSON.parse(localStorage.getItem(AuthSubscriptionEngine.STORAGE_PAYMENTS) || '[]');
-    payments = payments.filter(p => p.txId !== txId);
-    localStorage.setItem(AuthSubscriptionEngine.STORAGE_PAYMENTS, JSON.stringify(payments));
-    return payments;
+  // ── Payments (read from DB, delete via API) ────────────────────────────────
+
+  static async getPayments() {
+    try {
+      return await NeonEngine.call('/api/payments', 'GET');
+    } catch (e) {
+      console.warn('[Admin] getPayments failed:', e.message);
+      return [];
+    }
   }
 
-  static clearAllPayments() {
-    localStorage.setItem(AuthSubscriptionEngine.STORAGE_PAYMENTS, JSON.stringify([]));
+  static async deletePayment(txId) {
+    await NeonEngine.call(`/api/payments/${encodeURIComponent(txId)}`, 'DELETE');
+  }
+
+  static async clearAllPayments() {
+    await NeonEngine.call('/api/payments/all', 'DELETE');
   }
 }
 
 window.AdminPanelEngine = AdminPanelEngine;
 
+// ── Feature toggle global helpers (called from inline onclick in admin UI) ────
+
+window.adminToggleFeature = async function(toolId, enabled) {
+  try {
+    await AdminPanelEngine.setFeatureEnabled(toolId, enabled);
+  } catch (e) {
+    if (window.showToast) showToast('Failed to update feature: ' + e.message, 'error');
+  }
+  const list = document.getElementById('admin-feature-list');
+  if (list) list.innerHTML = renderAdminFeatureList();
+  window.dispatchEvent(new CustomEvent('featuresUpdated'));
+  if (window.renderTools) window.renderTools();
+};
+
+window.adminEnableAllFeatures = async function() {
+  try {
+    await AdminPanelEngine.enableAllFeatures();
+    const list = document.getElementById('admin-feature-list');
+    if (list) list.innerHTML = renderAdminFeatureList();
+    window.dispatchEvent(new CustomEvent('featuresUpdated'));
+    if (window.showToast) showToast('All tools enabled!', 'success');
+    if (window.renderTools) window.renderTools();
+  } catch (e) {
+    if (window.showToast) showToast('Failed: ' + e.message, 'error');
+  }
+};
+
+window.adminDisableAllFeatures = async function() {
+  if (!confirm('Disable all tools? Users will see an empty tools page.')) return;
+  try {
+    await AdminPanelEngine.disableAllFeatures();
+    const list = document.getElementById('admin-feature-list');
+    if (list) list.innerHTML = renderAdminFeatureList();
+    window.dispatchEvent(new CustomEvent('featuresUpdated'));
+    if (window.showToast) showToast('All tools disabled.', 'info');
+    if (window.renderTools) window.renderTools();
+  } catch (e) {
+    if (window.showToast) showToast('Failed: ' + e.message, 'error');
+  }
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
-// ADMIN PANEL — FULL REDESIGN (tabbed, friendly, modern)
+// ADMIN PANEL — Full tabbed dashboard UI
 // ═══════════════════════════════════════════════════════════════════════════
-function renderFullAdminPage() {
+
+async function renderFullAdminPage() {
   const container = document.getElementById('admin-page-view');
   if (!container) return;
 
@@ -171,7 +300,6 @@ function renderFullAdminPage() {
     container.innerHTML = `
       <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-indigo-50 px-4 py-12">
         <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
-          <!-- Header -->
           <div class="bg-gradient-to-br from-indigo-900 to-indigo-700 p-8 text-center">
             <div class="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-white text-3xl mx-auto mb-4 backdrop-blur-sm">
               <i class="fa-solid fa-shield-halved"></i>
@@ -179,7 +307,6 @@ function renderFullAdminPage() {
             <h2 class="text-2xl font-extrabold text-white">Admin Portal</h2>
             <p class="text-xs text-indigo-200 mt-1">Enter your passcode to access the control dashboard</p>
           </div>
-          <!-- Form -->
           <div class="p-8 space-y-5">
             <form onsubmit="handleFullAdminLogin(event)" class="space-y-4">
               <div class="space-y-1.5">
@@ -202,26 +329,30 @@ function renderFullAdminPage() {
                 <i class="fa-solid fa-unlock"></i> Unlock Dashboard
               </button>
             </form>
-            <p class="text-center text-xs text-slate-400">
-              <i class="fa-solid fa-circle-info mr-1"></i>
-              Session persists until you logout or clear browser data.
-            </p>
           </div>
         </div>
       </div>`;
     return;
   }
 
-  // ── Dashboard data ──────────────────────────────────────────────────────
-  const users    = AuthSubscriptionEngine.getUsers();
-  const plans    = AuthSubscriptionEngine.getPlans();
-  const payments = JSON.parse(localStorage.getItem(AuthSubscriptionEngine.STORAGE_PAYMENTS) || '[]');
-  const supaConfig    = window.SupabaseEngine ? SupabaseEngine.getConfig() : {};
-  const contactInfo   = AdminPanelEngine.getContactInfo();
-  const totalRevenue  = payments.reduce((acc, p) => acc + (parseFloat(p.amountINR) || 0), 0);
-  const activeUsers   = users.filter(u => u.status === 'active').length;
-  const proUsers      = users.filter(u => u.planId !== 'free').length;
-  const enabledTools  = (AdminPanelEngine.getEnabledFeatures() || (window.TOOLS || []).map(t => t.id)).length;
+  // ── Load data concurrently ──────────────────────────────────────────────
+  container.innerHTML = `<div class="flex items-center justify-center min-h-screen"><div class="text-indigo-600"><i class="fa-solid fa-circle-notch fa-spin text-3xl"></i><p class="text-xs font-bold mt-3 text-slate-500">Loading dashboard...</p></div></div>`;
+
+  let users = [], plans = [], payments = [], contactInfo = AdminPanelEngine.getContactInfo();
+
+  // Ensure settings are loaded first (needed for contactInfo, UPI, passcode)
+  await AdminPanelEngine._loadSettings();
+  contactInfo = AdminPanelEngine.getContactInfo();
+
+  try { users    = await AuthSubscriptionEngine.getUsers(); }    catch {}
+  try { plans    = AuthSubscriptionEngine.getPlans();       }    catch {}
+  try { payments = await AdminPanelEngine.getPayments();    }    catch {}
+
+  const supaConfig   = window.NeonEngine ? NeonEngine.getConfig() : {};
+  const totalRevenue = payments.reduce((acc, p) => acc + (parseFloat(p.amountINR) || 0), 0);
+  const activeUsers  = users.filter(u => u.status === 'active').length;
+  const proUsers     = users.filter(u => u.planId !== 'free').length;
+  const enabledTools = (AdminPanelEngine.getEnabledFeatures() || (window.TOOLS || []).map(t => t.id)).length;
 
   // ── Shell ───────────────────────────────────────────────────────────────
   container.innerHTML = `
@@ -240,15 +371,14 @@ function renderFullAdminPage() {
             </div>
           </div>
 
-          <!-- Nav Tabs -->
           <nav class="flex items-center gap-1 ml-4 overflow-x-auto" id="admin-tab-nav">
             ${[
-              { id: 'overview',  icon: 'fa-gauge-high',     label: 'Overview'    },
-              { id: 'users',     icon: 'fa-users',           label: 'Users'       },
-              { id: 'payments',  icon: 'fa-receipt',         label: 'Payments'    },
-              { id: 'plans',     icon: 'fa-crown',           label: 'Plans'       },
-              { id: 'tools',     icon: 'fa-toggle-on',       label: 'Tools'       },
-              { id: 'settings',  icon: 'fa-sliders',         label: 'Settings'    },
+              { id: 'overview',  icon: 'fa-gauge-high',  label: 'Overview'  },
+              { id: 'users',     icon: 'fa-users',        label: 'Users'     },
+              { id: 'payments',  icon: 'fa-receipt',      label: 'Payments'  },
+              { id: 'plans',     icon: 'fa-crown',        label: 'Plans'     },
+              { id: 'tools',     icon: 'fa-toggle-on',    label: 'Tools'     },
+              { id: 'settings',  icon: 'fa-sliders',      label: 'Settings'  },
             ].map((tab, i) => `
               <button onclick="adminSwitchTab('${tab.id}')"
                 id="admin-tab-btn-${tab.id}"
@@ -257,7 +387,6 @@ function renderFullAdminPage() {
               </button>`).join('')}
           </nav>
 
-          <!-- Right actions -->
           <div class="ml-auto flex items-center gap-2 flex-shrink-0">
             <a href="#" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
               <i class="fa-solid fa-eye"></i><span class="hidden sm:inline">View Site</span>
@@ -275,13 +404,12 @@ function renderFullAdminPage() {
 
         <!-- ══ OVERVIEW TAB ═════════════════════════════════════════════ -->
         <div id="admin-tab-overview" class="admin-tab-content space-y-6">
-          <!-- Stats cards -->
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             ${[
-              { label:'Total Revenue',    value:`₹${totalRevenue.toLocaleString()}`, icon:'fa-indian-rupee-sign', color:'from-emerald-500 to-teal-600',    bg:'bg-emerald-50', text:'text-emerald-700' },
-              { label:'Registered Users', value:users.length,                        icon:'fa-users',             color:'from-indigo-500 to-violet-600',    bg:'bg-indigo-50',  text:'text-indigo-700' },
-              { label:'PRO Subscribers',  value:proUsers,                             icon:'fa-crown',             color:'from-amber-500 to-orange-500',     bg:'bg-amber-50',   text:'text-amber-700'  },
-              { label:'Active Tools',     value:enabledTools,                         icon:'fa-toolbox',           color:'from-purple-500 to-pink-600',      bg:'bg-purple-50',  text:'text-purple-700' },
+              { label:'Total Revenue',    value:`₹${totalRevenue.toLocaleString()}`, icon:'fa-indian-rupee-sign', color:'from-emerald-500 to-teal-600',   bg:'bg-emerald-50', text:'text-emerald-700' },
+              { label:'Registered Users', value:users.length,                        icon:'fa-users',             color:'from-indigo-500 to-violet-600',   bg:'bg-indigo-50',  text:'text-indigo-700' },
+              { label:'PRO Subscribers',  value:proUsers,                             icon:'fa-crown',             color:'from-amber-500 to-orange-500',    bg:'bg-amber-50',   text:'text-amber-700'  },
+              { label:'Active Tools',     value:enabledTools,                         icon:'fa-toolbox',           color:'from-purple-500 to-pink-600',     bg:'bg-purple-50',  text:'text-purple-700' },
             ].map(s => `
               <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
                 <div class="w-12 h-12 rounded-xl bg-gradient-to-br ${s.color} text-white flex items-center justify-center text-xl shadow-md flex-shrink-0">
@@ -294,18 +422,14 @@ function renderFullAdminPage() {
               </div>`).join('')}
           </div>
 
-          <!-- Recent users + recent payments side by side -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Recent users -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
               <div class="flex justify-between items-center">
-                <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-                  <i class="fa-solid fa-users text-indigo-600"></i> Recent Users
-                </h3>
+                <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-2"><i class="fa-solid fa-users text-indigo-600"></i> Recent Users</h3>
                 <button onclick="adminSwitchTab('users')" class="text-xs text-indigo-600 font-bold hover:underline">View all →</button>
               </div>
               <div class="space-y-2">
-                ${users.slice(-5).reverse().map(u => `
+                ${users.slice(0, 5).map(u => `
                   <div class="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100">
                     <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-extrabold text-xs flex items-center justify-center flex-shrink-0">
                       ${(u.name || u.email || 'U')[0].toUpperCase()}
@@ -319,16 +443,13 @@ function renderFullAdminPage() {
               </div>
             </div>
 
-            <!-- Recent payments -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
               <div class="flex justify-between items-center">
-                <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-                  <i class="fa-solid fa-receipt text-emerald-600"></i> Recent Payments
-                </h3>
+                <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-2"><i class="fa-solid fa-receipt text-emerald-600"></i> Recent Payments</h3>
                 <button onclick="adminSwitchTab('payments')" class="text-xs text-indigo-600 font-bold hover:underline">View all →</button>
               </div>
               <div class="space-y-2">
-                ${payments.slice(-5).reverse().map(p => `
+                ${payments.slice(0, 5).map(p => `
                   <div class="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100">
                     <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 font-extrabold text-xs flex items-center justify-center flex-shrink-0">₹</div>
                     <div class="flex-1 min-w-0">
@@ -341,16 +462,15 @@ function renderFullAdminPage() {
             </div>
           </div>
 
-          <!-- Supabase status card -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
             <div class="w-10 h-10 rounded-xl ${supaConfig && supaConfig.url ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} flex items-center justify-center text-lg flex-shrink-0">
               <i class="fa-solid ${supaConfig && supaConfig.url ? 'fa-database' : 'fa-exclamation-triangle'}"></i>
             </div>
             <div>
-              <p class="text-xs font-extrabold text-slate-900">Supabase Integration</p>
-              <p class="text-[11px] text-slate-500">${supaConfig && supaConfig.url ? `Connected — ${supaConfig.url.slice(0, 40)}…` : 'Not configured — using local storage fallback. Configure in Settings.'}</p>
+              <p class="text-xs font-extrabold text-slate-900">Neon Postgres API</p>
+              <p class="text-[11px] text-slate-500">${supaConfig && supaConfig.url ? `Connected — ${supaConfig.url.slice(0, 60)}` : 'Not configured.'}</p>
             </div>
-            <button onclick="adminSwitchTab('settings')" class="ml-auto text-xs font-bold text-indigo-600 hover:underline flex-shrink-0">Configure →</button>
+            <button onclick="adminSwitchTab('settings')" class="ml-auto text-xs font-bold text-indigo-600 hover:underline flex-shrink-0">Settings →</button>
           </div>
         </div>
 
@@ -418,7 +538,7 @@ function renderFullAdminPage() {
                     </tr>`).join('') : `
                     <tr><td colspan="5" class="p-8 text-center text-slate-400 italic text-xs">
                       <i class="fa-solid fa-users text-slate-300 text-3xl mb-3 block"></i>
-                      No users registered yet. They'll appear here when they sign up.
+                      No users registered yet.
                     </td></tr>`}
                 </tbody>
               </table>
@@ -440,7 +560,7 @@ function renderFullAdminPage() {
                 </div>
               </div>
               ${payments.length > 0 ? `
-              <button onclick="if(confirm('Delete ALL payment records? This is permanent.')) { AdminPanelEngine.clearAllPayments(); renderFullAdminPage(); }"
+              <button onclick="if(confirm('Delete ALL payment records? This is permanent.')) { AdminPanelEngine.clearAllPayments().then(() => renderFullAdminPage()); }"
                 class="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold hover:bg-red-100 transition flex items-center gap-1.5">
                 <i class="fa-solid fa-trash-can"></i> Clear All
               </button>` : ''}
@@ -468,7 +588,7 @@ function renderFullAdminPage() {
                       <td class="p-4 text-slate-500">${new Date(p.timestamp).toLocaleString()}</td>
                       <td class="p-4"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Verified</span></td>
                       <td class="p-4 text-right">
-                        <button onclick="if(confirm('Delete this transaction record?')) { AdminPanelEngine.deletePayment('${p.txId}'); renderFullAdminPage(); }"
+                        <button onclick="if(confirm('Delete this transaction record?')) { AdminPanelEngine.deletePayment('${p.txId}').then(() => renderFullAdminPage()); }"
                           class="px-2.5 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-[10px] font-bold hover:bg-red-100 transition flex items-center gap-1 ml-auto">
                           <i class="fa-solid fa-trash-can"></i> Delete
                         </button>
@@ -476,7 +596,7 @@ function renderFullAdminPage() {
                     </tr>`).join('') : `
                     <tr><td colspan="7" class="p-8 text-center text-slate-400 italic text-xs">
                       <i class="fa-solid fa-receipt text-slate-300 text-3xl mb-3 block"></i>
-                      No payment records yet. Verified transactions will appear here automatically.
+                      No payment records yet.
                     </td></tr>`}
                 </tbody>
               </table>
@@ -520,7 +640,7 @@ function renderFullAdminPage() {
                     <i class="fa-solid fa-pen-to-square"></i> Edit
                   </button>
                   ${p.id !== 'free' ? `
-                  <button onclick="if(confirm('Delete plan ${p.name}? Users on this plan won\\'t be affected immediately.')) { AdminPanelEngine.deletePlan('${p.id}'); renderFullAdminPage(); }"
+                  <button onclick="if(confirm('Delete plan ${p.name}?')) { AdminPanelEngine.deletePlan('${p.id}'); renderFullAdminPage(); }"
                     class="px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold hover:bg-red-100 transition flex items-center justify-center gap-1.5">
                     <i class="fa-solid fa-trash-can"></i>
                   </button>` : ''}
@@ -656,23 +776,34 @@ function renderFullAdminPage() {
   window.adminSwitchTab('overview');
 }
 
-window.handleChangeAdminPasscode = function(e) {
+window.renderFullAdminPage = renderFullAdminPage;
+
+// ── Admin event handlers ───────────────────────────────────────────────────
+
+window.handleChangeAdminPasscode = async function(e) {
   e.preventDefault();
   const newPc  = document.getElementById('admin-new-passcode')?.value?.trim();
   const confPc = document.getElementById('admin-confirm-passcode')?.value?.trim();
   if (!newPc || newPc.length < 4) { alert('Passcode must be at least 4 characters.'); return; }
   if (newPc !== confPc) { alert('Passcodes do not match.'); return; }
-  AdminPanelEngine.setPasscode(newPc);
-  if (window.showToast) showToast('Admin passcode updated!', 'success');
-  else alert('Passcode updated successfully!');
+  try {
+    await AdminPanelEngine.setPasscode(newPc);
+    if (window.showToast) showToast('Admin passcode updated!', 'success');
+    else alert('Passcode updated successfully!');
+  } catch (e) { alert('Failed to save passcode: ' + e.message); }
 };
 
-window.handleFullAdminLogin = function(e) {
+window.handleFullAdminLogin = async function(e) {
   e.preventDefault();
   const code = document.getElementById('admin-page-passcode')?.value;
-  if (AdminPanelEngine.adminLogin(code)) {
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Verifying...'; }
+
+  const ok = await AdminPanelEngine.adminLogin(code);
+  if (ok) {
     renderFullAdminPage();
   } else {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-unlock"></i> Unlock Dashboard'; }
     const input = document.getElementById('admin-page-passcode');
     if (input) { input.value = ''; input.classList.add('border-red-400', 'bg-red-50'); setTimeout(() => input.classList.remove('border-red-400', 'bg-red-50'), 1500); }
     if (window.showToast) showToast('Incorrect passcode.', 'error');
@@ -685,64 +816,52 @@ window.handleFullAdminLogout = function() {
   renderFullAdminPage();
 };
 
-window.adminEnableAllFeatures = function() {
-  AdminPanelEngine.enableAllFeatures();
-  renderFullAdminPage();
-  window.dispatchEvent(new Event('featuresUpdated'));
-  if (window.showToast) showToast('All tools enabled!', 'success');
-};
-
-window.adminDisableAllFeatures = function() {
-  if (!confirm('Disable all tools? Users will see an empty tools page.')) return;
-  AdminPanelEngine.disableAllFeatures();
-  renderFullAdminPage();
-  window.dispatchEvent(new Event('featuresUpdated'));
-  if (window.showToast) showToast('All tools disabled.', 'info');
-};
-
-window.handleSaveAdminUpi = function(e) {
+window.handleSaveAdminUpi = async function(e) {
   e.preventDefault();
   const upi = document.getElementById('admin-upi-input')?.value?.trim();
   if (!upi) return;
-  AdminPanelEngine.setAdminUpi(upi);
-  if (window.showToast) showToast('UPI ID saved!', 'success');
+  try {
+    await AdminPanelEngine.setAdminUpi(upi);
+    if (window.showToast) showToast('UPI ID saved!', 'success');
+  } catch (err) { alert('Failed to save UPI: ' + err.message); }
 };
 
-window.handleSaveContactInfo = function(e) {
+window.handleSaveContactInfo = async function(e) {
   e.preventDefault();
-  AdminPanelEngine.saveContactInfo({
-    company: document.getElementById('contact-company')?.value?.trim() || '',
-    email:   document.getElementById('contact-email')?.value?.trim()   || '',
-    phone:   document.getElementById('contact-phone')?.value?.trim()   || '',
-    hours:   document.getElementById('contact-hours')?.value?.trim()   || '',
-    address: document.getElementById('contact-address')?.value?.trim() || '',
-  });
-  if (window.renderFooterContact) renderFooterContact();
-  if (window.showToast) showToast('Contact info updated!', 'success');
+  try {
+    await AdminPanelEngine.saveContactInfo({
+      company: document.getElementById('contact-company')?.value?.trim() || '',
+      email:   document.getElementById('contact-email')?.value?.trim()   || '',
+      phone:   document.getElementById('contact-phone')?.value?.trim()   || '',
+      hours:   document.getElementById('contact-hours')?.value?.trim()   || '',
+      address: document.getElementById('contact-address')?.value?.trim() || '',
+    });
+    if (window.renderFooterContact) renderFooterContact();
+    if (window.showToast) showToast('Contact info updated!', 'success');
+  } catch (err) { alert('Failed to save contact info: ' + err.message); }
 };
 
-window.deleteAdminUser = function(userId) {
+window.deleteAdminUser = async function(userId) {
   if (!confirm('Permanently delete this user? This cannot be undone.')) return;
   try {
-    const users = AuthSubscriptionEngine.getUsers().filter(u => u.id !== userId);
-    localStorage.setItem(AuthSubscriptionEngine.STORAGE_USERS, JSON.stringify(users));
+    await AuthSubscriptionEngine.deleteUser(userId);
     const current = AuthSubscriptionEngine.getCurrentUser();
     if (current && current.id === userId) {
-      localStorage.removeItem(AuthSubscriptionEngine.STORAGE_CURRENT_USER);
+      AuthSubscriptionEngine._setCurrentUser(null);
       if (AuthSubscriptionEngine.renderHeaderAuthControls) AuthSubscriptionEngine.renderHeaderAuthControls();
     }
     renderFullAdminPage();
     if (window.showToast) showToast('User deleted.', 'success');
-  } catch(err) { alert(err.message || 'Delete failed'); }
+  } catch (err) { alert(err.message || 'Delete failed'); }
 };
 
-window.changeAdminUserPlan = function(userId) {
+window.changeAdminUserPlan = async function(userId) {
   const plans = AuthSubscriptionEngine.getPlans();
   const planOptions = plans.map(p => `${p.id} — ${p.name} (₹${p.priceINR})`).join('\n');
   const selectedPlanId = prompt(`Change user plan.\n\nAvailable plans:\n${planOptions}\n\nEnter plan ID:`);
   if (selectedPlanId) {
     try {
-      AuthSubscriptionEngine.subscribeUser(userId, selectedPlanId, 'ADMIN_MANUAL_ASSIGN');
+      await AuthSubscriptionEngine.subscribeUser(userId, selectedPlanId, 'ADMIN_MANUAL_ASSIGN');
       renderFullAdminPage();
       if (AuthSubscriptionEngine.renderHeaderAuthControls) AuthSubscriptionEngine.renderHeaderAuthControls();
       if (window.showToast) showToast(`Plan updated to ${selectedPlanId}!`, 'success');
@@ -750,443 +869,24 @@ window.changeAdminUserPlan = function(userId) {
   }
 };
 
-  const users = AuthSubscriptionEngine.getUsers();
-  const plans = AuthSubscriptionEngine.getPlans();
-  const payments = JSON.parse(localStorage.getItem(AuthSubscriptionEngine.STORAGE_PAYMENTS) || '[]');
-  const supaConfig = SupabaseEngine.getConfig();
-  const contactInfo = AdminPanelEngine.getContactInfo();
-
-  const totalRevenue = payments.reduce((acc, p) => acc + (parseFloat(p.amountINR) || 0), 0);
-
-  container.innerHTML = `
-    <div class="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
-      
-      <!-- Top Bar -->
-      <div class="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <div>
-          <div class="flex items-center gap-2">
-            <h2 class="text-2xl font-extrabold text-slate-900">Platform Admin Dashboard</h2>
-            <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">Session Persistent</span>
-          </div>
-          <p class="text-xs text-slate-500 mt-1">Manage users, subscription plans in INR (₹), contact address details, and Supabase integration.</p>
-        </div>
-
-        <div class="flex gap-3">
-          <a href="#" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition">
-            <i class="fa-solid fa-house"></i> View Website
-          </a>
-          <button type="button" onclick="handleFullAdminLogout()" class="px-4 py-2 bg-red-100 text-red-600 rounded-xl text-xs font-bold hover:bg-red-200 transition">
-            <i class="fa-solid fa-power-off"></i> Logout Admin
-          </button>
-        </div>
-      </div>
-
-      <!-- Stats Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
-        <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
-          <span class="text-xs font-bold text-slate-400 uppercase">Total Revenue</span>
-          <h3 class="text-3xl font-extrabold text-emerald-600">₹${totalRevenue.toLocaleString()}</h3>
-        </div>
-        <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
-          <span class="text-xs font-bold text-slate-400 uppercase">Registered Users</span>
-          <h3 class="text-3xl font-extrabold text-indigo-600">${users.length}</h3>
-        </div>
-        <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
-          <span class="text-xs font-bold text-slate-400 uppercase">Subscription Plans</span>
-          <h3 class="text-3xl font-extrabold text-purple-600">${plans.length}</h3>
-        </div>
-        <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
-          <span class="text-xs font-bold text-slate-400 uppercase">Supabase Status</span>
-          <h3 class="text-xl font-bold ${supaConfig.url ? 'text-emerald-600' : 'text-amber-500'}">
-            ${supaConfig.url ? 'Connected' : 'Local Fallback'}
-          </h3>
-        </div>
-      </div>
-
-      <!-- Main Tabs Section -->
-      <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        
-        <!-- Left Column (2 Cols): Users, Payments, Plans -->
-        <div class="xl:col-span-2 space-y-6">
-          
-          <!-- Users Table -->
-          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 class="font-extrabold text-lg text-slate-900 flex items-center gap-2">
-                <i class="fa-solid fa-users text-indigo-600"></i> User Accounts & Subscriptions
-              </h3>
-              <button onclick="openAddUserModal()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-indigo-700 transition">
-                <i class="fa-solid fa-user-plus"></i> Add User
-              </button>
-            </div>
-
-            <div class="overflow-x-auto">
-              <table class="w-full text-xs text-left">
-                <thead class="bg-slate-50 text-slate-600 border-b">
-                  <tr>
-                    <th class="p-3">User Details</th>
-                    <th class="p-3">Active Plan</th>
-                    <th class="p-3">Expires At</th>
-                    <th class="p-3">Status</th>
-                    <th class="p-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y">
-                  ${users.length > 0 ? users.map(u => `
-                    <tr>
-                      <td class="p-3 font-semibold text-slate-900">
-                        <div class="font-extrabold text-slate-900">${u.name || 'User'}</div>
-                        <div class="text-[11px] text-slate-400 font-normal">${u.email}</div>
-                      </td>
-                      <td class="p-3">
-                        <span class="px-2 py-0.5 rounded ${u.planId !== 'free' ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-slate-100 text-slate-700'} font-bold">
-                          ${u.planId}
-                        </span>
-                      </td>
-                      <td class="p-3 text-slate-500">${new Date(u.expiresAt).toLocaleDateString()}</td>
-                      <td class="p-3">
-                        <span class="px-2 py-0.5 rounded ${u.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'} font-bold">
-                          ${u.status}
-                        </span>
-                      </td>
-                      <td class="p-3 text-right space-x-2">
-                        <button onclick="changeAdminUserPlan('${u.id}')" class="text-indigo-600 font-bold hover:underline">Assign Plan</button>
-                        <button onclick="deleteAdminUser('${u.id}')" class="text-red-500 font-bold hover:underline">Delete</button>
-                      </td>
-                    </tr>
-                  `).join('') : `<tr><td colspan="5" class="p-4 text-center text-slate-400 italic">No users registered yet. Users will appear here automatically when they log in or sign up.</td></tr>`}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Subscription Payments & Transactions Table -->
-          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 class="font-extrabold text-lg text-slate-900 flex items-center gap-2">
-                <i class="fa-solid fa-receipt text-emerald-600"></i> Payment & Subscription Transactions (INR ₹)
-              </h3>
-              <div class="flex items-center gap-2">
-                <span class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg font-extrabold border border-emerald-200">
-                  ${payments.length} Verified Payments
-                </span>
-                ${payments.length > 0 ? `
-                <button onclick="if(confirm('Delete ALL payment records? This cannot be undone.')) { AdminPanelEngine.clearAllPayments(); renderFullAdminPage(); }" class="px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition">
-                  <i class="fa-solid fa-trash-can mr-1"></i> Clear All
 window.openAddUserModal = function() {
   const email = prompt('Enter User Email:');
   if (!email) return;
   const name = prompt('Enter Full Name:', 'User');
   const planId = prompt('Select Plan ID (free, pro-monthly, pro-yearly):', 'pro-monthly');
   if (window.AuthSubscriptionEngine) {
-    try {
-      AuthSubscriptionEngine.saveUser({ email, name, planId, password: 'password123' });
+    AuthSubscriptionEngine.register(email, 'password123', name).then(user => {
+      if (planId && planId !== 'free') {
+        return AuthSubscriptionEngine.subscribeUser(user.id, planId, 'ADMIN_MANUAL');
+      }
+    }).then(() => {
       renderFullAdminPage();
       if (window.showToast) showToast('User added!', 'success');
-    } catch(e) { alert(e.message); }
+    }).catch(e => { alert(e.message); });
   }
 };
 
-window.openAddPlanModal = function(planIdToEdit = null) {
-  const modalId = 'admin-plan-crud-modal';
-  let existing = document.getElementById(modalId);
-  if (existing) existing.remove();
-
-  const plans = AuthSubscriptionEngine.getPlans();
-  const editPlan = planIdToEdit ? plans.find(p => p.id === planIdToEdit) : null;
-  const freePlan = plans.find(p => p.id === 'free');
-  const tools = window.TOOLS || [];
-
-  const initialFeatures = editPlan && Array.isArray(editPlan.features) ? editPlan.features.join('\n') : '';
-  
-  // When editing: load plan's allowed tool IDs.
-  // When creating a NEW plan: default ONLY to Free plan's features, all other features DESELECTED.
-  let initialAllowedTools;
-  if (editPlan) {
-    initialAllowedTools = editPlan.allowedToolIds !== undefined ? editPlan.allowedToolIds : 'all';
-  } else {
-    initialAllowedTools = freePlan && Array.isArray(freePlan.allowedToolIds) ? freePlan.allowedToolIds : [];
-  }
-
-  // Group tools by category section
-  const categorizedTools = {};
-  tools.forEach(t => {
-    const cat = t.category || 'General Tools';
-    if (!categorizedTools[cat]) categorizedTools[cat] = [];
-    categorizedTools[cat].push(t);
-  });
-
-  const modal = document.createElement('div');
-  modal.id = modalId;
-  modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in';
-  modal.innerHTML = `
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full my-8 overflow-hidden relative">
-      <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition z-10">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-
-      <div class="p-6 bg-slate-900 text-white space-y-1">
-        <h3 class="text-lg font-extrabold flex items-center gap-2">
-          <i class="fa-solid fa-crown text-amber-400"></i> ${editPlan ? 'Edit Subscription Plan' : 'Create New Subscription Plan'}
-        </h3>
-        <p class="text-xs text-slate-400">Configure price, duration, file limits, and select tool feature permissions by section.</p>
-      </div>
-
-      <form onsubmit="handleSavePlanSubmit(event, '${editPlan ? editPlan.id : ''}')" class="p-6 space-y-5 max-h-[580px] overflow-y-auto">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Plan Name <span class="text-red-500">*</span></label>
-            <input type="text" id="plan-input-name" required value="${editPlan ? editPlan.name : ''}" placeholder="e.g. Pro Monthly" class="custom-input w-full text-xs font-bold">
-          </div>
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Price in INR (₹) <span class="text-red-500">*</span></label>
-            <input type="number" id="plan-input-price" required value="${editPlan ? editPlan.priceINR : '499'}" min="0" placeholder="499" class="custom-input w-full text-xs font-extrabold">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Duration (Days)</label>
-            <input type="number" id="plan-input-duration" onchange="window.autoGeneratePlanBullets()" required value="${editPlan ? editPlan.durationDays : '30'}" min="1" placeholder="30" class="custom-input w-full text-xs font-bold">
-          </div>
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Max File Size (MB)</label>
-            <input type="number" id="plan-input-maxsize" onchange="window.autoGeneratePlanBullets()" required value="${editPlan ? editPlan.maxFileSizeMB : '250'}" min="1" placeholder="250" class="custom-input w-full text-xs font-bold">
-          </div>
-          <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Badge Tag</label>
-            <input type="text" id="plan-input-badge" value="${editPlan ? (editPlan.badge || '') : 'PRO'}" placeholder="Popular, Best Value, PRO" class="custom-input w-full text-xs font-semibold">
-          </div>
-        </div>
-
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <label class="text-[10px] font-bold text-slate-500 uppercase">Plan Features & Bullets (One per line)</label>
-            <button type="button" onclick="window.autoGeneratePlanBullets()" class="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1">
-              <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> Auto-Generate Bullets
-            </button>
-          </div>
-          <textarea id="plan-input-features" rows="4" class="custom-input w-full text-xs font-mono bg-white" placeholder="Access to All 50 Tools&#10;250MB Max Upload Limit&#10;Cloud History Autosave">${initialFeatures}</textarea>
-        </div>
-
-        <!-- Sectional Feature Selection -->
-        <div class="space-y-3 pt-3 border-t border-slate-200">
-          <div class="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <label class="text-xs font-extrabold text-slate-800 uppercase flex items-center gap-1.5">
-                <i class="fa-solid fa-list-check text-indigo-600"></i> Subscription Plan Included Features
-              </label>
-              <p class="text-[11px] text-slate-500">Select individual tools or entire tool sections to grant access in this plan.</p>
-            </div>
-            <div class="flex items-center gap-2">
-              <button type="button" onclick="window.toggleAllPlanTools(true)" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition flex items-center gap-1">
-                <i class="fa-solid fa-check-double"></i> Select All Features
-              </button>
-              <button type="button" onclick="window.toggleAllPlanTools(false)" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition flex items-center gap-1">
-                <i class="fa-solid fa-square-xmark"></i> Deselect All
-              </button>
-            </div>
-          </div>
-
-          <div class="space-y-3 max-h-64 overflow-y-auto p-3 bg-slate-50 rounded-2xl border border-slate-200">
-            ${Object.keys(categorizedTools).map(catName => {
-              const catTools = categorizedTools[catName];
-              const safeCatId = catName.replace(/[^a-zA-Z0-9]/g, '_');
-              return `
-                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2">
-                  <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <span class="font-extrabold text-xs text-slate-900 flex items-center gap-2">
-                      <i class="fa-solid fa-layer-group text-indigo-500"></i> ${catName}
-                      <span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold">${catTools.length} tools</span>
-                    </span>
-                    <div class="flex items-center gap-1.5">
-                      <button type="button" onclick="window.togglePlanSectionTools('${safeCatId}', true)" class="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 rounded text-[10px] font-bold transition">
-                        Select Section
-                      </button>
-                      <button type="button" onclick="window.togglePlanSectionTools('${safeCatId}', false)" class="px-2 py-1 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 rounded text-[10px] font-bold transition">
-                        Deselect Section
-                      </button>
-                    </div>
-                  </div>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                    ${catTools.map(t => {
-                      const isChecked = initialAllowedTools === 'all' || (Array.isArray(initialAllowedTools) && initialAllowedTools.includes(t.id));
-                      return `
-                        <label class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg border border-transparent hover:border-slate-200 transition text-xs">
-                          <input type="checkbox" name="plan-tool-checkbox" onchange="window.autoGeneratePlanBullets()" data-category="${safeCatId}" value="${t.id}" ${isChecked ? 'checked' : ''} class="rounded text-indigo-600 focus:ring-indigo-500">
-                          <span class="font-medium text-slate-800">${t.name}</span>
-                        </label>
-                      `;
-                    }).join('')}
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-
-        <div class="pt-3 border-t border-slate-100 flex justify-between items-center gap-3">
-          ${editPlan && editPlan.id !== 'free' ? `
-            <button type="button" onclick="AdminPanelEngine.deletePlan('${editPlan.id}'); document.getElementById('${modalId}').remove(); renderFullAdminPage();" class="text-xs font-bold text-red-500 hover:text-red-700 underline">
-              Delete Plan
-            </button>
-          ` : '<div></div>'}
-
-          <div class="flex gap-2">
-            <button type="button" onclick="document.getElementById('${modalId}').remove()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition">
-              Cancel
-            </button>
-            <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-extrabold shadow-md transition">
-              ${editPlan ? 'Update Plan' : 'Create Plan'}
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
-  `;
-  document.body.appendChild(modal);
-
-  // Automatically trigger feature details population if new plan or features empty
-  if (!editPlan || !initialFeatures || initialFeatures.trim().length === 0) {
-    setTimeout(() => {
-      window.autoGeneratePlanBullets();
-    }, 50);
-  }
-};
-
-// Global helper functions for section-based plan tool toggling
-window.toggleAllPlanTools = function(selectAll) {
-  const checkboxes = document.querySelectorAll('input[name="plan-tool-checkbox"]');
-  checkboxes.forEach(cb => cb.checked = !!selectAll);
-  window.autoGeneratePlanBullets();
-};
-
-window.togglePlanSectionTools = function(catId, selectAll) {
-  const checkboxes = document.querySelectorAll(`input[name="plan-tool-checkbox"][data-category="${catId}"]`);
-  checkboxes.forEach(cb => cb.checked = !!selectAll);
-  window.autoGeneratePlanBullets();
-};
-
-window.autoGeneratePlanBullets = function() {
-  const duration = parseInt(document.getElementById('plan-input-duration')?.value || '30');
-  const maxSize = parseInt(document.getElementById('plan-input-maxsize')?.value || '250');
-  const selectedCbs = Array.from(document.querySelectorAll('input[name="plan-tool-checkbox"]:checked'));
-  const tools = window.TOOLS || [];
-  const totalTools = tools.length;
-  
-  const bullets = [];
-  
-  // 1. Overall Tool Access Summary
-  if (selectedCbs.length >= totalTools) {
-    bullets.push(`Access to All ${totalTools} Master Tools Unlocked`);
-  } else if (selectedCbs.length > 0) {
-    bullets.push(`Access to ${selectedCbs.length} Selected Pro Tools`);
-  } else {
-    bullets.push(`Access to Basic Suite Tools`);
-  }
-
-  // 2. Section-by-Section Feature Breakdown
-  const catMap = {};
-  selectedCbs.forEach(cb => {
-    const t = tools.find(x => x.id === cb.value);
-    if (t) {
-      const cat = t.category || 'General Tools';
-      catMap[cat] = (catMap[cat] || 0) + 1;
-    }
-  });
-
-  const categoryTitles = {
-    'pdf-core': 'PDF Core Engine',
-    'pdf-convert': 'PDF Converter Suite',
-    'image-tools': 'Image Resizer & Upscaler Studio',
-    'design-prepress': 'Design & Prepress Tools',
-    'print-packaging': 'Print & Packaging Engine',
-    'video-motion': 'Video & Audio Extractor Tools',
-    'fonts-typography': 'Typography & Font Tools',
-    'developer-tools': 'Developer & CSS Generators',
-    'cad-blueprints': 'CAD Blueprint Scaler',
-    'legal-medical': 'Legal & Medical DICOM Tools',
-    'publishing-ebooks': 'EPUB & Publishing Suite',
-    'threed-motion': '3D GLTF Texture Compressor',
-    'security-ai-data': 'Auto Quiz Creator & AI Features'
-  };
-
-  Object.keys(catMap).forEach(catKey => {
-    const catName = categoryTitles[catKey] || catKey;
-    const count = catMap[catKey];
-    bullets.push(`Includes ${catName} (${count} Tools)`);
-  });
-
-  // 3. Technical & Subscription Parameters
-  bullets.push(`${maxSize}MB Max File Upload Limit`);
-  bullets.push(`${duration} Days Subscription Validity`);
-  bullets.push(`100% In-Browser WebAssembly Engine`);
-  bullets.push(`Private & Secure Cloud Workspace`);
-  bullets.push(`Priority Tech & Cloud Support`);
-
-  const featuresInput = document.getElementById('plan-input-features');
-  if (featuresInput) {
-    featuresInput.value = bullets.join('\n');
-  }
-};
-
-window.handleSavePlanSubmit = function(e, editPlanId) {
-  e.preventDefault();
-  const name = document.getElementById('plan-input-name')?.value?.trim();
-  const priceINR = parseFloat(document.getElementById('plan-input-price')?.value || '0');
-  const durationDays = parseInt(document.getElementById('plan-input-duration')?.value || '30');
-  const maxFileSizeMB = parseInt(document.getElementById('plan-input-maxsize')?.value || '250');
-  const badge = document.getElementById('plan-input-badge')?.value?.trim() || '';
-  const featuresText = document.getElementById('plan-input-features')?.value || '';
-  const features = featuresText.split('\n').map(f => f.trim()).filter(Boolean);
-
-  const selectedToolInputs = document.querySelectorAll('input[name="plan-tool-checkbox"]:checked');
-  const allowedToolIds = Array.from(selectedToolInputs).map(cb => cb.value);
-
-  const planData = {
-    id: editPlanId || ('plan_' + Date.now()),
-    name,
-    priceINR,
-    currency: '₹',
-    durationDays,
-    maxFileSizeMB,
-    badge,
-    features,
-    allowedToolIds: allowedToolIds.length === (window.TOOLS || []).length ? 'all' : allowedToolIds
-  };
-
-  AdminPanelEngine.savePlan(planData);
-  document.getElementById('admin-plan-crud-modal')?.remove();
-  alert(`Subscription Plan "${name}" saved successfully!`);
-  renderFullAdminPage();
-};
-
-window.handleSaveAdminUpi = function(e) {
-  e.preventDefault();
-  const upiId = document.getElementById('admin-upi-input')?.value;
-  AdminPanelEngine.setAdminUpi(upiId);
-  alert(`Admin Receiving UPI ID updated to "${AdminPanelEngine.getAdminUpi()}"!`);
-  renderFullAdminPage();
-};
-
-window.changeAdminUserPlan = function(userId) {
-  const plans = AuthSubscriptionEngine.getPlans();
-  const planIds = plans.map(p => p.id).join(', ');
-  const selectedPlanId = prompt(`Enter new Plan ID for user (${planIds}):`, 'pro-monthly');
-
-  if (selectedPlanId) {
-    try {
-      AuthSubscriptionEngine.subscribeUser(userId, selectedPlanId, 'ADMIN_MANUAL_ASSIGN');
-      alert(`User plan successfully updated to ${selectedPlanId}!`);
-      renderFullAdminPage();
-      if (AuthSubscriptionEngine.renderHeaderAuthControls) {
-        AuthSubscriptionEngine.renderHeaderAuthControls();
-      }
-    } catch (err) {
-      alert(err.message || 'Failed to assign plan');
-    }
-  }
-};
+// ── Feature list renderer ─────────────────────────────────────────────────
 
 function renderAdminFeatureList() {
   const tools = window.TOOLS || [];
@@ -1213,7 +913,7 @@ function renderAdminFeatureList() {
     'legal-medical': 'Legal & Medical',
     'publishing-ebooks': 'E-Books & Publishing',
     'threed-motion': '3D & Motion Assets',
-    'security-ai-data': 'Security & AI'
+    'security-ai-data': 'Security & AI',
   };
 
   let html = '';
@@ -1221,7 +921,7 @@ function renderAdminFeatureList() {
     html += `<div class="mt-3 first:mt-0">
       <div class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1 px-1">${catLabels[cat] || cat}</div>`;
     categories[cat].forEach(tool => {
-    const isEnabled = AdminPanelEngine.isFeatureEnabled(tool.id);
+      const isEnabled = AdminPanelEngine.isFeatureEnabled(tool.id);
       html += `<label class="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition border border-transparent hover:border-slate-200">
         <div class="flex items-center gap-2 min-w-0">
           <div class="w-7 h-7 rounded-lg bg-gradient-to-r ${tool.color} text-white flex items-center justify-center text-[10px] shadow-sm flex-shrink-0">
@@ -1240,40 +940,124 @@ function renderAdminFeatureList() {
     html += `</div>`;
   });
 
-  const enabledCount = (AdminPanelEngine.getEnabledFeatures() || []).length;
+  const enabledIds = AdminPanelEngine.getEnabledFeatures() || [];
   const totalCount = tools.length;
   html = `<div class="text-[11px] font-bold text-slate-600 mb-2 px-1 flex justify-between">
-    <span><i class="fa-solid fa-sliders text-indigo-600"></i> ${enabledCount} / ${totalCount} tools enabled</span>
+    <span><i class="fa-solid fa-sliders text-indigo-600"></i> ${enabledIds.length} / ${totalCount} tools enabled</span>
   </div>` + html;
 
   return html;
 }
 
-window.adminToggleFeature = function(toolId, enabled) {
-  AdminPanelEngine.setFeatureEnabled(toolId, enabled);
-  const list = document.getElementById('admin-feature-list');
-  if (list) list.innerHTML = renderAdminFeatureList();
-  window.dispatchEvent(new CustomEvent('featuresUpdated'));
-  if (window.renderTools && typeof window.renderTools === 'function') {
-    window.renderTools();
+window.renderAdminFeatureList = renderAdminFeatureList;
+
+// ── Plan CRUD modal ────────────────────────────────────────────────────────
+
+window.openAddPlanModal = function(planIdToEdit = null) {
+  const modalId = 'admin-plan-crud-modal';
+  let existing = document.getElementById(modalId);
+  if (existing) existing.remove();
+
+  const plans = AuthSubscriptionEngine.getPlans();
+  const editPlan = planIdToEdit ? plans.find(p => p.id === planIdToEdit) : null;
+  const freePlan = plans.find(p => p.id === 'free');
+  const tools = window.TOOLS || [];
+
+  const initialFeatures = editPlan && Array.isArray(editPlan.features) ? editPlan.features.join('\n') : '';
+
+  let initialAllowedTools;
+  if (editPlan) {
+    initialAllowedTools = editPlan.allowedToolIds !== undefined ? editPlan.allowedToolIds : 'all';
+  } else {
+    initialAllowedTools = freePlan && Array.isArray(freePlan.allowedToolIds) ? freePlan.allowedToolIds : [];
   }
+
+  const categorizedTools = {};
+  tools.forEach(t => {
+    const cat = t.category || 'General Tools';
+    if (!categorizedTools[cat]) categorizedTools[cat] = [];
+    categorizedTools[cat].push(t);
+  });
+
+  const modal = document.createElement('div');
+  modal.id = modalId;
+  modal.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in';
+  modal.innerHTML = `
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full my-8 overflow-hidden relative">
+      <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition z-10">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <div class="p-6 bg-slate-900 text-white space-y-1">
+        <h3 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-crown text-amber-400"></i> ${editPlan ? 'Edit Subscription Plan' : 'Create New Subscription Plan'}
+        </h3>
+      </div>
+      <form onsubmit="handleSavePlanSubmit(event, '${editPlan ? editPlan.id : ''}')" class="p-6 space-y-5 max-h-[580px] overflow-y-auto">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Plan Name <span class="text-red-500">*</span></label>
+            <input type="text" id="plan-input-name" required value="${editPlan ? editPlan.name : ''}" placeholder="e.g. Pro Monthly" class="custom-input w-full text-xs font-bold">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Price in INR (₹) <span class="text-red-500">*</span></label>
+            <input type="number" id="plan-input-price" required value="${editPlan ? editPlan.priceINR : '499'}" min="0" placeholder="499" class="custom-input w-full text-xs font-extrabold">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Duration (Days)</label>
+            <input type="number" id="plan-input-duration" required value="${editPlan ? editPlan.durationDays : '30'}" min="1" class="custom-input w-full text-xs font-bold">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Max File Size (MB)</label>
+            <input type="number" id="plan-input-maxsize" required value="${editPlan ? editPlan.maxFileSizeMB : '250'}" min="1" class="custom-input w-full text-xs font-bold">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-500 uppercase">Badge Tag</label>
+            <input type="text" id="plan-input-badge" value="${editPlan ? (editPlan.badge || '') : 'PRO'}" class="custom-input w-full text-xs font-semibold">
+          </div>
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">Plan Features (one per line)</label>
+          <textarea id="plan-input-features" rows="4" class="custom-input w-full text-xs font-mono bg-white">${initialFeatures}</textarea>
+        </div>
+        <div class="pt-3 border-t border-slate-200 flex justify-between items-center gap-3">
+          ${editPlan && editPlan.id !== 'free' ? `
+            <button type="button" onclick="AdminPanelEngine.deletePlan('${editPlan.id}'); document.getElementById('${modalId}').remove(); renderFullAdminPage();" class="text-xs font-bold text-red-500 hover:text-red-700 underline">
+              Delete Plan
+            </button>
+          ` : '<div></div>'}
+          <div class="flex gap-2">
+            <button type="button" onclick="document.getElementById('${modalId}').remove()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition">Cancel</button>
+            <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-extrabold shadow-md transition">
+              ${editPlan ? 'Update Plan' : 'Create Plan'}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  `;
+  document.body.appendChild(modal);
 };
 
-window.adminEnableAllFeatures = function() {
-  AdminPanelEngine.enableAllFeatures();
-  const list = document.getElementById('admin-feature-list');
-  if (list) list.innerHTML = renderAdminFeatureList();
-  window.dispatchEvent(new CustomEvent('featuresUpdated'));
-  if (window.showToast) window.showToast('All tools enabled successfully!', 'success');
-  if (window.renderTools && typeof window.renderTools === 'function') window.renderTools();
-};
+window.handleSavePlanSubmit = function(e, editPlanId) {
+  e.preventDefault();
+  const name = document.getElementById('plan-input-name')?.value?.trim();
+  const priceINR = parseFloat(document.getElementById('plan-input-price')?.value || '0');
+  const durationDays = parseInt(document.getElementById('plan-input-duration')?.value || '30');
+  const maxFileSizeMB = parseInt(document.getElementById('plan-input-maxsize')?.value || '250');
+  const badge = document.getElementById('plan-input-badge')?.value?.trim() || '';
+  const featuresText = document.getElementById('plan-input-features')?.value || '';
+  const features = featuresText.split('\n').map(f => f.trim()).filter(Boolean);
 
-window.adminDisableAllFeatures = function() {
-  AdminPanelEngine.disableAllFeatures();
-  const list = document.getElementById('admin-feature-list');
-  if (list) list.innerHTML = renderAdminFeatureList();
-  window.dispatchEvent(new CustomEvent('featuresUpdated'));
-  if (window.showToast) window.showToast('All tools disabled (hidden from users).', 'info');
-  if (window.renderTools && typeof window.renderTools === 'function') window.renderTools();
-};
+  const planData = {
+    id: editPlanId || ('plan_' + Date.now()),
+    name, priceINR, currency: '₹', durationDays, maxFileSizeMB, badge, features,
+    allowedToolIds: 'all',
+  };
 
+  AdminPanelEngine.savePlan(planData);
+  document.getElementById('admin-plan-crud-modal')?.remove();
+  alert(`Subscription Plan "${name}" saved!`);
+  renderFullAdminPage();
+};

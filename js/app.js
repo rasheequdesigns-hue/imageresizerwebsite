@@ -100,6 +100,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.TOOLS = TOOLS;
 
+  // ── Init features from DB (async) before rendering tool grid ──────────────
+  // NeonEngine.initFeatures() fetches enabled/disabled states from Neon Postgres
+  // and populates AdminPanelEngine._featuresCache so renderTools() picks them up.
+  if (window.NeonEngine) {
+    NeonEngine.initFeatures()
+      .then(() => {
+        renderTools();
+        window.dispatchEvent(new Event('featuresUpdated'));
+      })
+      .catch(() => {
+        // Fallback: render with all tools enabled if DB is unreachable
+        renderTools();
+      });
+  }
+
+  // Also load settings into cache early (for UPI, contact info, etc.)
+  if (window.AdminPanelEngine) {
+    AdminPanelEngine._loadSettings().then(() => {
+      if (window.renderFooterContact) renderFooterContact();
+    }).catch(() => {});
+  }
+
   function formatFileSize(bytes) {
     if (!bytes || isNaN(bytes) || bytes <= 0) return '0 B';
     const k = 1024;
@@ -189,16 +211,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!toolGrid) return;
     toolGrid.innerHTML = '';
 
-    // Seed enabled features now that window.TOOLS is defined
+    // Get enabled IDs from DB-backed cache (via AdminPanelEngine)
     let enabledIds = window.AdminPanelEngine ? AdminPanelEngine.getEnabledFeatures() : null;
     if (enabledIds === null) {
-      // TOOLS just loaded — seed all as enabled
-      if (window.AdminPanelEngine) {
-        AdminPanelEngine.enableAllFeatures();
-        enabledIds = TOOLS.map(t => t.id);
-      } else {
-        enabledIds = TOOLS.map(t => t.id);
-      }
+      // Cache not yet populated — show all tools while DB loads
+      enabledIds = TOOLS.map(t => t.id);
     }
     const visibleTools = TOOLS.filter(tool => {
       const matchesSearch = tool.name.toLowerCase().includes(filterText.toLowerCase()) || tool.description.toLowerCase().includes(filterText.toLowerCase());
@@ -290,7 +307,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.renderTools = renderTools;
   window.addEventListener('featuresUpdated', () => renderTools());
   window.addEventListener('storage', () => renderTools());
-  renderTools();
+  // Initial render is triggered by NeonEngine.initFeatures().then(renderTools) above.
+  // This fallback ensures tools render even if NeonEngine is not available.
+  if (!window.NeonEngine) renderTools();
   if (searchInput) searchInput.addEventListener('input', (e) => {
     const activeCat = document.querySelector('.category-tab.active')?.dataset.category || 'all';
     renderTools(e.target.value, activeCat);
@@ -4156,7 +4175,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderUserHistoryPage() {
     const container = document.getElementById('user-history-view'); if (!container) return;
     const currentUser = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.getCurrentUser() : null;
-    const history = window.SupabaseEngine ? SupabaseEngine.getWorkHistory(currentUser?.id) : [];
+
+    // Show loading state first
     container.innerHTML = `
       <div class="max-w-6xl mx-auto px-4 py-8 space-y-6 animate-fade-in">
         <div class="flex justify-between items-center border-b border-slate-200 pb-4">
@@ -4166,25 +4186,43 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <a href="#" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-sm"><i class="fa-solid fa-arrow-left"></i> Back to Tools</a>
         </div>
-        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <div class="overflow-x-auto">
-            <table class="w-full text-xs text-left">
-              <thead class="bg-slate-50 text-slate-600 border-b">
-                <tr><th class="p-3">Tool Used</th><th class="p-3">File Name</th><th class="p-3">Size</th><th class="p-3">Processed At</th></tr>
-              </thead>
-              <tbody class="divide-y">
-                ${history.length > 0 ? history.map(h => `
-                  <tr>
-                    <td class="p-3 font-bold text-indigo-600">${h.toolName}</td>
-                    <td class="p-3 font-semibold text-slate-900">${h.filename}</td>
-                    <td class="p-3 text-slate-500">${Math.round((h.fileSize||0)/1024)} KB</td>
-                    <td class="p-3 text-slate-400">${new Date(h.timestamp).toLocaleString()}</td>
-                  </tr>`).join('') : `<tr><td colspan="4" class="p-6 text-center text-slate-400 italic">No work history records found.</td></tr>`}
-              </tbody>
-            </table>
-          </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-center py-12">
+          <div class="text-center"><i class="fa-solid fa-circle-notch fa-spin text-indigo-600 text-2xl mb-3 block"></i><p class="text-xs text-slate-500">Loading history...</p></div>
         </div>
       </div>`;
+
+    // Fetch async then render
+    const userId = currentUser?.id || 'guest';
+    (window.NeonEngine ? NeonEngine.getWorkHistory(userId) : Promise.resolve([])).then(history => {
+      container.innerHTML = `
+        <div class="max-w-6xl mx-auto px-4 py-8 space-y-6 animate-fade-in">
+          <div class="flex justify-between items-center border-b border-slate-200 pb-4">
+            <div>
+              <h2 class="text-2xl font-extrabold text-slate-900">User Work History & Cloud Autosave</h2>
+              <p class="text-xs text-slate-500 mt-1">Inspect past document generations and processed files.</p>
+            </div>
+            <a href="#" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-sm"><i class="fa-solid fa-arrow-left"></i> Back to Tools</a>
+          </div>
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left">
+                <thead class="bg-slate-50 text-slate-600 border-b">
+                  <tr><th class="p-3">Tool Used</th><th class="p-3">File Name</th><th class="p-3">Size</th><th class="p-3">Processed At</th></tr>
+                </thead>
+                <tbody class="divide-y">
+                  ${history.length > 0 ? history.map(h => `
+                    <tr>
+                      <td class="p-3 font-bold text-indigo-600">${h.toolName}</td>
+                      <td class="p-3 font-semibold text-slate-900">${h.filename}</td>
+                      <td class="p-3 text-slate-500">${Math.round((h.fileSize||0)/1024)} KB</td>
+                      <td class="p-3 text-slate-400">${new Date(h.timestamp).toLocaleString()}</td>
+                    </tr>`).join('') : `<tr><td colspan="4" class="p-6 text-center text-slate-400 italic">No work history records found.</td></tr>`}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>`;
+    });
   }
 
   function formatFileSize(bytes) {

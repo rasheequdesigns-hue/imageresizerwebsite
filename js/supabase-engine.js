@@ -1,64 +1,148 @@
 /**
- * StudioSuite Pro - Supabase Integration & Cloud Work History Engine
+ * StudioSuite Pro — NeonEngine
+ * All data is fetched/saved via the Neon Functions serverless API.
+ * window.SupabaseEngine is aliased to NeonEngine for backward compatibility.
  */
 
-class SupabaseEngine {
-  static STORAGE_SUPABASE_CONFIG = 'studiosuite_supabase_config';
-  static STORAGE_WORK_HISTORY = 'studiosuite_work_history';
-
-  static getConfig() {
-    return JSON.parse(localStorage.getItem(this.STORAGE_SUPABASE_CONFIG) || '{"url":"","key":""}');
-  }
-
-  static saveConfig(url, key) {
-    localStorage.setItem(this.STORAGE_SUPABASE_CONFIG, JSON.stringify({ url, key }));
-  }
+class NeonEngine {
+  static API_BASE =
+    (typeof window !== 'undefined' && window.NEON_API_URL)
+      ? window.NEON_API_URL
+      : 'https://br-curly-term-ayxbe0h1-api.compute.c-5.us-east-2.aws.neon.tech';
 
   /**
-   * Save user work / document processing history (Cloud or Local fallback)
+   * Central fetch helper.
+   * @param {string} path - e.g. '/api/work-history'
+   * @param {'GET'|'POST'|'DELETE'} method
+   * @param {object|null} body - JSON body for POST
+   * @returns {Promise<any>} - parsed JSON response
+   */
+  static async call(path, method = 'GET', body = null) {
+    const opts = {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+    };
+    if (body !== null) opts.body = JSON.stringify(body);
+
+    let res;
+    try {
+      res = await fetch(`${this.API_BASE}${path}`, opts);
+    } catch (networkErr) {
+      throw new Error('Network error: ' + (networkErr.message || 'Could not reach API'));
+    }
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error('Invalid JSON response from API');
+    }
+
+    if (!res.ok) {
+      throw new Error(data.error || `API error ${res.status}`);
+    }
+    return data;
+  }
+
+  // ── Work History ──────────────────────────────────────────────────────────
+
+  /**
+   * Save a work history record to the DB.
+   * Falls back silently on error so tool processing never breaks.
    */
   static async saveWorkHistory(userId, toolId, toolName, filename, fileSize) {
-    const record = {
-      id: 'work_' + Date.now(),
-      userId: userId || 'guest',
-      toolId,
-      toolName,
-      filename,
-      fileSize: fileSize || 0,
-      timestamp: new Date().toISOString()
-    };
-
-    // Save to local storage history
-    const history = JSON.parse(localStorage.getItem(this.STORAGE_WORK_HISTORY) || '[]');
-    history.unshift(record);
-    // Keep last 50 entries
-    if (history.length > 50) history.pop();
-    localStorage.setItem(this.STORAGE_WORK_HISTORY, JSON.stringify(history));
-
-    // Supabase Sync if configured
-    const config = this.getConfig();
-    if (config.url && config.key && window.supabase) {
-      try {
-        const client = window.supabase.createClient(config.url, config.key);
-        await client.from('work_history').insert([record]);
-      } catch (e) {
-        console.warn('Supabase sync warning:', e);
-      }
+    try {
+      return await this.call('/api/work-history', 'POST', {
+        user_id: userId || 'guest',
+        tool_id: toolId,
+        tool_name: toolName,
+        filename,
+        file_size: fileSize || 0,
+      });
+    } catch (e) {
+      console.warn('[NeonEngine] saveWorkHistory failed (non-fatal):', e.message);
+      return null;
     }
-
-    return record;
   }
 
   /**
-   * Fetch User Work History
+   * Fetch work history for a user (last 50 records).
    */
-  static getWorkHistory(userId = null) {
-    const history = JSON.parse(localStorage.getItem(this.STORAGE_WORK_HISTORY) || '[]');
-    if (userId) {
-      return history.filter(h => h.userId === userId || h.userId === 'guest');
+  static async getWorkHistory(userId) {
+    try {
+      const id = userId || 'guest';
+      return await this.call(`/api/work-history/${encodeURIComponent(id)}`, 'GET');
+    } catch (e) {
+      console.warn('[NeonEngine] getWorkHistory failed:', e.message);
+      return [];
     }
-    return history;
+  }
+
+  // ── Features cache ─────────────────────────────────────────────────────────
+
+  /** Populated by initFeatures() — { toolId: boolean } */
+  static _featuresCache = null;
+
+  /**
+   * Fetch enabled_features from DB and populate _featuresCache.
+   * Called once on page load by app.js.
+   */
+  static async initFeatures() {
+    try {
+      const rows = await this.call('/api/features', 'GET');
+      const cache = {};
+      for (const row of rows) {
+        cache[row.toolId] = row.enabled;
+      }
+      this._featuresCache = cache;
+
+      // Also make available on AdminPanelEngine for sync access
+      if (window.AdminPanelEngine) {
+        window.AdminPanelEngine._featuresCache = cache;
+      }
+
+      return cache;
+    } catch (e) {
+      console.warn('[NeonEngine] initFeatures failed:', e.message);
+      this._featuresCache = {};
+      return {};
+    }
+  }
+
+  // ── Settings cache ─────────────────────────────────────────────────────────
+
+  /** Populated after first fetch — { key: value } */
+  static _settingsCache = null;
+
+  static async getSettings() {
+    if (this._settingsCache) return this._settingsCache;
+    try {
+      this._settingsCache = await this.call('/api/settings', 'GET');
+      return this._settingsCache;
+    } catch (e) {
+      console.warn('[NeonEngine] getSettings failed:', e.message);
+      return {};
+    }
+  }
+
+  static async setSetting(key, value) {
+    try {
+      const res = await this.call('/api/settings', 'POST', { key, value });
+      if (!this._settingsCache) this._settingsCache = {};
+      this._settingsCache[key] = value;
+      return res;
+    } catch (e) {
+      console.warn('[NeonEngine] setSetting failed:', e.message);
+      return null;
+    }
+  }
+
+  // ── Compat: getConfig() used by old code that checked Supabase status ──────
+
+  static getConfig() {
+    return { url: this.API_BASE, key: '' };
   }
 }
 
-window.SupabaseEngine = SupabaseEngine;
+window.NeonEngine    = NeonEngine;
+window.SupabaseEngine = NeonEngine; // backward compat alias
