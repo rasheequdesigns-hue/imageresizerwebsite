@@ -293,10 +293,6 @@ class AuthSubscriptionEngine {
                 <i class="fa-solid fa-crown mr-2 text-amber-500"></i> Subscription Plans
               </button>
 
-              <a href="#admin-page" class="block px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600">
-                <i class="fa-solid fa-user-shield mr-2 text-slate-500"></i> Admin Panel
-              </a>
-
               <div class="border-t border-slate-100 mt-1 pt-1">
                 <button onclick="AuthSubscriptionEngine.logout()" class="w-full text-left px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50">
                   <i class="fa-solid fa-right-from-bracket mr-2"></i> Log Out

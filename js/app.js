@@ -557,10 +557,40 @@ document.addEventListener('DOMContentLoaded', () => {
       const worker = await window.Tesseract.createWorker('eng');
       const ret = await worker.recognize(file);
       await worker.terminate();
-      return ret.data.text || '';
+      return sanitizeExtractedContent(ret.data.text || '');
     } catch (e) {
-      return `[Image: ${file.name}] Photosynthesis is the process by which plants convert light energy into chemical energy stored in glucose. It occurs in chloroplasts, using chlorophyll to capture sunlight. The inputs are carbon dioxide, water, and light; outputs include glucose and oxygen. Cellular respiration is the complementary process that breaks down glucose to release ATP energy, occurring in mitochondria. Key terms: ATP, NADPH, Calvin cycle, Krebs cycle, glycolysis, electron transport chain.`;
+      return sanitizeExtractedContent(`[Image: ${file.name}] Photosynthesis is the process by which plants convert light energy into chemical energy stored in glucose. It occurs in chloroplasts, using chlorophyll to capture sunlight. The inputs are carbon dioxide, water, and light; outputs include glucose and oxygen. Cellular respiration is the complementary process that breaks down glucose to release ATP energy, occurring in mitochondria. Key terms: ATP, NADPH, Calvin cycle, Krebs cycle, glycolysis, electron transport chain.`);
     }
+  }
+
+  function sanitizeExtractedContent(raw) {
+    if (!raw) return '';
+    let text = raw;
+    text = text.replace(/\u0000-\u0008\u000b-\u001f/g, '');
+    text = text.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n');
+    const lines = text.split('\n');
+    const lineCounts = {};
+    lines.forEach(l => { const t = l.trim(); if (t.length >= 3 && t.length <= 80) lineCounts[t] = (lineCounts[t] || 0) + 1; });
+    const repeated = new Set(Object.keys(lineCounts).filter(k => lineCounts[k] >= 3));
+    const filtered = [];
+    for (const l of lines) {
+      const t = l.trim();
+      if (repeated.has(t)) continue;
+      if (/^page\s*\d+(\s*of\s*\d+)?$/i.test(t)) continue;
+      if (/^\d+\s*\/\s*\d+$/.test(t)) continue;
+      if (/^\d+$/.test(t) && t.length <= 4) continue;
+      if (/^(chapter|section|part|unit|lesson)\s*\d+[:.\-\s]*$/i.test(t)) continue;
+      if (/^(chapter|section|part|unit|lesson)\s*\d+[:.\-\s]*[A-Z].{0,80}$/i.test(t)) continue;
+      if (/^(https?:\/\/|www\.)\S+$/i.test(t)) continue;
+      if (/^[\p{L}\s]{1,60}$/u.test(t) && t === t.toUpperCase() && t.split(/\s+/).length <= 7 && t.length <= 50) continue;
+      if (t.length > 0 && t.length <= 3) continue;
+      if (/^[-_=*.•]{3,}$/.test(t)) continue;
+      filtered.push(l);
+    }
+    let out = filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    const sentences = out.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 25);
+    if (sentences.length < 4) out = sentences.join(' ') || out;
+    return out;
   }
 
   async function extractPdfTextForQuizOrAI(file) {
@@ -576,6 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
         text += content.items.map(item => item.str).join(' ') + '\n\n';
       }
     } catch (e) { text = generateSampleContent(file.name); }
+    text = sanitizeExtractedContent(text);
     if (!text.trim()) text = generateSampleContent(file.name);
     state.extractedText = text;
     const ocrArea = document.getElementById('ocr-extracted-text');
