@@ -1,0 +1,6 @@
+node_modules/
+.neon
+.env
+.env.*
+.ds_store
+Thumbs.db
