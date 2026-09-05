@@ -1,4 +1,4 @@
-﻿/**
+/**
  * StudioSuite 50 MASTER TOOLS PRO - App Controller
  */
 
@@ -212,10 +212,9 @@ document.addEventListener('DOMContentLoaded', () => {
     toolGrid.innerHTML = '';
 
     // Get enabled IDs from DB-backed cache (via AdminPanelEngine)
-    let enabledIds = window.AdminPanelEngine ? AdminPanelEngine.getEnabledFeatures() : null;
-    if (enabledIds === null) {
-      // Cache not yet populated â€” show all tools while DB loads
-      enabledIds = TOOLS.map(t => t.id);
+    let enabledIds = window.AdminPanelEngine ? AdminPanelEngine.getEnabledFeatures() : [];
+    if (enabledIds === null || !Array.isArray(enabledIds)) {
+      enabledIds = [];
     }
     const visibleTools = TOOLS.filter(tool => {
       const matchesSearch = tool.name.toLowerCase().includes(filterText.toLowerCase()) || tool.description.toLowerCase().includes(filterText.toLowerCase());
@@ -2600,12 +2599,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const btnDl = document.getElementById('studio-btn-download');
           if (btnDl) {
             btnDl.classList.remove('hidden');
-            // Auto-trigger download immediately
-            const url = URL.createObjectURL(resultBlob);
-            const a   = document.createElement('a');
-            a.href = url; a.download = filename; a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 2000);
+            btnDl.innerHTML = `<i class="fa-solid fa-download"></i> Download ${filename}`;
           }
+          showResultPreviewPanel(tool, resultBlob, filename);
         }
       } catch (err) {
         console.error('[StudioSuite] Process error:', err);
@@ -2619,6 +2615,144 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled  = false;
       }
     };
+  }
+
+  function showResultPreviewPanel(tool, blob, filename) {
+    const workArea = document.getElementById('studio-work-area');
+    if (!workArea) return;
+    let previewBox = document.getElementById('studio-result-preview');
+    if (previewBox) previewBox.remove();
+    previewBox = document.createElement('div');
+    previewBox.id = 'studio-result-preview';
+    previewBox.className = 'mt-6 animate-fade-in';
+    const url = URL.createObjectURL(blob);
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    const sizeKB = Math.round(blob.size / 1024);
+    const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
+    const sizeText = blob.size > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
+    const isImage = ['jpg','jpeg','png','gif','webp','bmp','tiff','svg'].includes(ext);
+    const isPdf = ext === 'pdf';
+    const isText = ['txt','md','csv','json','html','htm','xml','css','js','ts','log','rtf'].includes(ext);
+    const isAudio = ['mp3','wav','ogg','flac','aac','m4a'].includes(ext);
+    const isVideo = ['mp4','webm','mov','avi','mkv','gif'].includes(ext);
+
+    let previewInner = '';
+
+    if (isPdf) {
+      previewInner = `
+        <div class="border-2 border-indigo-200 rounded-2xl overflow-hidden shadow-lg">
+          <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-3 flex justify-between items-center">
+            <h3 class="font-extrabold text-sm flex items-center gap-2"><i class="fa-solid fa-file-pdf"></i> PDF Preview &mdash; ${filename}</h3>
+            <span class="text-xs bg-white/20 px-3 py-1 rounded-full font-bold">${sizeText}</span>
+          </div>
+          <iframe src="${url}#toolbar=1&navpanes=1" class="w-full bg-white" style="height: 600px; border: none;"></iframe>
+        </div>`;
+    } else if (isImage) {
+      previewInner = `
+        <div class="border-2 border-emerald-200 rounded-2xl overflow-hidden shadow-lg">
+          <div class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-5 py-3 flex justify-between items-center">
+            <h3 class="font-extrabold text-sm flex items-center gap-2"><i class="fa-solid fa-image"></i> Image Preview &mdash; ${filename}</h3>
+            <span class="text-xs bg-white/20 px-3 py-1 rounded-full font-bold">${sizeText}</span>
+          </div>
+          <div class="bg-slate-100 p-6 flex items-center justify-center overflow-auto" style="max-height: 600px;">
+            <img src="${url}" alt="${filename}" class="max-w-full max-h-[550px] rounded-xl shadow-md border border-slate-200">
+          </div>
+        </div>`;
+    } else if (isAudio) {
+      previewInner = `
+        <div class="border-2 border-rose-200 rounded-2xl overflow-hidden shadow-lg">
+          <div class="bg-gradient-to-r from-rose-600 to-pink-600 text-white px-5 py-3 flex justify-between items-center">
+            <h3 class="font-extrabold text-sm flex items-center gap-2"><i class="fa-solid fa-music"></i> Audio Preview &mdash; ${filename}</h3>
+            <span class="text-xs bg-white/20 px-3 py-1 rounded-full font-bold">${sizeText}</span>
+          </div>
+          <div class="bg-white p-8 flex items-center justify-center">
+            <audio controls src="${url}" class="w-full max-w-2xl"></audio>
+          </div>
+        </div>`;
+    } else if (isVideo) {
+      previewInner = `
+        <div class="border-2 border-purple-200 rounded-2xl overflow-hidden shadow-lg">
+          <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-5 py-3 flex justify-between items-center">
+            <h3 class="font-extrabold text-sm flex items-center gap-2"><i class="fa-solid fa-film"></i> Video Preview &mdash; ${filename}</h3>
+            <span class="text-xs bg-white/20 px-3 py-1 rounded-full font-bold">${sizeText}</span>
+          </div>
+          <div class="bg-black p-4 flex items-center justify-center">
+            <video controls src="${url}" class="max-w-full max-h-[550px] rounded-xl"></video>
+          </div>
+        </div>`;
+    } else if (isText) {
+      previewInner = `
+        <div class="border-2 border-slate-300 rounded-2xl overflow-hidden shadow-lg">
+          <div class="bg-gradient-to-r from-slate-700 to-slate-900 text-white px-5 py-3 flex justify-between items-center">
+            <h3 class="font-extrabold text-sm flex items-center gap-2"><i class="fa-solid fa-file-lines"></i> Text Preview &mdash; ${filename}</h3>
+            <span class="text-xs bg-white/20 px-3 py-1 rounded-full font-bold">${sizeText}</span>
+          </div>
+          <textarea id="preview-text-content" readonly rows="22" class="w-full text-xs font-mono bg-white p-5 border-0 outline-none leading-relaxed" style="resize: vertical;"></textarea>
+        </div>`;
+    } else {
+      const iconMap = {
+        docx: ['fa-file-word', 'from-blue-500 to-cyan-600'],
+        doc: ['fa-file-word', 'from-blue-500 to-cyan-600'],
+        xlsx: ['fa-file-excel', 'from-emerald-600 to-green-600'],
+        xls: ['fa-file-excel', 'from-emerald-600 to-green-600'],
+        pptx: ['fa-file-powerpoint', 'from-orange-600 to-amber-600'],
+        ppt: ['fa-file-powerpoint', 'from-orange-600 to-amber-600'],
+        zip: ['fa-file-zipper', 'from-amber-600 to-orange-600'],
+        rar: ['fa-file-zipper', 'from-amber-600 to-orange-600'],
+        '7z': ['fa-file-zipper', 'from-amber-600 to-orange-600'],
+        epub: ['fa-book-atlas', 'from-purple-600 to-pink-700'],
+        woff: ['fa-font', 'from-indigo-600 to-blue-600'],
+        woff2: ['fa-font', 'from-indigo-600 to-blue-600'],
+        ttf: ['fa-font', 'from-indigo-600 to-blue-600'],
+        otf: ['fa-font', 'from-indigo-600 to-blue-600'],
+        eps: ['fa-vector-square', 'from-indigo-600 to-purple-600'],
+        dxf: ['fa-drafting-compass', 'from-blue-700 to-indigo-800'],
+        dcm: ['fa-heart-pulse', 'from-rose-600 to-red-800'],
+      };
+      const [icon, color] = iconMap[ext] || ['fa-file-export', 'from-slate-600 to-slate-800'];
+      previewInner = `
+        <div class="border-2 border-slate-200 rounded-2xl overflow-hidden shadow-lg">
+          <div class="bg-gradient-to-r ${color} text-white px-5 py-3 flex justify-between items-center">
+            <h3 class="font-extrabold text-sm flex items-center gap-2"><i class="fa-solid ${icon}"></i> Export Ready &mdash; ${filename}</h3>
+            <span class="text-xs bg-white/20 px-3 py-1 rounded-full font-bold">${sizeText}</span>
+          </div>
+          <div class="bg-gradient-to-br from-slate-50 to-indigo-50/40 p-10 text-center space-y-5">
+            <div class="w-24 h-24 mx-auto rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-5xl bg-gradient-to-br ${color} text-white">
+              <i class="fa-solid ${icon}"></i>
+            </div>
+            <div class="space-y-1">
+              <h4 class="font-extrabold text-lg text-slate-900">File is ready to download!</h4>
+              <p class="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">This file format (<b>.${ext.toUpperCase()}</b>) does not support in-browser preview. Click the <b>Download</b> button below to open the file in its native application (Word, Excel, PowerPoint, Archive utility, etc.).</p>
+            </div>
+            <div class="inline-flex flex-col items-start gap-2 p-4 bg-white rounded-2xl border border-slate-200 text-xs text-slate-700 shadow-sm">
+              <div class="flex items-center gap-2"><i class="fa-solid fa-fingerprint text-slate-400"></i> <b>Format:</b> <span class="font-mono uppercase">.${ext}</span></div>
+              <div class="flex items-center gap-2"><i class="fa-solid fa-database text-slate-400"></i> <b>Size:</b> ${sizeText}</div>
+              <div class="flex items-center gap-2"><i class="fa-solid fa-cube text-slate-400"></i> <b>Type:</b> ${blob.type || 'application/octet-stream'}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    previewBox.innerHTML = `
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="font-extrabold text-base text-slate-900 uppercase tracking-wider flex items-center gap-2">
+          <span class="w-1 h-5 bg-gradient-to-b from-indigo-600 to-purple-600 rounded-full"></span>
+          Preview Output
+        </h2>
+        <button onclick="document.getElementById('studio-result-preview').remove()" class="text-[11px] font-bold text-slate-400 hover:text-slate-700 underline px-2 py-1 rounded">
+          <i class="fa-solid fa-xmark mr-1"></i>Close Preview
+        </button>
+      </div>
+      ${previewInner}
+    `;
+    workArea.appendChild(previewBox);
+    if (isText) {
+      blob.text().then(txt => {
+        const ta = document.getElementById('preview-text-content');
+        if (ta) ta.value = txt;
+      });
+    }
+    previewBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function setupDownloadButton() {
@@ -2653,24 +2787,80 @@ document.addEventListener('DOMContentLoaded', () => {
     let filename = "";
 
     if (tool.id === 'pdf-to-docx') {
-      const text = state.extractedText || "Converted Word Document from PDF\n\nContent details:\n" + (file ? file.name : "");
-      blob = createDocxBlob(text);
+      try {
+        if (window.ConverterEngine && file) {
+          const buffer = await file.arrayBuffer();
+          blob = await window.ConverterEngine.pdfToWord(buffer);
+        }
+      } catch (e) { console.warn('[PDF→DOCX] engine failed, fallback:', e.message); }
+      if (!blob) {
+        const text = state.extractedText || "Converted Word Document from PDF\n\nContent details:\n" + (file ? file.name : "");
+        blob = createDocxBlob(text);
+      }
       filename = `${baseName}_converted.docx`;
-    } else if (tool.id === 'pdf-to-xlsx' || tool.id === 'pptx-to-excel' || tool.id === 'ppt-to-excel') {
-      const text = state.extractedText || "Slide/Document Data\tValue\tStatus\nItem 1\t100\tProcessed\nItem 2\t250\tVerified";
-      blob = createXlsxBlob(text);
-      filename = `${baseName}_converted.xlsx`;
-    } else if (tool.id === 'pdf-to-pptx') {
-      blob = createPptxBlob(state.extractedText || baseName);
-      filename = `${baseName}_presentation.pptx`;
-    } else if (tool.id === 'docx-to-pdf' || tool.id === 'xlsx-to-pdf' || tool.id === 'pptx-to-pdf') {
-      if (file && file.type.includes('pdf') && state.pdfPageCards.length > 0) {
-        const bytes = await PDFEngine.compileOrganizedPDF(await file.arrayBuffer(), state.pdfPageCards);
-        blob = new Blob([bytes], { type: 'application/pdf' });
-      } else {
+    } else if (tool.id === 'docx-to-pdf') {
+      try {
+        if (window.ConverterEngine && file) {
+          const ab = await window.ConverterEngine.wordToPDF(file);
+          blob = new Blob([ab], { type: 'application/pdf' });
+        }
+      } catch (e) { console.warn('[DOCX→PDF] engine failed, fallback:', e.message); }
+      if (!blob) {
         blob = await createPdfBlobFromText(state.extractedText || `Converted PDF Document from ${file ? file.name : 'source'}`);
       }
       filename = `${baseName}_converted.pdf`;
+    } else if (tool.id === 'pdf-to-xlsx' || tool.id === 'pptx-to-excel' || tool.id === 'ppt-to-excel') {
+      try {
+        if (window.PDFEngine && file && tool.id === 'pdf-to-xlsx') {
+          const res = await window.PDFEngine.pdfToExcel(await file.arrayBuffer());
+          if (res && res.blob) { blob = res.blob; filename = res.filename || `${baseName}_converted.xlsx`; }
+        }
+      } catch (e) { console.warn('[PDF→XLSX] engine failed, fallback:', e.message); }
+      if (!blob) {
+        const text = state.extractedText || "Slide/Document Data\tValue\tStatus\nItem 1\t100\tProcessed\nItem 2\t250\tVerified";
+        blob = createXlsxBlob(text);
+        filename = `${baseName}_converted.xlsx`;
+      }
+    } else if (tool.id === 'pdf-to-pptx') {
+      try {
+        if (window.PDFEngine && file) {
+          const res = await window.PDFEngine.pdfToPPTX(await file.arrayBuffer());
+          if (res && res.blob) { blob = res.blob; filename = res.filename || `${baseName}_presentation.pptx`; }
+        }
+      } catch (e) { console.warn('[PDF→PPTX] engine failed, fallback:', e.message); }
+      if (!blob) {
+        blob = createPptxBlob(state.extractedText || baseName);
+        filename = `${baseName}_presentation.pptx`;
+      }
+    } else if (tool.id === 'xlsx-to-pdf') {
+      try {
+        if (window.PDFEngine && file) {
+          const orientation = document.getElementById('xlsx-paper-orientation')?.value || 'portrait';
+          const paper = document.getElementById('xlsx-paper-size')?.value || document.getElementById('ctrl-paper-size')?.value || 'A4';
+          const res = await window.PDFEngine.excelToPDF(file, { orientation, paperSize: paper });
+          if (res && res.blob) { blob = res.blob; filename = res.filename || `${baseName}_converted.pdf`; }
+        }
+      } catch (e) { console.warn('[XLSX→PDF] engine failed, fallback:', e.message); }
+      if (!blob) {
+        blob = await createPdfBlobFromText(state.extractedText || `Converted PDF from ${file ? file.name : 'spreadsheet'}`);
+        filename = `${baseName}_converted.pdf`;
+      }
+    } else if (tool.id === 'pptx-to-pdf') {
+      try {
+        if (window.PDFEngine && file) {
+          const res = await window.PDFEngine.pptxToPDF(file);
+          if (res && res.blob) { blob = res.blob; filename = res.filename || `${baseName}_converted.pdf`; }
+        }
+      } catch (e) { console.warn('[PPTX→PDF] engine failed, fallback:', e.message); }
+      if (!blob) {
+        if (file && file.type.includes('pdf') && state.pdfPageCards.length > 0) {
+          const bytes = await PDFEngine.compileOrganizedPDF(await file.arrayBuffer(), state.pdfPageCards);
+          blob = new Blob([bytes], { type: 'application/pdf' });
+        } else {
+          blob = await createPdfBlobFromText(state.extractedText || `Converted PDF from ${file ? file.name : 'presentation'}`);
+        }
+        filename = `${baseName}_converted.pdf`;
+      }
     } else if (tool.id === 'pdf-to-jpg') {
       if (state.pdfPageCards.length > 0 && state.pdfPageCards[0].dataUrl) {
         blob = dataURLtoBlob(state.pdfPageCards[0].dataUrl);
@@ -2680,9 +2870,12 @@ document.addEventListener('DOMContentLoaded', () => {
       filename = `${baseName}_page1.jpg`;
     } else if (tool.id === 'jpg-to-pdf') {
       if (window.PDFEngine && state.files.length > 0) {
-        const imagesData = await Promise.all(state.files.map(f => fileToDataURL(f)));
-        const bytes = await PDFEngine.createPdfFromImages(imagesData);
-        blob = new Blob([bytes], { type: 'application/pdf' });
+        try {
+          const bytes = await PDFEngine.imagesToPDF(state.files);
+          blob = new Blob([bytes], { type: 'application/pdf' });
+        } catch (e) {
+          blob = await createPdfBlobFromText("Image Document");
+        }
       } else {
         blob = await createPdfBlobFromText("Image Document");
       }
@@ -3041,10 +3234,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (/^(answer|ans\.?|solution|explanation|correct answer)\s*[:#.]?\s*$/i.test(t)) return true;
     if (/^[A-Z\s&]{2,60}$/.test(t) && t.split(/\s+/).filter(w => w.length >= 2).length <= 7 && t.length <= 55) return true;
     if (/^[a-zA-Z][\.\)]\s*$/.test(t)) return true;
+    if (/^\d+\s+(page|chapter|section|unit|lesson|topic)\b/i.test(t)) return true;
+    if (/^(contents|content|overview|summary|abstract|introduction|conclusion|appendix)\s*[:#-]?$/i.test(t)) return true;
+    if (/^\.{3,}\s*\d+\s*$/.test(t)) return true;
+    if (/^\d+\s*[-:.â€“]\s*[A-Z].{0,80}\.{2,}\s*\d+$/.test(t)) return true;
+    if (/^(heading|headline|subtitle|title)\s*\d*[:#]/i.test(t)) return true;
+    if (/^[A-Z][A-Z\s\-,'()]{2,40}\s*\d*$/.test(t) && t.length <= 45 && !/[.?!]$/.test(t)) return true;
     return false;
   }
 
-  // --- Clean Document Content Routine (Strips Page numbers, headers, footers, URLs, metadata) ---
+  // --- Clean Document Content Routine (Strips Page numbers, headers, footers, URLs, metadata, TOC) ---
   function cleanDocumentContentForQuiz(rawText) {
     if (!rawText) return '';
     let text = rawText;
@@ -3053,20 +3252,111 @@ document.addEventListener('DOMContentLoaded', () => {
     text = text.split('\n').map(line => line.replace(/\s+$/, '')).join('\n');
     const lineCounts = {};
     text.split('\n').forEach(l => { const t = l.trim(); if (t.length >= 3 && t.length <= 100) lineCounts[t] = (lineCounts[t] || 0) + 1; });
-    const repeated = new Set(Object.keys(lineCounts).filter(k => lineCounts[k] >= 3));
+    const repeated = new Set(Object.keys(lineCounts).filter(k => lineCounts[k] >= 2));
     const filtered = [];
     for (const rawLine of text.split('\n')) {
-      const l = rawLine.trim();
-      if (repeated.has(l)) continue;
+      let l = rawLine.trim();
+      l = l.replace(/^\s*\d{1,4}\s*[-:.|â€“\s]*/, '');
+      l = l.replace(/\s*\d{1,4}\s*$/, '').trim();
+      if (repeated.has(l) || repeated.has(rawLine.trim())) continue;
       if (shouldSkipContentLine(l)) continue;
-      filtered.push(rawLine);
+      if (shouldSkipContentLine(rawLine.trim())) continue;
+      filtered.push(l.length > 0 ? l : rawLine);
     }
     text = filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-    const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 30);
-    if (sentences.length < 4) {
-      return sentences.map(s => s.trim()).filter(s => s.length > 20).join(' ') || text;
+    text = text.replace(/\b(Page|p\.|pg\.?)\s*\d+(\s*of\s*\d+)?\b/gi, '');
+    text = text.replace(/[ \t]{2,}/g, ' ');
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(s => {
+      const sc = s.trim();
+      if (sc.length < 40) return false;
+      const words = sc.split(/\s+/).length;
+      return words >= 5;
+    });
+    if (sentences.length >= 5) {
+      return sentences.join(' ');
     }
     return text;
+  }
+
+  // --- Extract text from PDF for Quiz / AI tools using selected language filter ---
+  async function extractPdfTextForQuizOrAI(file) {
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    if (!pdfjsLib) { state.extractedText = ''; return ''; }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    try {
+      const targetLang = document.getElementById('ctrl-quiz-language')?.value ||
+                         document.getElementById('ctrl-summary-language')?.value ||
+                         document.getElementById('ctrl-chat-language')?.value || 'en';
+      const buffer = await file.arrayBuffer();
+      const pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+      const pages = [];
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join(' ');
+        pages.push(pageText);
+      }
+      const rawCombined = pages.join('\n\n');
+      const cleaned = cleanDocumentContentForQuiz(rawCombined);
+      const langFiltered = extractCleanSentencesByLanguage(cleaned, targetLang).join('. ');
+      state.extractedText = langFiltered || cleaned || rawCombined;
+      const qet = document.getElementById('quiz-extracted-text');
+      if (qet) qet.value = state.extractedText;
+      const oet = document.getElementById('ocr-extracted-text');
+      if (oet) oet.value = state.extractedText;
+      if (typeof updateQuizStats === 'function') updateQuizStats();
+      return state.extractedText;
+    } catch (e) {
+      console.warn('[Extract PDF] failed:', e);
+      state.extractedText = '';
+      return '';
+    }
+  }
+
+  // --- Run Tesseract OCR on image using the user-selected quiz language ---
+  async function runOCROnImage(file) {
+    const langMap = {
+      en: 'eng', es: 'spa', fr: 'fra', de: 'deu', hi: 'hin', zh: 'chi_sim+chi_tra',
+      ja: 'jpn', ko: 'kor', ar: 'ara', ru: 'rus', pt: 'por', it: 'ita', tr: 'tur',
+      nl: 'nld', pl: 'pol', vi: 'vie', th: 'tha', id: 'ind', ms: 'msa', bn: 'ben',
+      ur: 'urd', ta: 'tam', te: 'tel', ml: 'mal', mr: 'mar', gu: 'guj', pa: 'pan'
+    };
+    const quizLang = document.getElementById('ctrl-quiz-language')?.value || 'en';
+    const ocrLangCode = langMap[quizLang] || 'eng';
+    try {
+      if (window.OCRTranslatorEngine && typeof window.OCRTranslatorEngine.runOCR === 'function') {
+        let text = await window.OCRTranslatorEngine.runOCR(file, ocrLangCode);
+        text = cleanDocumentContentForQuiz(text);
+        return text;
+      } else if (window.Tesseract) {
+        const worker = await window.Tesseract.createWorker(ocrLangCode, 1);
+        const ret = await worker.recognize(file);
+        await worker.terminate();
+        return cleanDocumentContentForQuiz(ret.data.text || '');
+      }
+    } catch (e) { console.warn('[OCR] failed:', e); }
+    return '';
+  }
+
+  // --- Extract text from DOCX or TXT for Quiz Creator with language filter ---
+  async function extractTextFromDoc(file) {
+    const lang = document.getElementById('ctrl-quiz-language')?.value || 'en';
+    try {
+      let raw = '';
+      if (file.name.endsWith('.txt')) {
+        raw = await file.text();
+      } else if (file.name.endsWith('.docx') && window.mammoth) {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await window.mammoth.extractRawText({ arrayBuffer });
+        raw = result.value || '';
+      }
+      const cleaned = cleanDocumentContentForQuiz(raw);
+      const byLang = extractCleanSentencesByLanguage(cleaned, lang).join('. ');
+      return byLang || cleaned || raw;
+    } catch (e) {
+      console.warn('[Extract DOC] failed:', e);
+      return '';
+    }
   }
 
   // --- Quiz Storage & Submissions Engine ---
