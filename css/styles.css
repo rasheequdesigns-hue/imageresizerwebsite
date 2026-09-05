@@ -498,3 +498,209 @@ body {
 #converter-file-info .loaded-badge {
   animation: fadeIn 0.2s ease;
 }
+
+/* ============================================================
+   SUBSCRIPTION GATE SCREEN — Animated Background + Glassmorphic Card
+   ============================================================ */
+
+/* Animated gradient background */
+.gate-bg-animation {
+  background: linear-gradient(135deg,
+    #0f172a 0%, #1e1b4b 20%, #312e81 35%,
+    #4c1d95 50%, #5b21b6 65%, #1e3a8a 80%, #0f172a 100%);
+  background-size: 400% 400%;
+  animation: gateGradientShift 8s ease-in-out infinite;
+}
+@keyframes gateGradientShift {
+  0%   { background-position: 0% 50%; }
+  33%  { background-position: 100% 0%; }
+  66%  { background-position: 50% 100%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Floating orb particles */
+.gate-bg-animation::before,
+.gate-bg-animation::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  animation: gateOrb 12s ease-in-out infinite;
+  pointer-events: none;
+}
+.gate-bg-animation::before {
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(99,74,247,0.25) 0%, transparent 70%);
+  top: -150px; left: -150px;
+}
+.gate-bg-animation::after {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(167,139,250,0.18) 0%, transparent 70%);
+  bottom: -100px; right: -100px;
+  animation-delay: -6s;
+}
+@keyframes gateOrb {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  50%       { transform: translate(60px, 40px) scale(1.15); }
+}
+
+/* Glassmorphic card */
+.gate-card {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 24px;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  padding: 2rem;
+  box-shadow: 0 25px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08) inset;
+  animation: gateCardIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+@keyframes gateCardIn {
+  from { opacity: 0; transform: scale(0.92) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Feature items */
+.gate-features {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.gate-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.82);
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.gate-feature-item i {
+  width: 18px;
+  text-align: center;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+/* CTA Buttons */
+.gate-btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9rem 1.5rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  color: white;
+  font-weight: 800;
+  font-size: 0.85rem;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 30px rgba(99,74,247,0.4);
+  transition: all 0.2s ease;
+}
+.gate-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(99,74,247,0.55); }
+.gate-badge-pill {
+  background: rgba(255,255,255,0.2);
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+.gate-btn-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.9);
+  font-weight: 700;
+  font-size: 0.8rem;
+  border: 1px solid rgba(255,255,255,0.2);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.gate-btn-secondary:hover { background: rgba(255,255,255,0.18); }
+.gate-btn-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.5rem;
+  border-radius: 14px;
+  background: transparent;
+  color: rgba(255,255,255,0.55);
+  font-weight: 600;
+  font-size: 0.78rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.gate-btn-ghost:hover { color: rgba(255,255,255,0.85); border-color: rgba(255,255,255,0.25); }
+
+/* ============================================================
+   RESPONSIVE NAVIGATION
+   ============================================================ */
+
+/* Mobile search toggle */
+@media (max-width: 639px) {
+  #tool-search { display: none; }
+}
+
+/* Tighter category tabs on small screens */
+@media (max-width: 480px) {
+  .category-scroll { gap: 4px !important; }
+  .category-tab { padding: 6px 10px !important; font-size: 10px !important; }
+}
+
+/* Responsive tool cards */
+@media (max-width: 480px) {
+  #tool-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  .tool-card { padding: 12px !important; }
+  .tool-icon-wrapper { width: 36px !important; height: 36px !important; font-size: 16px !important; }
+}
+
+/* Responsive studio view */
+@media (max-width: 768px) {
+  .lg\:col-span-8 { grid-column: span 12 !important; }
+  .lg\:col-span-4 { grid-column: span 12 !important; }
+}
+
+/* ============================================================
+   PROFILE DROPDOWN — always available after login
+   ============================================================ */
+.profile-dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 260px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
+  z-index: 500;
+  overflow: hidden;
+  animation: profileDropIn 0.18s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+@keyframes profileDropIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ============================================================
+   PLAN FEATURES AUTOFILL indicator
+   ============================================================ */
+#plan-input-features.autofilled {
+  background: linear-gradient(135deg, #f0fdf4, #ffffff);
+  border-color: #86efac;
+  animation: featuresFlash 0.4s ease;
+}
+@keyframes featuresFlash {
+  from { background: #dcfce7; }
+  to   { background: #f0fdf4; }
+}

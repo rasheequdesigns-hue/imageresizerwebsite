@@ -760,6 +760,51 @@ window.openAddPlanModal = function(planIdToEdit) {
     +'</form></div>';
   document.body.appendChild(m);
   window.ptSelAll = function(v){ m.querySelectorAll('input[name="plan-tool-ids"]').forEach(function(cb){ cb.checked=v; }); };
+
+  // Auto-fill marketing features based on price/duration inputs
+  function autoFillPlanFeatures() {
+    var nameEl = document.getElementById('plan-input-name');
+    var priceEl = document.getElementById('plan-input-price');
+    var durEl   = document.getElementById('plan-input-duration');
+    var sizeEl  = document.getElementById('plan-input-maxsize');
+    var featEl  = document.getElementById('plan-input-features');
+    if (!featEl) return;
+    var name  = (nameEl?.value||'').trim();
+    var price = parseFloat(priceEl?.value||0);
+    var dur   = parseInt(durEl?.value||30);
+    var size  = parseInt(sizeEl?.value||25);
+    var checked = Array.from(document.querySelectorAll('input[name="plan-tool-ids"]:checked'));
+    var all     = Array.from(document.querySelectorAll('input[name="plan-tool-ids"]'));
+    var toolAccess = (checked.length === all.length) ? 'All ' + all.length + ' Tools Unlocked' : checked.length + ' Selected Tools Unlocked';
+    var durLabel = dur >= 365 ? 'Annual ('+dur+' Days)' : dur >= 28 ? 'Monthly ('+dur+' Days)' : dur + ' Days Access';
+    var sizeLabel = size >= 1000 ? Math.round(size/1000)+'GB Max File Upload' : size+'MB Max File Upload';
+    var priceLabel = price === 0 ? 'Free Forever' : '₹'+price+' / '+( dur>=365?'year':'month');
+    var features = [
+      toolAccess,
+      sizeLabel,
+      durLabel,
+      price > 0 ? 'Ultra-Fast WebAssembly Processing Engine' : 'Standard Processing Speed',
+      price > 0 ? 'Neon Cloud Work History & Autosave' : 'Local In-Browser Processing',
+      price > 0 ? 'Priority Email Support (24-48h)' : 'Community Support Only',
+    ];
+    if (price >= 4999) features.push('Commercial License Included');
+    if (price >= 4999) features.push('2 Months Free vs Monthly');
+    if (price > 0) features.push('100% Private — Files Never Uploaded to Server');
+    featEl.value = features.filter(Boolean).join('\n');
+    featEl.classList.add('autofilled');
+    setTimeout(function(){ featEl.classList.remove('autofilled'); }, 800);
+  }
+
+  // Wire up auto-fill to price/duration/size/name changes
+  setTimeout(function() {
+    ['plan-input-price','plan-input-duration','plan-input-maxsize','plan-input-name'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', autoFillPlanFeatures);
+    });
+    // Auto-fill immediately for new plans (empty features)
+    var featEl = document.getElementById('plan-input-features');
+    if (featEl && !featEl.value.trim()) autoFillPlanFeatures();
+  }, 100);
   window.ptSelCat = function(cat,v){ m.querySelectorAll('input.ptchk-'+cat).forEach(function(cb){ cb.checked=v; }); };
 };
 

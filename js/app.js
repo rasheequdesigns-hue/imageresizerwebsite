@@ -1,4 +1,4 @@
-/**
+﻿/**
  * StudioSuite 50 MASTER TOOLS PRO - App Controller
  */
 
@@ -33,16 +33,16 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const LANGUAGES = [
-    { code: 'en', name: 'English' }, { code: 'es', name: 'Spanish (Español)' }, { code: 'fr', name: 'French (Français)' },
-    { code: 'de', name: 'German (Deutsch)' }, { code: 'it', name: 'Italian (Italiano)' }, { code: 'pt', name: 'Portuguese (Português)' },
-    { code: 'ru', name: 'Russian (Русский)' }, { code: 'ja', name: 'Japanese (日本語)' }, { code: 'ko', name: 'Korean (한국어)' },
-    { code: 'zh', name: 'Chinese (中文)' }, { code: 'hi', name: 'Hindi (हिन्दी)' }, { code: 'ar', name: 'Arabic (العربية)' },
-    { code: 'bn', name: 'Bengali (বাংলা)' }, { code: 'ur', name: 'Urdu (اردو)' }, { code: 'ta', name: 'Tamil (தமிழ்)' },
-    { code: 'te', name: 'Telugu (తెలుగు)' }, { code: 'ml', name: 'Malayalam (മലയാളം)' }, { code: 'mr', name: 'Marathi (मराठी)' },
-    { code: 'gu', name: 'Gujarati (ગુજરાતી)' }, { code: 'pa', name: 'Punjabi (ਪੰਜਾਬੀ)' }, { code: 'tr', name: 'Turkish (Türkçe)' },
-    { code: 'nl', name: 'Dutch (Nederlands)' }, { code: 'pl', name: 'Polish (Polski)' }, { code: 'vi', name: 'Vietnamese (Tiếng Việt)' },
-    { code: 'th', name: 'Thai (ไทย)' }, { code: 'id', name: 'Indonesian (Bahasa)' }, { code: 'ms', name: 'Malay (Melayu)' },
-    { code: 'fil', name: 'Filipino' }, { code: 'fa', name: 'Persian (فارسی)' }, { code: 'he', name: 'Hebrew (עברית)' }
+    { code: 'en', name: 'English' }, { code: 'es', name: 'Spanish (EspaÃ±ol)' }, { code: 'fr', name: 'French (FranÃ§ais)' },
+    { code: 'de', name: 'German (Deutsch)' }, { code: 'it', name: 'Italian (Italiano)' }, { code: 'pt', name: 'Portuguese (PortuguÃªs)' },
+    { code: 'ru', name: 'Russian (Ð ÑƒÑÑÐºÐ¸Ð¹)' }, { code: 'ja', name: 'Japanese (æ—¥æœ¬èªž)' }, { code: 'ko', name: 'Korean (í•œêµ­ì–´)' },
+    { code: 'zh', name: 'Chinese (ä¸­æ–‡)' }, { code: 'hi', name: 'Hindi (à¤¹à¤¿à¤¨à¥à¤¦à¥€)' }, { code: 'ar', name: 'Arabic (Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©)' },
+    { code: 'bn', name: 'Bengali (à¦¬à¦¾à¦‚à¦²à¦¾)' }, { code: 'ur', name: 'Urdu (Ø§Ø±Ø¯Ùˆ)' }, { code: 'ta', name: 'Tamil (à®¤à®®à®¿à®´à¯)' },
+    { code: 'te', name: 'Telugu (à°¤à±†à°²à±à°—à±)' }, { code: 'ml', name: 'Malayalam (à´®à´²à´¯à´¾à´³à´‚)' }, { code: 'mr', name: 'Marathi (à¤®à¤°à¤¾à¤ à¥€)' },
+    { code: 'gu', name: 'Gujarati (àª—à«àªœàª°àª¾àª¤à«€)' }, { code: 'pa', name: 'Punjabi (à¨ªà©°à¨œà¨¾à¨¬à©€)' }, { code: 'tr', name: 'Turkish (TÃ¼rkÃ§e)' },
+    { code: 'nl', name: 'Dutch (Nederlands)' }, { code: 'pl', name: 'Polish (Polski)' }, { code: 'vi', name: 'Vietnamese (Tiáº¿ng Viá»‡t)' },
+    { code: 'th', name: 'Thai (à¹„à¸—à¸¢)' }, { code: 'id', name: 'Indonesian (Bahasa)' }, { code: 'ms', name: 'Malay (Melayu)' },
+    { code: 'fil', name: 'Filipino' }, { code: 'fa', name: 'Persian (ÙØ§Ø±Ø³ÛŒ)' }, { code: 'he', name: 'Hebrew (×¢×‘×¨×™×ª)' }
   ];
 
   const TOOLS = [
@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.TOOLS = TOOLS;
 
-  // ── Init features from DB (async) before rendering tool grid ──────────────
+  // â”€â”€ Init features from DB (async) before rendering tool grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // NeonEngine.initFeatures() fetches enabled/disabled states from Neon Postgres
   // and populates AdminPanelEngine._featuresCache so renderTools() picks them up.
   if (window.NeonEngine) {
@@ -214,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Get enabled IDs from DB-backed cache (via AdminPanelEngine)
     let enabledIds = window.AdminPanelEngine ? AdminPanelEngine.getEnabledFeatures() : null;
     if (enabledIds === null) {
-      // Cache not yet populated — show all tools while DB loads
+      // Cache not yet populated â€” show all tools while DB loads
       enabledIds = TOOLS.map(t => t.id);
     }
     const visibleTools = TOOLS.filter(tool => {
@@ -422,7 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <input type="file" id="studio-file-input" class="hidden" accept="${tool.accept || '*'}" ${tool.multiple ? 'multiple' : ''}>
           <div class="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-3xl mb-3 shadow-inner"><i class="fa-solid fa-cloud-arrow-up"></i></div>
           <p class="font-extrabold text-base text-slate-800 mb-1">Click to Upload ${acceptHint}</p>
-          <p class="text-xs text-slate-400">Support for ${acceptHint} files • Drag & drop supported</p>
+          <p class="text-xs text-slate-400">Support for ${acceptHint} files â€¢ Drag & drop supported</p>
         </div>
         <div id="studio-work-area" class="hidden p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div class="flex flex-wrap justify-between items-center pb-3 border-b border-slate-200 gap-2">
@@ -431,7 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <span id="studio-item-count-badge" class="text-xs font-extrabold bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full border border-indigo-200"></span>
             </div>
             <div class="flex gap-2">
-              ${tool.uiType === TOOL_UI_TYPES.PDF_PAGE_ORGANIZER ? `<button type="button" onclick="rotateAllPages(90)" class="text-xs px-2.5 py-1 rounded bg-slate-100 font-bold hover:bg-slate-200 transition text-slate-700"><i class="fa-solid fa-rotate-right"></i> Rotate All 90°</button>` : ''}
+              ${tool.uiType === TOOL_UI_TYPES.PDF_PAGE_ORGANIZER ? `<button type="button" onclick="rotateAllPages(90)" class="text-xs px-2.5 py-1 rounded bg-slate-100 font-bold hover:bg-slate-200 transition text-slate-700"><i class="fa-solid fa-rotate-right"></i> Rotate All 90Â°</button>` : ''}
               <button type="button" onclick="document.getElementById('studio-file-input').click()" class="text-xs px-2.5 py-1 rounded bg-indigo-600 text-white font-bold transition">+ ${tool.uiType === TOOL_UI_TYPES.PDF_PAGE_ORGANIZER ? 'Add File' : 'Replace File'}</button>
             </div>
           </div>
@@ -577,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <button type="button" onclick="selectDeleterPages('clear')" class="text-xs px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg font-bold text-slate-700 transition">Clear All</button>
             </div>
             <div id="deleter-status-summary" class="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
-              0 to delete • 0 remaining
+              0 to delete â€¢ 0 remaining
             </div>
           </div>
           <div id="deleter-thumbnail-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[460px] overflow-y-auto p-1"></div>
@@ -827,7 +827,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div id="batch-mode-inputs" class="flex items-center gap-2 text-xs">
               <input type="number" id="batch-width" placeholder="Width (px)" class="custom-input py-1 px-2 w-24">
-              <span>×</span>
+              <span>Ã—</span>
               <input type="number" id="batch-height" placeholder="Height (px)" class="custom-input py-1 px-2 w-24">
               <label class="inline-flex items-center gap-1 font-bold text-slate-600 ml-1"><input type="checkbox" id="batch-lock-aspect" checked class="accent-indigo-600"> Lock Aspect</label>
             </div>
@@ -1028,14 +1028,14 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (tool.id === 'pptx-to-pdf') {
       initPptxToPdfView(file);
     } else if (tool.uiType === TOOL_UI_TYPES.CONVERTER_SIMPLE || tool.id === 'pdf-to-docx' || tool.id === 'docx-to-pdf') {
-      // Converter tools — just show file info, work area already visible, ready to process
+      // Converter tools â€” just show file info, work area already visible, ready to process
       const convInfoEl = document.getElementById('converter-file-info');
       if (convInfoEl) {
         convInfoEl.innerHTML = `<div class="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
           <i class="fa-solid fa-file text-indigo-600 text-2xl flex-shrink-0"></i>
           <div class="min-w-0">
             <p class="font-extrabold text-sm text-slate-900 truncate">${file.name}</p>
-            <p class="text-xs text-slate-500">${formatFileSize(file.size)} · Ready to convert</p>
+            <p class="text-xs text-slate-500">${formatFileSize(file.size)} Â· Ready to convert</p>
           </div>
           <span class="ml-auto text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex-shrink-0">
             <i class="fa-solid fa-check mr-1"></i>File loaded
@@ -1237,7 +1237,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">${idx + 1}</div>
             <div>
               <h5 class="text-xs font-extrabold text-slate-900">${doc.title}</h5>
-              <p class="text-[10px] text-slate-500 font-bold">Pages ${doc.startPage} – ${doc.endPage} (${doc.pageCount} Pages)</p>
+              <p class="text-[10px] text-slate-500 font-bold">Pages ${doc.startPage} â€“ ${doc.endPage} (${doc.pageCount} Pages)</p>
             </div>
           </div>
           <div class="flex items-center gap-2 text-xs">
@@ -1301,9 +1301,9 @@ document.addEventListener('DOMContentLoaded', () => {
           <img src="${card.dataUrl}" class="max-h-full max-w-full object-contain transition-transform duration-300" style="transform: rotate(${card.rotation}deg)">
         </div>
         <div class="flex justify-between items-center w-full pt-1.5 border-t border-slate-100 text-xs text-slate-600">
-          <button type="button" onclick="rotateStudioPageAt(${index}, -90)" class="hover:text-indigo-600 font-semibold p-1" title="Rotate 90° CCW"><i class="fa-solid fa-rotate-left"></i></button>
-          <span class="text-[10px] font-bold text-slate-400">${card.rotation}°</span>
-          <button type="button" onclick="rotateStudioPageAt(${index}, 90)" class="hover:text-indigo-600 font-semibold p-1" title="Rotate 90° CW"><i class="fa-solid fa-rotate-right"></i></button>
+          <button type="button" onclick="rotateStudioPageAt(${index}, -90)" class="hover:text-indigo-600 font-semibold p-1" title="Rotate 90Â° CCW"><i class="fa-solid fa-rotate-left"></i></button>
+          <span class="text-[10px] font-bold text-slate-400">${card.rotation}Â°</span>
+          <button type="button" onclick="rotateStudioPageAt(${index}, 90)" class="hover:text-indigo-600 font-semibold p-1" title="Rotate 90Â° CW"><i class="fa-solid fa-rotate-right"></i></button>
         </div>`;
       grid.appendChild(cardEl);
     });
@@ -1414,7 +1414,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const total = state.pdfPageCards.length;
     const delCount = state.selectedDeletePages.size;
     const remCount = total - delCount;
-    sumEl.textContent = `${delCount} marked to delete • ${remCount} remaining`;
+    sumEl.textContent = `${delCount} marked to delete â€¢ ${remCount} remaining`;
   };
 
   // --- 6. PDF CROP TOOL ---
@@ -1627,7 +1627,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileNameEl = document.getElementById('xlsx-file-name');
     const fileDetailsEl = document.getElementById('xlsx-file-details');
     if (fileNameEl) fileNameEl.textContent = file.name;
-    if (fileDetailsEl) fileDetailsEl.textContent = `${formatFileSize(file.size)} • Spreadsheet Ready`;
+    if (fileDetailsEl) fileDetailsEl.textContent = `${formatFileSize(file.size)} â€¢ Spreadsheet Ready`;
 
     const buffer = await file.arrayBuffer();
     const workbook = window.XLSX.read(buffer, { type: 'array' });
@@ -1740,7 +1740,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (mode === 'target-size') {
       box.innerHTML = '<label class="font-bold text-slate-600">Target Size Limit:</label><input type="number" id="batch-target-kb" value="500" min="10" class="custom-input py-1 px-2 w-24"><span>KB</span>';
     } else {
-      box.innerHTML = '<input type="number" id="batch-width" placeholder="Width (px)" class="custom-input py-1 px-2 w-24"><span>×</span><input type="number" id="batch-height" placeholder="Height (px)" class="custom-input py-1 px-2 w-24"><label class="inline-flex items-center gap-1 font-bold text-slate-600 ml-1"><input type="checkbox" id="batch-lock-aspect" checked class="accent-indigo-600"> Lock Aspect</label>';
+      box.innerHTML = '<input type="number" id="batch-width" placeholder="Width (px)" class="custom-input py-1 px-2 w-24"><span>Ã—</span><input type="number" id="batch-height" placeholder="Height (px)" class="custom-input py-1 px-2 w-24"><label class="inline-flex items-center gap-1 font-bold text-slate-600 ml-1"><input type="checkbox" id="batch-lock-aspect" checked class="accent-indigo-600"> Lock Aspect</label>';
     }
   };
 
@@ -1861,22 +1861,22 @@ document.addEventListener('DOMContentLoaded', () => {
     switch (ctrl) {
       case 'compression-level': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between"><span><i class="fa-solid fa-gauge-high text-indigo-600"></i> Compression Level</span><span id="ctrl-compression-label" class="text-indigo-600">Balanced</span></label><select id="ctrl-compression-level" class="custom-input w-full text-xs"><option value="low">Low (85% size, highest quality)</option><option value="medium" selected>Medium / Balanced (60%)</option><option value="high">High Aggressive (40%)</option><option value="max">Maximum / Extreme (25%)</option></select></div>`;
       case 'target-size': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-weight-hanging text-indigo-600"></i> Target File Size</label><div class="flex gap-2"><input type="number" id="ctrl-target-size" class="custom-input flex-1 text-xs" placeholder="2" value="2" min="0.1" step="0.1"><select id="ctrl-target-unit" class="custom-input text-xs px-2"><option value="MB" selected>MB</option><option value="KB">KB</option></select></div><p class="text-[10px] text-slate-400">Engine iteratively compresses until under limit.</p></div>`;
-      case 'split-mode': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-scissors text-indigo-600"></i> Split Mode</label><select id="ctrl-split-mode" class="custom-input w-full text-xs"><option value="ranges" selected>Split by Custom Page Ranges</option><option value="individual">Every Page → Separate PDF</option><option value="every-n">Every N Pages → New PDF</option><option value="half">Split into 2 Equal Halves</option></select></div>`;
+      case 'split-mode': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-scissors text-indigo-600"></i> Split Mode</label><select id="ctrl-split-mode" class="custom-input w-full text-xs"><option value="ranges" selected>Split by Custom Page Ranges</option><option value="individual">Every Page â†’ Separate PDF</option><option value="every-n">Every N Pages â†’ New PDF</option><option value="half">Split into 2 Equal Halves</option></select></div>`;
       case 'page-range': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-hashtag text-indigo-600"></i> Page Range(s)</label><input type="text" id="ctrl-page-range" class="custom-input w-full text-xs" placeholder="e.g. 1-5, 8, 12-15"><p class="text-[10px] text-slate-400">Comma-separated list. Use hyphen for ranges.</p></div>`;
-      case 'rotate-angle': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-rotate-right text-indigo-600"></i> Default Rotation</label><div class="grid grid-cols-4 gap-1">${['0°','90°','180°','270°'].map((a,i)=>`<label class="flex flex-col items-center justify-center p-2 rounded-lg border border-slate-200 cursor-pointer hover:border-indigo-500 transition ${i===0?'bg-indigo-50 border-indigo-500':''}"><input type="radio" name="rotate-default" value="${i*90}" ${i===0?'checked':''} class="accent-indigo-600"><span class="text-[10px] font-bold text-slate-700 mt-0.5">${a}</span></label>`).join('')}</div></div>`;
+      case 'rotate-angle': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-rotate-right text-indigo-600"></i> Default Rotation</label><div class="grid grid-cols-4 gap-1">${['0Â°','90Â°','180Â°','270Â°'].map((a,i)=>`<label class="flex flex-col items-center justify-center p-2 rounded-lg border border-slate-200 cursor-pointer hover:border-indigo-500 transition ${i===0?'bg-indigo-50 border-indigo-500':''}"><input type="radio" name="rotate-default" value="${i*90}" ${i===0?'checked':''} class="accent-indigo-600"><span class="text-[10px] font-bold text-slate-700 mt-0.5">${a}</span></label>`).join('')}</div></div>`;
       case 'crop-margins': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-crop-simple text-indigo-600"></i> Crop Preset</label><select id="ctrl-crop-preset" class="custom-input w-full text-xs"><option value="custom" selected>Custom Margins (use workspace)</option><option value="tight">Tight Trim (remove 5mm all sides)</option><option value="standard">Standard Print Trim (10mm)</option><option value="ebook">E-Reader Friendly (15mm top/bottom)</option><option value="remove-white">Auto-remove Whitespace</option></select></div>`;
       case 'crop-pages-select': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-copy text-indigo-600"></i> Apply to All Pages</label><label class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-50 p-2 rounded-lg cursor-pointer"><input type="checkbox" id="ctrl-crop-all" checked class="accent-indigo-600 w-4 h-4"> Apply crop margin values to all selected pages</label></div>`;
       case 'output-img-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file-image text-indigo-600"></i> Output Image Format</label><select id="ctrl-img-format" class="custom-input w-full text-xs"><option value="jpg" selected>JPEG (Photo optimized)</option><option value="png">PNG (Lossless, transparent)</option><option value="webp">WEBP (Modern, smallest)</option><option value="tiff">TIFF (Print, uncompressed)</option></select></div>`;
       case 'resolution-dpi': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-gauge text-indigo-600"></i> Output Resolution (DPI)</label><select id="ctrl-dpi" class="custom-input w-full text-xs"><option value="72">72 DPI (Web / Screen)</option><option value="150">150 DPI (Tablet / E-Reader)</option><option value="300" selected>300 DPI (Standard Print)</option><option value="600">600 DPI (High Res / Prepress)</option></select></div>`;
       case 'image-dimensions': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-maximize text-indigo-600"></i> Resize Dimensions</label><div class="grid grid-cols-2 gap-2"><div><label class="text-[10px] text-slate-500">Width (px)</label><input type="number" id="ctrl-img-width" class="custom-input w-full text-xs" placeholder="Auto"></div><div><label class="text-[10px] text-slate-500">Height (px)</label><input type="number" id="ctrl-img-height" class="custom-input w-full text-xs" placeholder="Auto"></div></div><label class="inline-flex items-center gap-2 text-[11px] font-bold text-slate-700"><input type="checkbox" id="ctrl-lock-aspect" checked class="accent-indigo-600"> Lock aspect ratio (recommended)</label></div>`;
       case 'resample-method': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-wand-magic-sparkles text-indigo-600"></i> Resample Quality</label><select id="ctrl-resample" class="custom-input w-full text-xs"><option value="lanczos">Lanczos (Sharpest, print)</option><option value="bicubic" selected>Bicubic (Smooth, photo)</option><option value="bilinear">Bilinear (Fast)</option><option value="nearest">Nearest Neighbor (Pixel art)</option></select></div>`;
-      case 'upscale-factor': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-expand text-indigo-600"></i> Upscale Multiplier</label><select id="ctrl-upscale" class="custom-input w-full text-xs"><option value="2">2× Enhanced Resolution</option><option value="4" selected>4× Super Resolution</option><option value="8">8× Ultra Resolution (slowest)</option></select></div>`;
+      case 'upscale-factor': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-expand text-indigo-600"></i> Upscale Multiplier</label><select id="ctrl-upscale" class="custom-input w-full text-xs"><option value="2">2Ã— Enhanced Resolution</option><option value="4" selected>4Ã— Super Resolution</option><option value="8">8Ã— Ultra Resolution (slowest)</option></select></div>`;
       case 'denoise-level': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-droplet text-indigo-600"></i> Noise Reduction</label><select id="ctrl-denoise" class="custom-input w-full text-xs"><option value="none">None (preserve grain)</option><option value="low" selected>Low / Subtle</option><option value="medium">Medium</option><option value="high">High (strong cleanup)</option></select></div>`;
-      case 'paper-size-orientation': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file text-indigo-600"></i> Paper & Orientation</label><select id="ctrl-paper-size" class="custom-input w-full text-xs mb-1"><option value="A4" selected>A4 International (210×297mm)</option><option value="Letter">US Letter (8.5×11 in)</option><option value="Legal">US Legal (8.5×14 in)</option><option value="A3">A3 Poster (297×420mm)</option><option value="fit">Fit to Content Size</option></select><div class="grid grid-cols-2 gap-1"><label class="flex items-center justify-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer hover:border-indigo-500 transition bg-indigo-50 border-indigo-500"><input type="radio" name="orientation" value="portrait" checked class="accent-indigo-600"><span class="text-[11px] font-bold text-slate-700"><i class="fa-solid fa-file-lines"></i> Portrait</span></label><label class="flex items-center justify-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer hover:border-indigo-500 transition"><input type="radio" name="orientation" value="landscape" class="accent-indigo-600"><span class="text-[11px] font-bold text-slate-700"><i class="fa-solid fa-file-lines fa-rotate-90"></i> Landscape</span></label></div></div>`;
+      case 'paper-size-orientation': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file text-indigo-600"></i> Paper & Orientation</label><select id="ctrl-paper-size" class="custom-input w-full text-xs mb-1"><option value="A4" selected>A4 International (210Ã—297mm)</option><option value="Letter">US Letter (8.5Ã—11 in)</option><option value="Legal">US Legal (8.5Ã—14 in)</option><option value="A3">A3 Poster (297Ã—420mm)</option><option value="fit">Fit to Content Size</option></select><div class="grid grid-cols-2 gap-1"><label class="flex items-center justify-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer hover:border-indigo-500 transition bg-indigo-50 border-indigo-500"><input type="radio" name="orientation" value="portrait" checked class="accent-indigo-600"><span class="text-[11px] font-bold text-slate-700"><i class="fa-solid fa-file-lines"></i> Portrait</span></label><label class="flex items-center justify-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer hover:border-indigo-500 transition"><input type="radio" name="orientation" value="landscape" class="accent-indigo-600"><span class="text-[11px] font-bold text-slate-700"><i class="fa-solid fa-file-lines fa-rotate-90"></i> Landscape</span></label></div></div>`;
       case 'image-layout': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-layer-group text-indigo-600"></i> Multi-Image Layout</label><select id="ctrl-img-layout" class="custom-input w-full text-xs"><option value="one-per-page" selected>One Image per Page</option><option value="fit-multiple">Fit as Many as Possible</option><option value="2-per-page">2 Images per Page</option><option value="4-per-page">4 Images per Page (contact sheet)</option></select><div class="space-y-1 pt-1"><label class="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><input type="checkbox" id="ctrl-margin-auto" checked class="accent-indigo-600"> Auto-center margins</label><br><label class="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><input type="checkbox" id="ctrl-page-numbers" class="accent-indigo-600"> Add page numbers</label></div></div>`;
       case 'docx-format-options': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file-word text-indigo-600"></i> DOCX Layout Mode</label><select id="ctrl-docx-mode" class="custom-input w-full text-xs"><option value="faithful" selected>Faithful Visual Layout (frames)</option><option value="flowable">Editable Flowable Text (recommended)</option><option value="text-only">Text Extraction Only</option></select></div>`;
-      case 'excel-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-table-cells text-indigo-600"></i> Table Extraction Mode</label><select id="ctrl-excel-mode" class="custom-input w-full text-xs"><option value="ai" selected>Smart Table Detection (AI)</option><option value="ocr-grid">OCR Grid Extraction</option><option value="whole-page">Whole Page → Single Sheet</option></select></div>`;
-      case 'pptx-layout': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file-powerpoint text-indigo-600"></i> Slide Strategy</label><select id="ctrl-pptx-mode" class="custom-input w-full text-xs"><option value="1-to-1" selected>1 PDF Page = 1 Slide (image)</option><option value="text-extract">Extract text → Title + Bullets</option><option value="template">Apply Slide Master Template</option></select></div>`;
+      case 'excel-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-table-cells text-indigo-600"></i> Table Extraction Mode</label><select id="ctrl-excel-mode" class="custom-input w-full text-xs"><option value="ai" selected>Smart Table Detection (AI)</option><option value="ocr-grid">OCR Grid Extraction</option><option value="whole-page">Whole Page â†’ Single Sheet</option></select></div>`;
+      case 'pptx-layout': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file-powerpoint text-indigo-600"></i> Slide Strategy</label><select id="ctrl-pptx-mode" class="custom-input w-full text-xs"><option value="1-to-1" selected>1 PDF Page = 1 Slide (image)</option><option value="text-extract">Extract text â†’ Title + Bullets</option><option value="template">Apply Slide Master Template</option></select></div>`;
       case 'cmyk-picker': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-palette text-indigo-600"></i> CMYK Conversion Profile</label><select id="ctrl-cmyk-profile" class="custom-input w-full text-xs"><option value="us-web-coated" selected>US Web Coated SWOP v2</option><option value="fogra39">FOGRA39 (Europe coated)</option><option value="japan-color">Japan Color 2001 Coated</option><option value="newspaper">Newspaper SNAP (uncoated)</option></select><label class="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 mt-1"><input type="checkbox" checked class="accent-indigo-600"> Embed ICC profile for press</label></div>`;
       case 'icc-profile': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-shield text-indigo-600"></i> Rendering Intent</label><select id="ctrl-rendering-intent" class="custom-input w-full text-xs"><option value="perceptual" selected>Perceptual (Photographs)</option><option value="relative">Relative Colorimetric (Best for logos)</option><option value="saturation">Saturation (Charts / Graphs)</option><option value="absolute">Absolute Colorimetric (Proofing)</option></select></div>`;
       case 'bleed-size': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-ruler text-indigo-600"></i> Bleed Size</label><select id="ctrl-bleed-size" class="custom-input w-full text-xs"><option value="3">3mm (Digital Print)</option><option value="5" selected>5mm (Standard Offset)</option><option value="8">8mm (Large Format)</option><option value="custom">Custom value...</option></select></div>`;
@@ -1891,13 +1891,13 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'audio-bitrate': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-music text-indigo-600"></i> Audio Bitrate (kbps)</label><select id="ctrl-bitrate" class="custom-input w-full text-xs"><option value="128">128 kbps (Good)</option><option value="192" selected>192 kbps (Better)</option><option value="256">256 kbps (Excellent)</option><option value="320">320 kbps (Studio Quality)</option></select></div>`;
       case 'audio-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file-audio text-indigo-600"></i> Output Format</label><select id="ctrl-audio-fmt" class="custom-input w-full text-xs"><option value="mp3" selected>MP3 (Universal)</option><option value="wav">WAV (Uncompressed)</option><option value="ogg">OGG Vorbis (Open)</option><option value="m4a">M4A / AAC (Apple)</option></select></div>`;
       case 'font-output-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-font text-indigo-600"></i> Target Format(s)</label><div class="space-y-1 text-[11px]">${['WOFF2','WOFF','TTF','OTF','EOT'].map(f=>`<label class="flex items-center gap-1.5 font-bold text-slate-700 p-1.5 rounded hover:bg-slate-50 cursor-pointer"><input type="checkbox" ${f!=='EOT'?'checked':''} class="font-format-check accent-indigo-600" value="${f.toLowerCase()}"> ${f} <span class="text-slate-400 font-normal text-[10px] ml-auto">${fontHint(f)}</span></label>`).join('')}</div></div>`;
-      case 'px-rem-picker': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-calculator text-indigo-600"></i> Conversion Type</label><select id="ctrl-pxrem-type" class="custom-input w-full text-xs"><option value="px-to-rem" selected>PX → REM</option><option value="rem-to-px">REM → PX</option><option value="px-to-em">PX → EM</option><option value="em-to-px">EM → PX</option></select></div>`;
+      case 'px-rem-picker': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-calculator text-indigo-600"></i> Conversion Type</label><select id="ctrl-pxrem-type" class="custom-input w-full text-xs"><option value="px-to-rem" selected>PX â†’ REM</option><option value="rem-to-px">REM â†’ PX</option><option value="px-to-em">PX â†’ EM</option><option value="em-to-px">EM â†’ PX</option></select></div>`;
       case 'base-font-size': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-text-height text-indigo-600"></i> Root Font Size (PX)</label><input type="number" id="ctrl-base-font" class="custom-input w-full text-xs" value="16" min="8" max="32"><p class="text-[10px] text-slate-400">Browser default: 16px. Custom designs may use 10px (62.5% trick).</p></div>`;
       case 'case-picker': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-font-case text-indigo-600"></i> Target Case</label><select id="ctrl-case-type" class="custom-input w-full text-xs"><option value="upper">UPPERCASE</option><option value="lower">lowercase</option><option value="title" selected>Title Case</option><option value="sentence">Sentence case</option><option value="camel">camelCase</option><option value="pascal">PascalCase</option><option value="snake">snake_case</option><option value="kebab">kebab-case</option></select></div>`;
       case 'glass-picker': return `<div class="space-y-3"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-sparkles text-indigo-600"></i> Glassmorphism Params</label><div><label class="text-[10px] text-slate-500 flex justify-between">Blur: <span id="lbl-blur">16px</span></label><input type="range" id="ctrl-blur" min="0" max="60" value="16" class="w-full accent-indigo-600"></div><div><label class="text-[10px] text-slate-500 flex justify-between">Opacity: <span id="lbl-opacity">10%</span></label><input type="range" id="ctrl-opacity" min="0" max="100" value="10" class="w-full accent-indigo-600"></div><div><label class="text-[10px] text-slate-500 flex justify-between">Saturation: <span id="lbl-sat">180%</span></label><input type="range" id="ctrl-sat" min="50" max="300" value="180" class="w-full accent-indigo-600"></div><div class="grid grid-cols-2 gap-2"><div><label class="text-[10px] text-slate-500">BG Color</label><input type="color" id="ctrl-glass-bg" value="#ffffff" class="w-full h-8 rounded"></div><div><label class="text-[10px] text-slate-500">Border</label><input type="color" id="ctrl-glass-border" value="#ffffff" class="w-full h-8 rounded"></div></div><div id="glass-preview" class="h-20 rounded-xl mt-2 flex items-center justify-center relative overflow-hidden"><div class="absolute inset-0 bg-gradient-to-br from-indigo-400 via-purple-400 to-pink-400"></div><div id="glass-preview-box" class="relative z-10 px-3 py-2 rounded-lg text-[10px] font-bold text-slate-900 border">Preview Box</div></div></div>`;
       case 'contrast-picker': return `<div class="space-y-3"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-circle-half-stroke text-indigo-600"></i> Color Pair to Test</label><div class="grid grid-cols-2 gap-2"><div><label class="text-[10px] text-slate-500">Foreground (Text)</label><div class="flex gap-1"><input type="color" id="ctrl-fg" value="#000000" class="w-10 h-8 rounded"><input type="text" id="ctrl-fg-hex" class="custom-input flex-1 text-xs font-mono" value="#000000"></div></div><div><label class="text-[10px] text-slate-500">Background</label><div class="flex gap-1"><input type="color" id="ctrl-bg" value="#ffffff" class="w-10 h-8 rounded"><input type="text" id="ctrl-bg-hex" class="custom-input flex-1 text-xs font-mono" value="#ffffff"></div></div></div><div id="wcag-result" class="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1"></div></div>`;
       case 'svgo-options': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-code text-indigo-600"></i> SVGO Optimization</label><div class="space-y-1 text-[11px]">${[['cleanupAttrs',true,'Remove attributes whitespace'],['removeMetadata',true,'Remove metadata/comments'],['removeUselessStrokeAndFill',true,'Remove unnecessary fills'],['collapseGroups',true,'Collapse useless groups'],['removeViewBox',false,'Remove viewBox (not recommended)'],['removeDimensions',true,'Remove width/height attrs']].map(([k,v,d])=>`<label class="flex items-start gap-1.5 font-bold text-slate-700 p-1.5 rounded hover:bg-slate-50 cursor-pointer"><input type="checkbox" ${v?'checked':''} class="svgo-check accent-indigo-600 mt-0.5" value="${k}"><div class="flex-1">${d}<span class="text-slate-400 font-normal block text-[10px]">${k}</span></div></label>`).join('')}</div></div>`;
-      case 'og-picker': return `<div class="space-y-2 text-xs"><div><label class="text-[10px] font-bold text-slate-500 uppercase">Site / Page Title</label><input type="text" id="ctrl-og-title" class="custom-input w-full text-xs" placeholder="My Awesome Website"></div><div><label class="text-[10px] font-bold text-slate-500 uppercase">Description</label><textarea id="ctrl-og-desc" rows="2" class="custom-input w-full text-xs" placeholder="Short description (under 200 chars)..."></textarea></div><div><label class="text-[10px] font-bold text-slate-500 uppercase">URL</label><input type="text" id="ctrl-og-url" class="custom-input w-full text-xs" placeholder="https://example.com"></div><div><label class="text-[10px] font-bold text-slate-500 uppercase">Image URL (1200×630)</label><input type="text" id="ctrl-og-img" class="custom-input w-full text-xs" placeholder="https://.../og-image.png"></div><div class="grid grid-cols-2 gap-2"><div><label class="text-[10px] font-bold text-slate-500 uppercase">Type</label><select id="ctrl-og-type" class="custom-input w-full text-xs"><option>website</option><option>article</option><option>product</option><option>profile</option></select></div><div><label class="text-[10px] font-bold text-slate-500 uppercase">Twitter Card</label><select id="ctrl-og-tw" class="custom-input w-full text-xs"><option>summary_large_image</option><option>summary</option><option>app</option></select></div></div></div>`;
+      case 'og-picker': return `<div class="space-y-2 text-xs"><div><label class="text-[10px] font-bold text-slate-500 uppercase">Site / Page Title</label><input type="text" id="ctrl-og-title" class="custom-input w-full text-xs" placeholder="My Awesome Website"></div><div><label class="text-[10px] font-bold text-slate-500 uppercase">Description</label><textarea id="ctrl-og-desc" rows="2" class="custom-input w-full text-xs" placeholder="Short description (under 200 chars)..."></textarea></div><div><label class="text-[10px] font-bold text-slate-500 uppercase">URL</label><input type="text" id="ctrl-og-url" class="custom-input w-full text-xs" placeholder="https://example.com"></div><div><label class="text-[10px] font-bold text-slate-500 uppercase">Image URL (1200Ã—630)</label><input type="text" id="ctrl-og-img" class="custom-input w-full text-xs" placeholder="https://.../og-image.png"></div><div class="grid grid-cols-2 gap-2"><div><label class="text-[10px] font-bold text-slate-500 uppercase">Type</label><select id="ctrl-og-type" class="custom-input w-full text-xs"><option>website</option><option>article</option><option>product</option><option>profile</option></select></div><div><label class="text-[10px] font-bold text-slate-500 uppercase">Twitter Card</label><select id="ctrl-og-tw" class="custom-input w-full text-xs"><option>summary_large_image</option><option>summary</option><option>app</option></select></div></div></div>`;
       case 'scale-reference': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-ruler text-indigo-600"></i> Known Dimension</label><div class="grid grid-cols-2 gap-2"><div><label class="text-[10px] text-slate-500">Measured on PDF (pts)</label><input type="number" id="ctrl-ref-pts" class="custom-input w-full text-xs" placeholder="e.g. 120"></div><div><label class="text-[10px] text-slate-500">Real Length (m)</label><input type="number" id="ctrl-ref-m" class="custom-input w-full text-xs" placeholder="e.g. 5.0" step="0.01"></div></div><select id="ctrl-unit" class="custom-input w-full text-xs mt-1"><option value="m" selected>Meters</option><option value="cm">Centimeters</option><option value="mm">Millimeters</option><option value="ft">Feet & Inches</option></select></div>`;
       case 'bates-prefix': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-gavel text-indigo-600"></i> Bates Number Format</label><div><label class="text-[10px] text-slate-500">Prefix / Matter</label><input type="text" id="ctrl-bates-prefix" class="custom-input w-full text-xs font-mono" placeholder="ABC-2026-"></div></div>`;
       case 'bates-start': return `<div class="space-y-2"><div class="grid grid-cols-2 gap-2"><div><label class="text-[10px] text-slate-500">Start Number</label><input type="number" id="ctrl-bates-start" class="custom-input w-full text-xs" value="1"></div><div><label class="text-[10px] text-slate-500">Pad Digits</label><input type="number" id="ctrl-bates-pad" class="custom-input w-full text-xs" value="6" min="3" max="10"></div></div><div><label class="text-[10px] text-slate-500">Position</label><select id="ctrl-bates-pos" class="custom-input w-full text-xs"><option value="br" selected>Bottom Right</option><option value="bl">Bottom Left</option><option value="tr">Top Right</option><option value="tl">Top Left</option></select></div></div>`;
@@ -2133,16 +2133,16 @@ document.addEventListener('DOMContentLoaded', () => {
     result.innerHTML = `
       <div class="flex justify-between items-center"><span class="font-bold">Contrast Ratio:</span><span class="font-extrabold text-lg">${ratio.toFixed(2)} : 1</span></div>
       <div class="pt-2 border-t space-y-1">
-        <div class="flex justify-between"><span>AA Normal (4.5:1)</span><span class="font-bold ${passNormal ? 'text-emerald-600' : 'text-red-500'}">${passNormal ? '✓ PASS' : '✗ FAIL'}</span></div>
-        <div class="flex justify-between"><span>AA Large Text (3:1)</span><span class="font-bold ${passLarge ? 'text-emerald-600' : 'text-red-500'}">${passLarge ? '✓ PASS' : '✗ FAIL'}</span></div>
-        <div class="flex justify-between"><span>AAA Normal (7:1)</span><span class="font-bold ${passAAA ? 'text-emerald-600' : 'text-red-500'}">${passAAA ? '✓ PASS' : '✗ FAIL'}</span></div>
+        <div class="flex justify-between"><span>AA Normal (4.5:1)</span><span class="font-bold ${passNormal ? 'text-emerald-600' : 'text-red-500'}">${passNormal ? 'âœ“ PASS' : 'âœ— FAIL'}</span></div>
+        <div class="flex justify-between"><span>AA Large Text (3:1)</span><span class="font-bold ${passLarge ? 'text-emerald-600' : 'text-red-500'}">${passLarge ? 'âœ“ PASS' : 'âœ— FAIL'}</span></div>
+        <div class="flex justify-between"><span>AAA Normal (7:1)</span><span class="font-bold ${passAAA ? 'text-emerald-600' : 'text-red-500'}">${passAAA ? 'âœ“ PASS' : 'âœ— FAIL'}</span></div>
       </div>
       <div class="flex gap-2 pt-2 border-t">
         <div class="flex-1 text-center py-2 rounded font-bold text-sm" style="background:${bg};color:${fg}">Sample Aa</div>
         <div class="flex-1 text-center py-2 rounded font-bold text-lg" style="background:${bg};color:${fg}">Large 24px</div>
       </div>`;
     if (out && preview) {
-      out.textContent = `/* WCAG Contrast Report */\nForeground: ${fg}\nBackground: ${bg}\nContrast Ratio: ${ratio.toFixed(2)}:1\n\n✓ AA Normal (4.5:1):    ${passNormal ? 'PASS' : 'FAIL'}\n✓ AA Large  (3:1):      ${passLarge ? 'PASS' : 'FAIL'}\n✓ AAA Normal (7:1):     ${passAAA ? 'PASS' : 'FAIL'}`;
+      out.textContent = `/* WCAG Contrast Report */\nForeground: ${fg}\nBackground: ${bg}\nContrast Ratio: ${ratio.toFixed(2)}:1\n\nâœ“ AA Normal (4.5:1):    ${passNormal ? 'PASS' : 'FAIL'}\nâœ“ AA Large  (3:1):      ${passLarge ? 'PASS' : 'FAIL'}\nâœ“ AAA Normal (7:1):     ${passAAA ? 'PASS' : 'FAIL'}`;
       preview.classList.remove('hidden');
     }
   }
@@ -2199,7 +2199,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isText = tool.uiType === TOOL_UI_TYPES.TEXT_INPUT;
       if (!isText && state.files.length === 0) { showToast('Please upload a file first.', 'error'); return; }
 
-      // ── Loading overlay (full workspace) ──────────────────────────────────
+      // â”€â”€ Loading overlay (full workspace) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       let overlay = document.getElementById('studio-loading-overlay');
       if (!overlay) {
         overlay = document.createElement('div');
@@ -2215,13 +2215,13 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
             </div>
             <div class="text-center">
-              <h4 class="font-extrabold text-slate-900 text-sm mb-1" id="overlay-title">Processing…</h4>
+              <h4 class="font-extrabold text-slate-900 text-sm mb-1" id="overlay-title">Processingâ€¦</h4>
               <p id="overlay-status" class="text-xs text-slate-500 min-h-[1.5rem]">Please wait, this may take a moment</p>
             </div>
             <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
               <div id="overlay-progress-bar" class="h-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300 animate-pulse" style="width: 15%"></div>
             </div>
-            <p class="text-[10px] text-slate-400 text-center">Your file never leaves your device — 100% in-browser processing</p>
+            <p class="text-[10px] text-slate-400 text-center">Your file never leaves your device â€” 100% in-browser processing</p>
           </div>`;
         document.body.appendChild(overlay);
       }
@@ -2236,11 +2236,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (overlayTitle) overlayTitle.textContent = getProcessButtonText(tool).replace(/&amp;/g, '&');
       overlay.classList.remove('hidden');
-      setOverlayProgress(15, 'Initialising…');
+      setOverlayProgress(15, 'Initialisingâ€¦');
 
-      // ── Button state ──────────────────────────────────────────────────────
+      // â”€â”€ Button state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const originalBtnHTML = btn.innerHTML;
-      btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i><span>Processing…</span>`;
+      btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i><span>Processingâ€¦</span>`;
       btn.classList.add('opacity-75', 'cursor-not-allowed');
       btn.disabled = true;
 
@@ -2255,26 +2255,26 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         let resultBlob = null, filename = `export_${Date.now()}`;
 
-        // ── 1. PDF MERGER ─────────────────────────────────────────────────
+        // â”€â”€ 1. PDF MERGER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (tool.id === 'pdf-merger') {
           if (state.files.length < 1) throw new Error('Please upload at least one PDF to merge.');
-          setOverlayProgress(20, `Merging ${state.files.length} PDF file(s)…`);
+          setOverlayProgress(20, `Merging ${state.files.length} PDF file(s)â€¦`);
           const orientation = document.getElementById('ctrl-merge-orientation')?.value || 'auto';
           const customName  = document.getElementById('ctrl-merge-filename')?.value?.trim() || 'merged_document';
           const mergedBytes = await PDFEngine.mergePDFs(state.files, { orientation });
-          setOverlayProgress(95, 'Finalising document…');
+          setOverlayProgress(95, 'Finalising documentâ€¦');
           resultBlob = new Blob([mergedBytes], { type: 'application/pdf' });
           filename   = customName.endsWith('.pdf') ? customName : `${customName}.pdf`;
           showToast('PDFs merged successfully!', 'success');
         }
-        // ── 2. PDF SPLITTER ───────────────────────────────────────────────
+        // â”€â”€ 2. PDF SPLITTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'pdf-splitter') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(20, 'Parsing page ranges…');
+          setOverlayProgress(20, 'Parsing page rangesâ€¦');
           const mode      = document.getElementById('splitter-mode-select')?.value || document.getElementById('ctrl-split-mode')?.value || 'ranges';
           const rangeStr  = document.getElementById('splitter-range-input')?.value || document.getElementById('ctrl-page-range')?.value || '1';
           const splitRes  = await PDFEngine.splitPDF(await state.files[0].arrayBuffer(), { mode, rangeStr });
-          setOverlayProgress(90, 'Packaging output…');
+          setOverlayProgress(90, 'Packaging outputâ€¦');
           if (splitRes.isZip) {
             resultBlob = splitRes.zipBlob;
             filename   = splitRes.filename || 'split_pages.zip';
@@ -2284,16 +2284,16 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           showToast('PDF split successfully!', 'success');
         }
-        // ── 3. PDF UN-MERGER ──────────────────────────────────────────────
+        // â”€â”€ 3. PDF UN-MERGER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'pdf-unmerger') {
           if (!state.files[0]) throw new Error('Please upload a merged PDF file.');
-          setOverlayProgress(20, 'Analysing document structure…');
+          setOverlayProgress(20, 'Analysing document structureâ€¦');
           if (!state.detectedSubDocs || state.detectedSubDocs.length === 0) {
             state.detectedSubDocs = await PDFEngine.unmergePDF(await state.files[0].arrayBuffer());
           }
-          setOverlayProgress(60, `Extracting ${state.detectedSubDocs.length} sub-documents…`);
+          setOverlayProgress(60, `Extracting ${state.detectedSubDocs.length} sub-documentsâ€¦`);
           const unmergeRes = await PDFEngine.exportUnmergedSubDocs(await state.files[0].arrayBuffer(), state.detectedSubDocs);
-          setOverlayProgress(95, 'Packaging archive…');
+          setOverlayProgress(95, 'Packaging archiveâ€¦');
           if (unmergeRes.isZip) {
             resultBlob = unmergeRes.zipBlob;
           } else {
@@ -2302,33 +2302,33 @@ document.addEventListener('DOMContentLoaded', () => {
           filename = unmergeRes.filename;
           showToast(`Extracted ${state.detectedSubDocs.length} sub-document(s)!`, 'success');
         }
-        // ── 4. PDF PAGE RE-ORDERER ────────────────────────────────────────
+        // â”€â”€ 4. PDF PAGE RE-ORDERER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'pdf-page-reorder') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(30, 'Reordering pages…');
+          setOverlayProgress(30, 'Reordering pagesâ€¦');
           const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
-          setOverlayProgress(95, 'Saving document…');
+          setOverlayProgress(95, 'Saving documentâ€¦');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'reordered_document.pdf';
           showToast('PDF pages reordered successfully!', 'success');
         }
-        // ── 5. PDF PAGE DELETER ───────────────────────────────────────────
+        // â”€â”€ 5. PDF PAGE DELETER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'pdf-page-deleter') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
           if (state.selectedDeletePages.size === 0) throw new Error('Select at least one page to delete.');
           if (state.selectedDeletePages.size >= state.pdfPageCards.length) throw new Error('Cannot delete all pages in the document.');
-          setOverlayProgress(30, `Removing ${state.selectedDeletePages.size} page(s)…`);
+          setOverlayProgress(30, `Removing ${state.selectedDeletePages.size} page(s)â€¦`);
           const pagesToDelete = Array.from(state.selectedDeletePages);
           const bytes = await PDFEngine.deletePages(await state.files[0].arrayBuffer(), pagesToDelete);
-          setOverlayProgress(95, 'Saving document…');
+          setOverlayProgress(95, 'Saving documentâ€¦');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'pages_deleted.pdf';
           showToast(`Deleted ${pagesToDelete.length} page(s) successfully!`, 'success');
         }
-        // ── 6. PDF CROP TOOL ──────────────────────────────────────────────
+        // â”€â”€ 6. PDF CROP TOOL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'pdf-crop-tool') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(30, 'Applying crop geometry…');
+          setOverlayProgress(30, 'Applying crop geometryâ€¦');
           const top    = parseFloat(document.getElementById('crop-input-top')?.value    || 0);
           const right  = parseFloat(document.getElementById('crop-input-right')?.value  || 0);
           const bottom = parseFloat(document.getElementById('crop-input-bottom')?.value || 0);
@@ -2341,56 +2341,56 @@ document.addEventListener('DOMContentLoaded', () => {
             { top, right, bottom, left, unit, canvasW: state.cropState?.origW || 420, canvasH: state.cropState?.origH || 594 },
             { scope, pageRange, activePageIndex: 0 }
           );
-          setOverlayProgress(95, 'Saving cropped PDF…');
+          setOverlayProgress(95, 'Saving cropped PDFâ€¦');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'cropped_document.pdf';
           showToast('Crop applied successfully!', 'success');
         }
-        // ── 7. SMART PDF COMPRESSOR ───────────────────────────────────────
+        // â”€â”€ 7. SMART PDF COMPRESSOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'pdf-compressor-smart') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
           const preset = document.getElementById('smart-compress-preset')?.value || document.getElementById('ctrl-compression-level')?.value || 'medium';
-          setOverlayProgress(10, 'Starting smart compression…');
+          setOverlayProgress(10, 'Starting smart compressionâ€¦');
           const compRes = await PDFEngine.compressPDF(await state.files[0].arrayBuffer(), preset, (pct) => {
-            setOverlayProgress(10 + pct * 0.85, `Optimising page ${Math.ceil(pct / (100 / (state.pdfPageCards.length || 1)))} — ${pct}% done…`);
+            setOverlayProgress(10 + pct * 0.85, `Optimising page ${Math.ceil(pct / (100 / (state.pdfPageCards.length || 1)))} â€” ${pct}% doneâ€¦`);
           });
-          setOverlayProgress(98, 'Finalising…');
+          setOverlayProgress(98, 'Finalisingâ€¦');
           resultBlob = new Blob([compRes.bytes], { type: 'application/pdf' });
           filename   = 'compressed_smart.pdf';
           const metEl = document.getElementById('compress-metric-result');
           if (metEl) {
             metEl.classList.remove('hidden');
-            metEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i>Compressed <b>${formatFileSize(compRes.originalSize)}</b> → <b>${formatFileSize(compRes.compressedSize)}</b> <span class="text-emerald-700 font-black">(${compRes.percentSaved}% saved)</span>`;
+            metEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i>Compressed <b>${formatFileSize(compRes.originalSize)}</b> â†’ <b>${formatFileSize(compRes.compressedSize)}</b> <span class="text-emerald-700 font-black">(${compRes.percentSaved}% saved)</span>`;
           }
           showToast(`Compressed! Saved ${compRes.percentSaved}%`, 'success');
         }
-        // ── 8. LOSSLESS PDF SHRINKER ──────────────────────────────────────
+        // â”€â”€ 8. LOSSLESS PDF SHRINKER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'lossless-pdf-shrinker') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(30, 'Stripping metadata & unreferenced objects…');
+          setOverlayProgress(30, 'Stripping metadata & unreferenced objectsâ€¦');
           const shrinkRes = await PDFEngine.shrinkPDFLossless(await state.files[0].arrayBuffer());
-          setOverlayProgress(95, 'Saving…');
+          setOverlayProgress(95, 'Savingâ€¦');
           resultBlob = new Blob([shrinkRes.bytes], { type: 'application/pdf' });
           filename   = 'lossless_shrink.pdf';
           const metEl = document.getElementById('lossless-metric-result');
           if (metEl) {
             metEl.classList.remove('hidden');
-            metEl.innerHTML = `<i class="fa-solid fa-shield-check text-teal-600 mr-2"></i>Lossless: <b>${formatFileSize(shrinkRes.originalSize)}</b> → <b>${formatFileSize(shrinkRes.compressedSize)}</b> <span class="text-emerald-700 font-black">(${shrinkRes.percentSaved}% saved — 100% fidelity)</span>`;
+            metEl.innerHTML = `<i class="fa-solid fa-shield-check text-teal-600 mr-2"></i>Lossless: <b>${formatFileSize(shrinkRes.originalSize)}</b> â†’ <b>${formatFileSize(shrinkRes.compressedSize)}</b> <span class="text-emerald-700 font-black">(${shrinkRes.percentSaved}% saved â€” 100% fidelity)</span>`;
           }
           showToast('Lossless shrink complete!', 'success');
         }
-        // ── 9. PDF TARGET SIZE SHRINKER ───────────────────────────────────
+        // â”€â”€ 9. PDF TARGET SIZE SHRINKER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'pdf-target-shrinker') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
           let targetVal = parseFloat(document.getElementById('target-size-number')?.value || document.getElementById('target-size-kb-input')?.value || document.getElementById('ctrl-target-size')?.value || 2);
           const targetUnitEl = document.getElementById('target-size-unit') || document.getElementById('ctrl-target-unit');
           const targetUnit   = targetUnitEl?.value || 'MB';
           const targetBytes  = targetUnit === 'MB' ? targetVal * 1024 * 1024 : targetVal * 1024;
-          setOverlayProgress(5, `Target: ${targetVal} ${targetUnit} — starting iterative compression…`);
+          setOverlayProgress(5, `Target: ${targetVal} ${targetUnit} â€” starting iterative compressionâ€¦`);
           const targetRes = await PDFEngine.shrinkPDFTargetSize(await state.files[0].arrayBuffer(), targetBytes, (statusStr) => {
             setOverlayProgress(30, statusStr);
           });
-          setOverlayProgress(98, 'Finalising…');
+          setOverlayProgress(98, 'Finalisingâ€¦');
           resultBlob = new Blob([targetRes.bytes], { type: 'application/pdf' });
           filename   = `shrunk_${targetVal}${targetUnit.toLowerCase()}.pdf`;
           const feedEl = document.getElementById('target-shrinker-feedback');
@@ -2398,64 +2398,64 @@ document.addEventListener('DOMContentLoaded', () => {
             feedEl.classList.remove('hidden');
             feedEl.innerHTML = targetRes.hitTarget
               ? `<div class="p-3 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 font-bold text-xs flex items-center gap-2"><i class="fa-solid fa-check-circle text-emerald-600"></i>Target met! Compressed to <b>${formatFileSize(targetRes.finalSize)}</b></div>`
-              : `<div class="p-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 font-bold text-xs flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-amber-500"></i>Best achievable: <b>${formatFileSize(targetRes.finalSize)}</b> — target could not be strictly met.</div>`;
+              : `<div class="p-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 font-bold text-xs flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-amber-500"></i>Best achievable: <b>${formatFileSize(targetRes.finalSize)}</b> â€” target could not be strictly met.</div>`;
           }
           showToast('Target compression finished!', 'success');
         }
-        // ── 10. PDF TO EXCEL (XLSX) ───────────────────────────────────────
+        // â”€â”€ 10. PDF TO EXCEL (XLSX) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'pdf-to-xlsx') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(20, 'Extracting text and table structures…');
+          setOverlayProgress(20, 'Extracting text and table structuresâ€¦');
           const xlsxRes = await PDFEngine.pdfToExcel(await state.files[0].arrayBuffer());
-          setOverlayProgress(95, 'Building workbook…');
+          setOverlayProgress(95, 'Building workbookâ€¦');
           resultBlob = xlsxRes.blob;
           filename   = xlsxRes.filename;
           showToast('Tables extracted to Excel (.xlsx)!', 'success');
         }
-        // ── 11. EXCEL (XLSX) TO PDF ───────────────────────────────────────
+        // â”€â”€ 11. EXCEL (XLSX) TO PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'xlsx-to-pdf') {
           if (!state.files[0]) throw new Error('Please upload an Excel or CSV spreadsheet.');
-          setOverlayProgress(25, 'Parsing spreadsheet…');
+          setOverlayProgress(25, 'Parsing spreadsheetâ€¦');
           const orientation = document.getElementById('xlsx-paper-orientation')?.value || document.querySelector('input[name="orientation"]:checked')?.value || 'portrait';
           const paper       = document.getElementById('xlsx-paper-size')?.value || document.getElementById('ctrl-paper-size')?.value || 'A4';
           const pdfRes = await PDFEngine.excelToPDF(state.files[0], { orientation, paperSize: paper });
-          setOverlayProgress(95, 'Rendering PDF…');
+          setOverlayProgress(95, 'Rendering PDFâ€¦');
           resultBlob = pdfRes.blob;
           filename   = pdfRes.filename;
           showToast('Spreadsheet converted to PDF!', 'success');
         }
-        // ── 12. PDF TO POWERPOINT (PPTX) ──────────────────────────────────
+        // â”€â”€ 12. PDF TO POWERPOINT (PPTX) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'pdf-to-pptx') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(5, 'Rendering PDF pages as slides…');
+          setOverlayProgress(5, 'Rendering PDF pages as slidesâ€¦');
           const pptxRes = await PDFEngine.pdfToPPTX(await state.files[0].arrayBuffer(), (msg) => {
             setOverlayProgress(10, msg);
           });
-          setOverlayProgress(98, 'Finalising presentation…');
+          setOverlayProgress(98, 'Finalising presentationâ€¦');
           resultBlob = pptxRes.blob;
           filename   = pptxRes.filename;
           showToast('PDF converted to PowerPoint (.pptx)!', 'success');
         }
-        // ── 13. POWERPOINT (PPTX) TO PDF ──────────────────────────────────
+        // â”€â”€ 13. POWERPOINT (PPTX) TO PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'pptx-to-pdf') {
           if (!state.files[0]) throw new Error('Please upload a .pptx file.');
-          setOverlayProgress(10, 'Parsing presentation slides…');
+          setOverlayProgress(10, 'Parsing presentation slidesâ€¦');
           const pdfRes = await PDFEngine.pptxToPDF(state.files[0], (msg) => {
             setOverlayProgress(30, msg);
           });
-          setOverlayProgress(98, 'Saving PDF…');
+          setOverlayProgress(98, 'Saving PDFâ€¦');
           resultBlob = pdfRes.blob;
           filename   = pdfRes.filename;
           showToast('Presentation converted to PDF!', 'success');
         }
-        // ── 14. PDF TO JPG CONVERTER ──────────────────────────────────────
+        // â”€â”€ 14. PDF TO JPG CONVERTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'pdf-to-jpg') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
           const dpi   = parseFloat(document.getElementById('pdf-jpg-dpi')?.value || document.getElementById('ctrl-dpi')?.value || '2');
           const range = document.getElementById('pdf-jpg-range')?.value || '';
-          setOverlayProgress(10, 'Rendering PDF pages as images…');
+          setOverlayProgress(10, 'Rendering PDF pages as imagesâ€¦');
           const images = await PDFEngine.pdfToImages(await state.files[0].arrayBuffer(), 'image/jpeg', dpi, range);
-          setOverlayProgress(90, images.length > 1 ? 'Packaging ZIP…' : 'Saving image…');
+          setOverlayProgress(90, images.length > 1 ? 'Packaging ZIPâ€¦' : 'Saving imageâ€¦');
           if (images.length === 1) {
             resultBlob = dataURLtoBlob(images[0].dataUrl);
             filename   = `page_${images[0].page}.jpg`;
@@ -2467,20 +2467,20 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           showToast(`Rendered ${images.length} high-res image(s)!`, 'success');
         }
-        // ── 15. JPG TO PDF CONVERTER ──────────────────────────────────────
+        // â”€â”€ 15. JPG TO PDF CONVERTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'jpg-to-pdf') {
           if (state.files.length === 0) throw new Error('Please upload one or more images.');
-          setOverlayProgress(20, `Embedding ${state.files.length} image(s) into PDF…`);
+          setOverlayProgress(20, `Embedding ${state.files.length} image(s) into PDFâ€¦`);
           const orientation = document.querySelector('input[name="orientation"]:checked')?.value || 'auto';
           const marginLevel = document.getElementById('ctrl-margin-auto')?.checked ? 'small' : 'none';
           const pageFormat  = document.getElementById('ctrl-paper-size')?.value || 'A4';
           const bytes = await PDFEngine.imagesToPDF(state.files, { orientation, marginLevel, pageFormat });
-          setOverlayProgress(95, 'Saving PDF…');
+          setOverlayProgress(95, 'Saving PDFâ€¦');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'compiled_images.pdf';
           showToast('Images compiled into PDF!', 'success');
         }
-        // ── 16. BATCH IMAGE RESIZER ───────────────────────────────────────
+        // â”€â”€ 16. BATCH IMAGE RESIZER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'batch-img-resizer') {
           if (state.files.length === 0) throw new Error('Please upload images to resize.');
           const mode      = document.getElementById('batch-resizer-mode')?.value || 'fixed';
@@ -2492,7 +2492,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const processed = await PDFEngine.batchResizeImages(state.files, { mode, width, height, lockAspect, percent, targetSizeKB: targetKB }, (cur, tot, name) => {
             setOverlayProgress(10 + (cur / tot) * 85, `Resizing ${cur}/${tot}: ${name}`);
           });
-          setOverlayProgress(98, 'Packaging results…');
+          setOverlayProgress(98, 'Packaging resultsâ€¦');
           if (processed.length === 1) {
             resultBlob = processed[0].blob;
             filename   = processed[0].name;
@@ -2504,10 +2504,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           showToast(`Resized ${processed.length} image(s)!`, 'success');
         }
-        // ── 17. LOSSLESS PNG COMPRESSOR ───────────────────────────────────
+        // â”€â”€ 17. LOSSLESS PNG COMPRESSOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'png-compressor') {
           if (!state.files[0]) throw new Error('Please upload a PNG file.');
-          setOverlayProgress(30, 'Compressing PNG losslessly…');
+          setOverlayProgress(30, 'Compressing PNG losslesslyâ€¦');
           const comp = state.pngComparison?.blob
             ? { blob: state.pngComparison.blob }
             : await PDFEngine.compressPNGLossless(state.files[0]);
@@ -2516,7 +2516,7 @@ document.addEventListener('DOMContentLoaded', () => {
           filename   = `optimised_${state.files[0].name}`;
           showToast('Lossless PNG compression complete!', 'success');
         }
-        // ── 18. WEBP IMAGE CONVERTER ──────────────────────────────────────
+        // â”€â”€ 18. WEBP IMAGE CONVERTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.id === 'webp-converter') {
           if (state.files.length === 0) throw new Error('Please upload images to convert.');
           const quality  = parseInt(document.getElementById('webp-quality-range')?.value || document.getElementById('ctrl-webp-quality')?.value || 80);
@@ -2524,7 +2524,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const webpResults = await PDFEngine.convertToWebP(state.files, quality, lossless, (cur, tot, name) => {
             setOverlayProgress(10 + (cur / tot) * 85, `Converting ${cur}/${tot}: ${name}`);
           });
-          setOverlayProgress(98, 'Packaging…');
+          setOverlayProgress(98, 'Packagingâ€¦');
           if (webpResults.length === 1) {
             resultBlob = webpResults[0].blob;
             filename   = webpResults[0].name;
@@ -2536,12 +2536,12 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           showToast(`Converted ${webpResults.length} image(s) to WebP!`, 'success');
         }
-        // ── REMAINING PLATFORM TOOLS ──────────────────────────────────────
+        // â”€â”€ REMAINING PLATFORM TOOLS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else if (tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR) {
           const useCustom = document.getElementById('quiz-enable-custom-text')?.checked;
           const customText = useCustom ? (document.getElementById('quiz-extracted-text')?.value || '') : state.extractedText;
           if (!customText?.trim()) { showToast('Please upload content or paste text first.', 'error'); return; }
-          setOverlayProgress(30, 'Generating quiz questions…');
+          setOverlayProgress(30, 'Generating quiz questionsâ€¦');
           const lang  = document.getElementById('ctrl-quiz-language')?.value || 'en';
           const qType = document.getElementById('ctrl-quiz-type')?.value || 'mcq';
           const count = parseInt(document.getElementById('ctrl-question-count')?.value || '10');
@@ -2553,7 +2553,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast(`Generated ${state.quizData.length} quiz questions!`, 'success');
         }
         else if (tool.uiType === TOOL_UI_TYPES.OCR_TRANSLATE) {
-          setOverlayProgress(40, 'Generating AI output…');
+          setOverlayProgress(40, 'Generating AI outputâ€¦');
           const summary  = generateAISummary(state.extractedText, tool.id);
           const aiArea   = document.getElementById('ai-result-area');
           const aiContent = document.getElementById('ai-result-content');
@@ -2563,7 +2563,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast('AI processing complete!', 'success');
         }
         else if (tool.id === 'bleed-crop-generator' && window.DesignPrepressEngine && state.files[0]) {
-          setOverlayProgress(30, 'Applying bleed & crop marks…');
+          setOverlayProgress(30, 'Applying bleed & crop marksâ€¦');
           const bytes = await DesignPrepressEngine.addBleedAndTrimMarks(await state.files[0].arrayBuffer());
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'print_ready_bleed.pdf';
@@ -2571,14 +2571,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         else if (tool.uiType === TOOL_UI_TYPES.CONVERTER_SIMPLE || isConversionTool(tool.id)) {
           if (!state.files[0] && tool.uiType !== TOOL_UI_TYPES.TEXT_INPUT) throw new Error('Please upload a file first.');
-          setOverlayProgress(30, 'Converting…');
+          setOverlayProgress(30, 'Convertingâ€¦');
           const res = await processFileConversion(tool, state.files[0]);
           resultBlob = res.blob;
           filename   = res.filename;
           showToast(`Converted ${filename} successfully!`, 'success');
         }
         else if (state.files[0]?.type?.includes('pdf') && state.pdfPageCards.length > 0) {
-          setOverlayProgress(40, 'Compiling organised PDF…');
+          setOverlayProgress(40, 'Compiling organised PDFâ€¦');
           const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'rearranged_organized.pdf';
@@ -2590,7 +2590,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast('File processed successfully!', 'success');
         }
 
-        setOverlayProgress(100, 'Done! Preparing download…');
+        setOverlayProgress(100, 'Done! Preparing downloadâ€¦');
         await new Promise(r => setTimeout(r, 400));
 
         if (resultBlob) {
@@ -2830,14 +2830,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const QUIZ_I18N = {
     en: { q: 'Question', ans: 'Correct Answer', exp: 'Explanation', difficulty: 'Difficulty', select: 'Select your answer', trueFalseTrue: 'True', trueFalseFalse: 'False', fillBlank: 'Fill in the blank by replacing the highlighted word.', shortAnswer: 'Write your answer in the space provided.', flashcardQ: 'Question', flashcardA: 'Answer' },
-    ar: { q: 'السؤال', ans: 'الإجابة الصحيحة', exp: 'الشرح والتوضيح', difficulty: 'الصعوبة', select: 'اختر إجابتك المناسبة', trueFalseTrue: 'صحيح', trueFalseFalse: 'خطأ', fillBlank: 'املأ الفراغ بالكلمة المناسبة.', shortAnswer: 'اكتب إجابتك في المكان المخصص.', flashcardQ: 'السؤال', flashcardA: 'الإجابة' },
-    es: { q: 'Pregunta', ans: 'Respuesta Correcta', exp: 'Explicación', difficulty: 'Dificultad', select: 'Selecciona tu respuesta', trueFalseTrue: 'Verdadero', trueFalseFalse: 'Falso', fillBlank: 'Rellena el espacio en blanco.', shortAnswer: 'Escribe tu respuesta.', flashcardQ: 'Pregunta', flashcardA: 'Respuesta' },
-    fr: { q: 'Question', ans: 'Bonne Réponse', exp: 'Explication', difficulty: 'Difficulté', select: 'Sélectionnez votre réponse', trueFalseTrue: 'Vrai', trueFalseFalse: 'Faux', fillBlank: 'Remplissez le blanc.', shortAnswer: 'Écrivez votre réponse.', flashcardQ: 'Question', flashcardA: 'Réponse' },
-    de: { q: 'Frage', ans: 'Richtige Antwort', exp: 'Erklärung', difficulty: 'Schwierigkeit', select: 'Wählen Sie Ihre Antwort', trueFalseTrue: 'Wahr', trueFalseFalse: 'Falsch', fillBlank: 'Füllen Sie die Lücke.', shortAnswer: 'Schreiben Sie Ihre Antwort.', flashcardQ: 'Frage', flashcardA: 'Antwort' },
-    hi: { q: 'प्रश्न', ans: 'सही उत्तर', exp: 'व्याख्या', difficulty: 'कठिनाई', select: 'अपना उत्तर चुनें', trueFalseTrue: 'सत्य', trueFalseFalse: 'असत्य', fillBlank: 'रिक्त स्थान भरें।', shortAnswer: 'अपना उत्तर लिखें।', flashcardQ: 'प्रश्न', flashcardA: 'उत्तर' },
-    zh: { q: '问题', ans: '正确答案', exp: '解析', difficulty: '难度', select: '请选择您的答案', trueFalseTrue: '正确', trueFalseFalse: '错误', fillBlank: '请在空白处填入正确的词语。', shortAnswer: '请在下方填写您的答案。', flashcardQ: '问题', flashcardA: '答案' },
-    ja: { q: '質問', ans: '正解', exp: '解説', difficulty: '難易度', select: '回答を選択してください', trueFalseTrue: '正しい', trueFalseFalse: '誤り', fillBlank: '空欄に適切な単語を入力してください。', shortAnswer: '回答を入力してください。', flashcardQ: '質問', flashcardA: '回答' },
-    ru: { q: 'Вопрос', ans: 'Правильный ответ', exp: 'Пояснение', difficulty: 'Сложность', select: 'Выберите ваш ответ', trueFalseTrue: 'Верно', trueFalseFalse: 'Неверно', fillBlank: 'Заполните пропуск нужным словом.', shortAnswer: 'Напишите ваш ответ.', flashcardQ: 'Вопрос', flashcardA: 'Ответ' }
+    ar: { q: 'Ø§Ù„Ø³Ø¤Ø§Ù„', ans: 'Ø§Ù„Ø¥Ø¬Ø§Ø¨Ø© Ø§Ù„ØµØ­ÙŠØ­Ø©', exp: 'Ø§Ù„Ø´Ø±Ø­ ÙˆØ§Ù„ØªÙˆØ¶ÙŠØ­', difficulty: 'Ø§Ù„ØµØ¹ÙˆØ¨Ø©', select: 'Ø§Ø®ØªØ± Ø¥Ø¬Ø§Ø¨ØªÙƒ Ø§Ù„Ù…Ù†Ø§Ø³Ø¨Ø©', trueFalseTrue: 'ØµØ­ÙŠØ­', trueFalseFalse: 'Ø®Ø·Ø£', fillBlank: 'Ø§Ù…Ù„Ø£ Ø§Ù„ÙØ±Ø§Øº Ø¨Ø§Ù„ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ù†Ø§Ø³Ø¨Ø©.', shortAnswer: 'Ø§ÙƒØªØ¨ Ø¥Ø¬Ø§Ø¨ØªÙƒ ÙÙŠ Ø§Ù„Ù…ÙƒØ§Ù† Ø§Ù„Ù…Ø®ØµØµ.', flashcardQ: 'Ø§Ù„Ø³Ø¤Ø§Ù„', flashcardA: 'Ø§Ù„Ø¥Ø¬Ø§Ø¨Ø©' },
+    es: { q: 'Pregunta', ans: 'Respuesta Correcta', exp: 'ExplicaciÃ³n', difficulty: 'Dificultad', select: 'Selecciona tu respuesta', trueFalseTrue: 'Verdadero', trueFalseFalse: 'Falso', fillBlank: 'Rellena el espacio en blanco.', shortAnswer: 'Escribe tu respuesta.', flashcardQ: 'Pregunta', flashcardA: 'Respuesta' },
+    fr: { q: 'Question', ans: 'Bonne RÃ©ponse', exp: 'Explication', difficulty: 'DifficultÃ©', select: 'SÃ©lectionnez votre rÃ©ponse', trueFalseTrue: 'Vrai', trueFalseFalse: 'Faux', fillBlank: 'Remplissez le blanc.', shortAnswer: 'Ã‰crivez votre rÃ©ponse.', flashcardQ: 'Question', flashcardA: 'RÃ©ponse' },
+    de: { q: 'Frage', ans: 'Richtige Antwort', exp: 'ErklÃ¤rung', difficulty: 'Schwierigkeit', select: 'WÃ¤hlen Sie Ihre Antwort', trueFalseTrue: 'Wahr', trueFalseFalse: 'Falsch', fillBlank: 'FÃ¼llen Sie die LÃ¼cke.', shortAnswer: 'Schreiben Sie Ihre Antwort.', flashcardQ: 'Frage', flashcardA: 'Antwort' },
+    hi: { q: 'à¤ªà¥à¤°à¤¶à¥à¤¨', ans: 'à¤¸à¤¹à¥€ à¤‰à¤¤à¥à¤¤à¤°', exp: 'à¤µà¥à¤¯à¤¾à¤–à¥à¤¯à¤¾', difficulty: 'à¤•à¤ à¤¿à¤¨à¤¾à¤ˆ', select: 'à¤…à¤ªà¤¨à¤¾ à¤‰à¤¤à¥à¤¤à¤° à¤šà¥à¤¨à¥‡à¤‚', trueFalseTrue: 'à¤¸à¤¤à¥à¤¯', trueFalseFalse: 'à¤…à¤¸à¤¤à¥à¤¯', fillBlank: 'à¤°à¤¿à¤•à¥à¤¤ à¤¸à¥à¤¥à¤¾à¤¨ à¤­à¤°à¥‡à¤‚à¥¤', shortAnswer: 'à¤…à¤ªà¤¨à¤¾ à¤‰à¤¤à¥à¤¤à¤° à¤²à¤¿à¤–à¥‡à¤‚à¥¤', flashcardQ: 'à¤ªà¥à¤°à¤¶à¥à¤¨', flashcardA: 'à¤‰à¤¤à¥à¤¤à¤°' },
+    zh: { q: 'é—®é¢˜', ans: 'æ­£ç¡®ç­”æ¡ˆ', exp: 'è§£æž', difficulty: 'éš¾åº¦', select: 'è¯·é€‰æ‹©æ‚¨çš„ç­”æ¡ˆ', trueFalseTrue: 'æ­£ç¡®', trueFalseFalse: 'é”™è¯¯', fillBlank: 'è¯·åœ¨ç©ºç™½å¤„å¡«å…¥æ­£ç¡®çš„è¯è¯­ã€‚', shortAnswer: 'è¯·åœ¨ä¸‹æ–¹å¡«å†™æ‚¨çš„ç­”æ¡ˆã€‚', flashcardQ: 'é—®é¢˜', flashcardA: 'ç­”æ¡ˆ' },
+    ja: { q: 'è³ªå•', ans: 'æ­£è§£', exp: 'è§£èª¬', difficulty: 'é›£æ˜“åº¦', select: 'å›žç­”ã‚’é¸æŠžã—ã¦ãã ã•ã„', trueFalseTrue: 'æ­£ã—ã„', trueFalseFalse: 'èª¤ã‚Š', fillBlank: 'ç©ºæ¬„ã«é©åˆ‡ãªå˜èªžã‚’å…¥åŠ›ã—ã¦ãã ã•ã„ã€‚', shortAnswer: 'å›žç­”ã‚’å…¥åŠ›ã—ã¦ãã ã•ã„ã€‚', flashcardQ: 'è³ªå•', flashcardA: 'å›žç­”' },
+    ru: { q: 'Ð’Ð¾Ð¿Ñ€Ð¾Ñ', ans: 'ÐŸÑ€Ð°Ð²Ð¸Ð»ÑŒÐ½Ñ‹Ð¹ Ð¾Ñ‚Ð²ÐµÑ‚', exp: 'ÐŸÐ¾ÑÑÐ½ÐµÐ½Ð¸Ðµ', difficulty: 'Ð¡Ð»Ð¾Ð¶Ð½Ð¾ÑÑ‚ÑŒ', select: 'Ð’Ñ‹Ð±ÐµÑ€Ð¸Ñ‚Ðµ Ð²Ð°Ñˆ Ð¾Ñ‚Ð²ÐµÑ‚', trueFalseTrue: 'Ð’ÐµÑ€Ð½Ð¾', trueFalseFalse: 'ÐÐµÐ²ÐµÑ€Ð½Ð¾', fillBlank: 'Ð—Ð°Ð¿Ð¾Ð»Ð½Ð¸Ñ‚Ðµ Ð¿Ñ€Ð¾Ð¿ÑƒÑÐº Ð½ÑƒÐ¶Ð½Ñ‹Ð¼ ÑÐ»Ð¾Ð²Ð¾Ð¼.', shortAnswer: 'ÐÐ°Ð¿Ð¸ÑˆÐ¸Ñ‚Ðµ Ð²Ð°Ñˆ Ð¾Ñ‚Ð²ÐµÑ‚.', flashcardQ: 'Ð’Ð¾Ð¿Ñ€Ð¾Ñ', flashcardA: 'ÐžÑ‚Ð²ÐµÑ‚' }
   };
   QUIZ_I18N.ko = QUIZ_I18N.pt = QUIZ_I18N.it = QUIZ_I18N.tr = QUIZ_I18N.nl = QUIZ_I18N.pl = QUIZ_I18N.vi = QUIZ_I18N.th = QUIZ_I18N.id = QUIZ_I18N.ms = QUIZ_I18N.fil = QUIZ_I18N.fa = QUIZ_I18N.he = QUIZ_I18N.bn = QUIZ_I18N.ur = QUIZ_I18N.ta = QUIZ_I18N.te = QUIZ_I18N.ml = QUIZ_I18N.mr = QUIZ_I18N.gu = QUIZ_I18N.pa = QUIZ_I18N.en;
 
@@ -2845,7 +2845,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!text) return '';
     let s = text;
     s = s.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '');
-    s = s.replace(/(?:Â|Ã|ä|â|ï|¿|½|â|â|â)/g, ' ');
+    s = s.replace(/(?:Ã‚|Ãƒ|Ã¤|Ã¢|Ã¯|Â¿|Â½|Ã¢Â€Â”|Ã¢Â€|Ã¢Â€Â“)/g, ' ');
     s = s.replace(/(?<=^|\s)[b-hjk-zB-HJK-Z](?=\s|$)/g, ' ');
     s = s.replace(/\s+/g, ' ').trim();
     return s;
@@ -2854,7 +2854,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function extractCleanSentencesByLanguage(rawText, targetLang) {
     const cleanedDoc = cleanDocumentContentForQuiz(rawText);
     const sanitized = cleanGarbageFromText(cleanedDoc);
-    const rawSentences = sanitized.replace(/\r/g, '').split(/(?<=[.!?؟।\n])\s+/);
+    const rawSentences = sanitized.replace(/\r/g, '').split(/(?<=[.!?ØŸà¥¤\n])\s+/);
 
     const validSentences = [];
 
@@ -2863,17 +2863,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (line.length < 12) return;
 
       if (targetLang === 'ar') {
-        const arabicPart = line.replace(/[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s\d,،.؟!]/g, ' ').replace(/\s+/g, ' ').trim();
+        const arabicPart = line.replace(/[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s\d,ØŒ.ØŸ!]/g, ' ').replace(/\s+/g, ' ').trim();
         if (arabicPart.length >= 12 && arabicPart.split(/\s+/).length >= 2) {
           validSentences.push(arabicPart);
         }
       } else if (targetLang === 'hi') {
-        const devPart = line.replace(/[^\u0900-\u097F\s\d,।?!]/g, ' ').replace(/\s+/g, ' ').trim();
+        const devPart = line.replace(/[^\u0900-\u097F\s\d,à¥¤?!]/g, ' ').replace(/\s+/g, ' ').trim();
         if (devPart.length >= 12 && devPart.split(/\s+/).length >= 2) {
           validSentences.push(devPart);
         }
       } else if (targetLang === 'bn') {
-        const bnPart = line.replace(/[^\u0980-\u09FF\s\d,।?!]/g, ' ').replace(/\s+/g, ' ').trim();
+        const bnPart = line.replace(/[^\u0980-\u09FF\s\d,à¥¤?!]/g, ' ').replace(/\s+/g, ' ').trim();
         if (bnPart.length >= 12) validSentences.push(bnPart);
       } else if (targetLang === 'zh' || targetLang === 'ja' || targetLang === 'ko') {
         const cjkPart = line.replace(/[^\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af\s\d,.?!]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -2900,46 +2900,46 @@ document.addEventListener('DOMContentLoaded', () => {
   function getFallbackSentencesForLanguage(lang) {
     const fallbacks = {
       ar: [
-        "يتناول المحتوى أهم المفاهيم والمعلومات الأساسية الجوهرية.",
-        "تساعد المراجعة المستمرة على ترسيخ الفهم واكتساب المهارات.",
-        "تستخدم الأنظمة الحديثة تقنيات متطورة لتحسين الأداء والكفاءة.",
-        "يساهم التحليل التقييمي في اتخاذ القرارات السليمة والصائبة.",
-        "تعتبر المعرفة والبحث العملي ركيزة أساسية للتقدم والابتكار."
+        "ÙŠØªÙ†Ø§ÙˆÙ„ Ø§Ù„Ù…Ø­ØªÙˆÙ‰ Ø£Ù‡Ù… Ø§Ù„Ù…ÙØ§Ù‡ÙŠÙ… ÙˆØ§Ù„Ù…Ø¹Ù„ÙˆÙ…Ø§Øª Ø§Ù„Ø£Ø³Ø§Ø³ÙŠØ© Ø§Ù„Ø¬ÙˆÙ‡Ø±ÙŠØ©.",
+        "ØªØ³Ø§Ø¹Ø¯ Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø© Ø§Ù„Ù…Ø³ØªÙ…Ø±Ø© Ø¹Ù„Ù‰ ØªØ±Ø³ÙŠØ® Ø§Ù„ÙÙ‡Ù… ÙˆØ§ÙƒØªØ³Ø§Ø¨ Ø§Ù„Ù…Ù‡Ø§Ø±Ø§Øª.",
+        "ØªØ³ØªØ®Ø¯Ù… Ø§Ù„Ø£Ù†Ø¸Ù…Ø© Ø§Ù„Ø­Ø¯ÙŠØ«Ø© ØªÙ‚Ù†ÙŠØ§Øª Ù…ØªØ·ÙˆØ±Ø© Ù„ØªØ­Ø³ÙŠÙ† Ø§Ù„Ø£Ø¯Ø§Ø¡ ÙˆØ§Ù„ÙƒÙØ§Ø¡Ø©.",
+        "ÙŠØ³Ø§Ù‡Ù… Ø§Ù„ØªØ­Ù„ÙŠÙ„ Ø§Ù„ØªÙ‚ÙŠÙŠÙ…ÙŠ ÙÙŠ Ø§ØªØ®Ø§Ø° Ø§Ù„Ù‚Ø±Ø§Ø±Ø§Øª Ø§Ù„Ø³Ù„ÙŠÙ…Ø© ÙˆØ§Ù„ØµØ§Ø¦Ø¨Ø©.",
+        "ØªØ¹ØªØ¨Ø± Ø§Ù„Ù…Ø¹Ø±ÙØ© ÙˆØ§Ù„Ø¨Ø­Ø« Ø§Ù„Ø¹Ù…Ù„ÙŠ Ø±ÙƒÙŠØ²Ø© Ø£Ø³Ø§Ø³ÙŠØ© Ù„Ù„ØªÙ‚Ø¯Ù… ÙˆØ§Ù„Ø§Ø¨ØªÙƒØ§Ø±."
       ],
       es: [
         "El documento analiza conceptos fundamentales y datos esenciales.",
-        "La revisión continua ayuda a consolidar la comprensión y adquirir habilidades.",
-        "Los sistemas modernos utilizan tecnologías avanzadas para mejorar la eficiencia.",
-        "El análisis evaluativo contribuye a tomar decisiones acertadas.",
-        "El conocimiento y la investigación son pilares fundamentales para la innovación."
+        "La revisiÃ³n continua ayuda a consolidar la comprensiÃ³n y adquirir habilidades.",
+        "Los sistemas modernos utilizan tecnologÃ­as avanzadas para mejorar la eficiencia.",
+        "El anÃ¡lisis evaluativo contribuye a tomar decisiones acertadas.",
+        "El conocimiento y la investigaciÃ³n son pilares fundamentales para la innovaciÃ³n."
       ],
       fr: [
         "Le document traite des concepts fondamentaux et des informations essentielles.",
-        "L'examen continu aide à consolider la compréhension et à acquérir des compétences.",
-        "Les systèmes modernes utilisent des technologies avancées pour améliorer l'efficacité.",
-        "L'analyse d'évaluation contribue à la prise de décisions éclairées.",
+        "L'examen continu aide Ã  consolider la comprÃ©hension et Ã  acquÃ©rir des compÃ©tences.",
+        "Les systÃ¨mes modernes utilisent des technologies avancÃ©es pour amÃ©liorer l'efficacitÃ©.",
+        "L'analyse d'Ã©valuation contribue Ã  la prise de dÃ©cisions Ã©clairÃ©es.",
         "La connaissance et la recherche sont des piliers essentiels de l'innovation."
       ],
       de: [
         "Das Dokument behandelt grundlegende Konzepte und wesentliche Informationen.",
-        "Die kontinuierliche Überprüfung hilft, das Verständnis zu festigen.",
+        "Die kontinuierliche ÃœberprÃ¼fung hilft, das VerstÃ¤ndnis zu festigen.",
         "Moderne Systeme nutzen fortschrittliche Technologien zur Effizienzsteigerung.",
-        "Die Evaluierungsanalyse trägt zu fundierten Entscheidungen bei.",
-        "Wissen und Forschung sind wesentliche Säulen für Innovation."
+        "Die Evaluierungsanalyse trÃ¤gt zu fundierten Entscheidungen bei.",
+        "Wissen und Forschung sind wesentliche SÃ¤ulen fÃ¼r Innovation."
       ],
       hi: [
-        "यह दस्तावेज महत्वपूर्ण अवधारणाओं और आवश्यक जानकारी का विश्लेषण करता है।",
-        "निरंतर समीक्षा समझ को मजबूत करने और कौशल प्राप्त करने में मदद करती है।",
-        "आधुनिक प्रणालियाँ दक्षता में सुधार के लिए उन्नत तकनीकों का उपयोग करती हैं।",
-        "मूल्यांकन विश्लेषण सही निर्णय लेने में योगदान देता है।",
-        "ज्ञान और अनुसंधान नवाचार के लिए आवश्यक आधार हैं।"
+        "à¤¯à¤¹ à¤¦à¤¸à¥à¤¤à¤¾à¤µà¥‡à¤œ à¤®à¤¹à¤¤à¥à¤µà¤ªà¥‚à¤°à¥à¤£ à¤…à¤µà¤§à¤¾à¤°à¤£à¤¾à¤“à¤‚ à¤”à¤° à¤†à¤µà¤¶à¥à¤¯à¤• à¤œà¤¾à¤¨à¤•à¤¾à¤°à¥€ à¤•à¤¾ à¤µà¤¿à¤¶à¥à¤²à¥‡à¤·à¤£ à¤•à¤°à¤¤à¤¾ à¤¹à¥ˆà¥¤",
+        "à¤¨à¤¿à¤°à¤‚à¤¤à¤° à¤¸à¤®à¥€à¤•à¥à¤·à¤¾ à¤¸à¤®à¤ à¤•à¥‹ à¤®à¤œà¤¬à¥‚à¤¤ à¤•à¤°à¤¨à¥‡ à¤”à¤° à¤•à¥Œà¤¶à¤² à¤ªà¥à¤°à¤¾à¤ªà¥à¤¤ à¤•à¤°à¤¨à¥‡ à¤®à¥‡à¤‚ à¤®à¤¦à¤¦ à¤•à¤°à¤¤à¥€ à¤¹à¥ˆà¥¤",
+        "à¤†à¤§à¥à¤¨à¤¿à¤• à¤ªà¥à¤°à¤£à¤¾à¤²à¤¿à¤¯à¤¾à¤ à¤¦à¤•à¥à¤·à¤¤à¤¾ à¤®à¥‡à¤‚ à¤¸à¥à¤§à¤¾à¤° à¤•à¥‡ à¤²à¤¿à¤ à¤‰à¤¨à¥à¤¨à¤¤ à¤¤à¤•à¤¨à¥€à¤•à¥‹à¤‚ à¤•à¤¾ à¤‰à¤ªà¤¯à¥‹à¤— à¤•à¤°à¤¤à¥€ à¤¹à¥ˆà¤‚à¥¤",
+        "à¤®à¥‚à¤²à¥à¤¯à¤¾à¤‚à¤•à¤¨ à¤µà¤¿à¤¶à¥à¤²à¥‡à¤·à¤£ à¤¸à¤¹à¥€ à¤¨à¤¿à¤°à¥à¤£à¤¯ à¤²à¥‡à¤¨à¥‡ à¤®à¥‡à¤‚ à¤¯à¥‹à¤—à¤¦à¤¾à¤¨ à¤¦à¥‡à¤¤à¤¾ à¤¹à¥ˆà¥¤",
+        "à¤œà¥à¤žà¤¾à¤¨ à¤”à¤° à¤…à¤¨à¥à¤¸à¤‚à¤§à¤¾à¤¨ à¤¨à¤µà¤¾à¤šà¤¾à¤° à¤•à¥‡ à¤²à¤¿à¤ à¤†à¤µà¤¶à¥à¤¯à¤• à¤†à¤§à¤¾à¤° à¤¹à¥ˆà¤‚à¥¤"
       ],
       zh: [
-        "该文档分析了核心概念和重要信息。",
-        "持续的复习有助于巩固理解并获得技能。",
-        "现代系统利用先进技术提高效率。",
-        "评估分析有助于做出明智的决策。",
-        "知识与研究是创新的基本支柱。"
+        "è¯¥æ–‡æ¡£åˆ†æžäº†æ ¸å¿ƒæ¦‚å¿µå’Œé‡è¦ä¿¡æ¯ã€‚",
+        "æŒç»­çš„å¤ä¹ æœ‰åŠ©äºŽå·©å›ºç†è§£å¹¶èŽ·å¾—æŠ€èƒ½ã€‚",
+        "çŽ°ä»£ç³»ç»Ÿåˆ©ç”¨å…ˆè¿›æŠ€æœ¯æé«˜æ•ˆçŽ‡ã€‚",
+        "è¯„ä¼°åˆ†æžæœ‰åŠ©äºŽåšå‡ºæ˜Žæ™ºçš„å†³ç­–ã€‚",
+        "çŸ¥è¯†ä¸Žç ”ç©¶æ˜¯åˆ›æ–°çš„åŸºæœ¬æ”¯æŸ±ã€‚"
       ]
     };
     return fallbacks[lang] || [
@@ -2961,10 +2961,10 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (lang === 'zh' || lang === 'ja' || lang === 'ko') {
       words = str.match(/[\u4e00-\u9fa5]{2,}/g) || [];
     } else {
-      words = str.toLowerCase().match(/[a-zà-ÿ]{4,}/gi) || [];
+      words = str.toLowerCase().match(/[a-zÃ -Ã¿]{4,}/gi) || [];
     }
 
-    const stopAr = new Set(['في', 'من', 'على', 'إلى', 'عن', 'مع', 'هذا', 'هذه', 'تم', 'كان', 'يكون', 'أن', 'إن', 'التي', 'الذي', 'الذين', 'ما', 'لا', 'أو', 'و']);
+    const stopAr = new Set(['ÙÙŠ', 'Ù…Ù†', 'Ø¹Ù„Ù‰', 'Ø¥Ù„Ù‰', 'Ø¹Ù†', 'Ù…Ø¹', 'Ù‡Ø°Ø§', 'Ù‡Ø°Ù‡', 'ØªÙ…', 'ÙƒØ§Ù†', 'ÙŠÙƒÙˆÙ†', 'Ø£Ù†', 'Ø¥Ù†', 'Ø§Ù„ØªÙŠ', 'Ø§Ù„Ø°ÙŠ', 'Ø§Ù„Ø°ÙŠÙ†', 'Ù…Ø§', 'Ù„Ø§', 'Ø£Ùˆ', 'Ùˆ']);
     const stopEn = new Set(['the','and','that','this','with','from','they','will','would','there','their','what','about','which','when','make','like','time','just','know','take','into','year','your','good','some','could','them','see','other','than','then','now','look','only','come','its','over','think','also','back','after','use','two','how','our','work','first','well','way','even','new','want','because','any','these','give','day','most','us']);
 
     const freq = {};
@@ -2981,12 +2981,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function getFallbackKeywordsForLanguage(lang) {
     const kwMap = {
-      ar: ['المعرفة', 'التحليل', 'الابتكار', 'الأداء', 'الأنظمة', 'التطوير', 'البحث', 'الكفاءة', 'التقييم', 'المهارات'],
-      es: ['Conocimiento', 'Análisis', 'Innovación', 'Rendimiento', 'Sistemas', 'Desarrollo', 'Investigación', 'Eficiencia', 'Evaluación', 'Habilidades'],
-      fr: ['Connaissance', 'Analyse', 'Innovation', 'Performance', 'Systèmes', 'Développement', 'Recherche', 'Efficacité', 'Évaluation', 'Compétences'],
-      de: ['Wissen', 'Analyse', 'Innovation', 'Leistung', 'Systeme', 'Entwicklung', 'Forschung', 'Effizienz', 'Bewertung', 'Fähigkeiten'],
-      hi: ['ज्ञान', 'विश्लेषण', 'नवाचार', 'प्रदर्शन', 'प्रणाली', 'विकास', 'अनुसंधान', 'दक्षता', 'मूल्यांकन', 'कौशल'],
-      zh: ['知识', '分析', '创新', '性能', '系统', '发展', '研究', '效率', '评估', '技能']
+      ar: ['Ø§Ù„Ù…Ø¹Ø±ÙØ©', 'Ø§Ù„ØªØ­Ù„ÙŠÙ„', 'Ø§Ù„Ø§Ø¨ØªÙƒØ§Ø±', 'Ø§Ù„Ø£Ø¯Ø§Ø¡', 'Ø§Ù„Ø£Ù†Ø¸Ù…Ø©', 'Ø§Ù„ØªØ·ÙˆÙŠØ±', 'Ø§Ù„Ø¨Ø­Ø«', 'Ø§Ù„ÙƒÙØ§Ø¡Ø©', 'Ø§Ù„ØªÙ‚ÙŠÙŠÙ…', 'Ø§Ù„Ù…Ù‡Ø§Ø±Ø§Øª'],
+      es: ['Conocimiento', 'AnÃ¡lisis', 'InnovaciÃ³n', 'Rendimiento', 'Sistemas', 'Desarrollo', 'InvestigaciÃ³n', 'Eficiencia', 'EvaluaciÃ³n', 'Habilidades'],
+      fr: ['Connaissance', 'Analyse', 'Innovation', 'Performance', 'SystÃ¨mes', 'DÃ©veloppement', 'Recherche', 'EfficacitÃ©', 'Ã‰valuation', 'CompÃ©tences'],
+      de: ['Wissen', 'Analyse', 'Innovation', 'Leistung', 'Systeme', 'Entwicklung', 'Forschung', 'Effizienz', 'Bewertung', 'FÃ¤higkeiten'],
+      hi: ['à¤œà¥à¤žà¤¾à¤¨', 'à¤µà¤¿à¤¶à¥à¤²à¥‡à¤·à¤£', 'à¤¨à¤µà¤¾à¤šà¤¾à¤°', 'à¤ªà¥à¤°à¤¦à¤°à¥à¤¶à¤¨', 'à¤ªà¥à¤°à¤£à¤¾à¤²à¥€', 'à¤µà¤¿à¤•à¤¾à¤¸', 'à¤…à¤¨à¥à¤¸à¤‚à¤§à¤¾à¤¨', 'à¤¦à¤•à¥à¤·à¤¤à¤¾', 'à¤®à¥‚à¤²à¥à¤¯à¤¾à¤‚à¤•à¤¨', 'à¤•à¥Œà¤¶à¤²'],
+      zh: ['çŸ¥è¯†', 'åˆ†æž', 'åˆ›æ–°', 'æ€§èƒ½', 'ç³»ç»Ÿ', 'å‘å±•', 'ç ”ç©¶', 'æ•ˆçŽ‡', 'è¯„ä¼°', 'æŠ€èƒ½']
     };
     return kwMap[lang] || ['Knowledge', 'Analysis', 'Innovation', 'Performance', 'Systems', 'Development', 'Research', 'Efficiency', 'Evaluation', 'Skills'];
   }
@@ -2997,12 +2997,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const distractors = shuffled.slice(0, n);
 
     const fallbacks = {
-      ar: ['التحليل', 'الأداء', 'الكفاءة', 'الابتكار', 'الأنظمة'],
-      es: ['Análisis', 'Rendimiento', 'Eficiencia', 'Innovación', 'Sistemas'],
-      fr: ['Analyse', 'Performance', 'Efficacité', 'Innovation', 'Systèmes'],
+      ar: ['Ø§Ù„ØªØ­Ù„ÙŠÙ„', 'Ø§Ù„Ø£Ø¯Ø§Ø¡', 'Ø§Ù„ÙƒÙØ§Ø¡Ø©', 'Ø§Ù„Ø§Ø¨ØªÙƒØ§Ø±', 'Ø§Ù„Ø£Ù†Ø¸Ù…Ø©'],
+      es: ['AnÃ¡lisis', 'Rendimiento', 'Eficiencia', 'InnovaciÃ³n', 'Sistemas'],
+      fr: ['Analyse', 'Performance', 'EfficacitÃ©', 'Innovation', 'SystÃ¨mes'],
       de: ['Analyse', 'Leistung', 'Effizienz', 'Innovation', 'Systeme'],
-      hi: ['विश्लेषण', 'प्रदर्शन', 'दक्षता', 'नवाचार', 'प्रणाली'],
-      zh: ['分析', '性能', '效率', '创新', '系统']
+      hi: ['à¤µà¤¿à¤¶à¥à¤²à¥‡à¤·à¤£', 'à¤ªà¥à¤°à¤¦à¤°à¥à¤¶à¤¨', 'à¤¦à¤•à¥à¤·à¤¤à¤¾', 'à¤¨à¤µà¤¾à¤šà¤¾à¤°', 'à¤ªà¥à¤°à¤£à¤¾à¤²à¥€'],
+      zh: ['åˆ†æž', 'æ€§èƒ½', 'æ•ˆçŽ‡', 'åˆ›æ–°', 'ç³»ç»Ÿ']
     };
     const defaultPool = fallbacks[lang] || ['Analysis', 'Performance', 'Efficiency', 'Innovation', 'Systems'];
 
@@ -3029,8 +3029,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (/^(chapter|section|part|unit|lesson|module|appendix|annexure)\s*\d*[:.\-\s].*$/i.test(t)) return true;
     if (/^(index|toc|preface|foreword|acknowledgments?|table\s*of\s*contents)$/i.test(t)) return true;
     if (/^(https?:\/\/|www\.)/i.test(t)) return true;
-    if (/^[-_=*.•·◦▪►◆‣–—]{3,}$/.test(t)) return true;
-    if (/^(copyright|©|all rights reserved|confidential|draft|internal use only).*/i.test(t)) return true;
+    if (/^[-_=*.â€¢Â·â—¦â–ªâ–ºâ—†â€£â€“â€”]{3,}$/.test(t)) return true;
+    if (/^(copyright|Â©|all rights reserved|confidential|draft|internal use only).*/i.test(t)) return true;
     if (/^(printed|published|released|issued|revised|updated|compiled)\s*(on|by|date)/i.test(t)) return true;
     if (/^(figure|fig\.?|table|chart|graph|diagram|plate)\s*[#:]?\s*\d+/i.test(t)) return true;
     if (/^(source|credit|reference|references|bibliography|works cited)/i.test(t)) return true;
@@ -3370,7 +3370,7 @@ document.addEventListener('DOMContentLoaded', () => {
               </a>
             </div>
             <a href="#quiz-dashboard/${quizId}" onclick="document.getElementById('${modalId}').remove()" class="block w-full text-center py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 text-white font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2">
-              <i class="fa-solid fa-gauge-high"></i> Open Quiz Dashboard — Edit Questions & See Full Analytics
+              <i class="fa-solid fa-gauge-high"></i> Open Quiz Dashboard â€” Edit Questions & See Full Analytics
             </a>
           </div>
         </div>
@@ -3442,7 +3442,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="text-sm font-extrabold text-amber-400">${Math.min(...submissions.map(s => s.percentage||0))}%</div>
             </div>
             <div class="p-2.5 rounded-xl bg-white/10 text-center">
-              <div class="text-[10px] text-slate-400 uppercase font-bold">Passed (≥70%)</div>
+              <div class="text-[10px] text-slate-400 uppercase font-bold">Passed (â‰¥70%)</div>
               <div class="text-sm font-extrabold text-indigo-400">${submissions.filter(s => (s.percentage||0) >= 70).length} / ${submissions.length}</div>
             </div>
           </div>` : ''}
@@ -3801,7 +3801,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (!keyword || keyword.length < 2) {
-        keyword = keywords[i % keywords.length] || (lang === 'ar' ? 'المفهوم' : 'concept');
+        keyword = keywords[i % keywords.length] || (lang === 'ar' ? 'Ø§Ù„Ù…ÙÙ‡ÙˆÙ…' : 'concept');
       }
 
       let question, answer, options, explanation;
@@ -3811,18 +3811,18 @@ document.addEventListener('DOMContentLoaded', () => {
         answer = keyword;
         const distractors = pickLanguageDistractors(keyword, keywords, lang, 3);
         options = [answer, ...distractors].sort(() => Math.random() - 0.5);
-        explanation = `${sentence}  →  (${t.ans}: ${keyword})`;
+        explanation = `${sentence}  â†’  (${t.ans}: ${keyword})`;
       } else if (type === 'true-false') {
         const flip = Math.random() > 0.5;
         const distractors = pickLanguageDistractors(keyword, keywords, lang, 1);
         if (flip && distractors.length > 0 && sentence.includes(keyword)) {
           question = sentence.replace(keyword, distractors[0]);
           answer = t.trueFalseFalse;
-          explanation = lang === 'ar' ? `العبارة المعدلة غير صحيحة. الكلمة الأصلية: "${keyword}".` : `Original statement contains "${keyword}", not "${distractors[0]}".`;
+          explanation = lang === 'ar' ? `Ø§Ù„Ø¹Ø¨Ø§Ø±Ø© Ø§Ù„Ù…Ø¹Ø¯Ù„Ø© ØºÙŠØ± ØµØ­ÙŠØ­Ø©. Ø§Ù„ÙƒÙ„Ù…Ø© Ø§Ù„Ø£ØµÙ„ÙŠØ©: "${keyword}".` : `Original statement contains "${keyword}", not "${distractors[0]}".`;
         } else {
           question = sentence;
           answer = t.trueFalseTrue;
-          explanation = lang === 'ar' ? `العبارة صحيحة وتتطابق مع المحتوى الأصلي.` : `This statement accurately reflects the source material.`;
+          explanation = lang === 'ar' ? `Ø§Ù„Ø¹Ø¨Ø§Ø±Ø© ØµØ­ÙŠØ­Ø© ÙˆØªØªØ·Ø§Ø¨Ù‚ Ù…Ø¹ Ø§Ù„Ù…Ø­ØªÙˆÙ‰ Ø§Ù„Ø£ØµÙ„ÙŠ.` : `This statement accurately reflects the source material.`;
         }
         options = [t.trueFalseTrue, t.trueFalseFalse];
       } else if (type === 'fill-blank') {
@@ -3929,7 +3929,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return quizData.map(q => {
       const lines = [`${t.q} ${q.id} [${q.type.toUpperCase()}] [${q.difficulty.toUpperCase()}]`, q.question];
       if (q.options?.length) lines.push(...q.options.map((o, i) => `  ${String.fromCharCode(65 + i)}. ${o}`));
-      lines.push('', `${t.ans}: ${q.answer}`, `${t.exp}: ${q.explanation}`, '─'.repeat(60), '');
+      lines.push('', `${t.ans}: ${q.answer}`, `${t.exp}: ${q.explanation}`, 'â”€'.repeat(60), '');
       return lines.join('\n');
     }).join('\n');
   }
@@ -3965,7 +3965,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (y + 200 > pageHeight) { doc.addPage(); y = margin; }
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(12);
-          const qLabel = `${t.q} ${q.id}  [${q.type.toUpperCase()} • ${q.difficulty.toUpperCase()}]`;
+          const qLabel = `${t.q} ${q.id}  [${q.type.toUpperCase()} â€¢ ${q.difficulty.toUpperCase()}]`;
           doc.text(qLabel, margin, y);
           y += 20;
           doc.setFont('helvetica', 'normal');
@@ -4084,11 +4084,11 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="p-6 space-y-2">
           <button onclick="document.getElementById('${modalId}').remove(); exportQuiz('pdf');" class="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-indigo-50 hover:border-indigo-300 transition flex items-center gap-4 group">
             <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl group-hover:scale-110 transition"><i class="fa-solid fa-file-pdf"></i></div>
-            <div><div class="font-extrabold text-sm text-slate-900">PDF — Questions + Answers</div><div class="text-[11px] text-slate-500">Formatted print-ready PDF with correct answers highlighted</div></div>
+            <div><div class="font-extrabold text-sm text-slate-900">PDF â€” Questions + Answers</div><div class="text-[11px] text-slate-500">Formatted print-ready PDF with correct answers highlighted</div></div>
           </button>
           <button onclick="document.getElementById('${modalId}').remove(); exportQuiz('pdf-only-questions');" class="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-purple-50 hover:border-purple-300 transition flex items-center gap-4 group">
             <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl group-hover:scale-110 transition"><i class="fa-solid fa-file-contract"></i></div>
-            <div><div class="font-extrabold text-sm text-slate-900">PDF — Questions Only</div><div class="text-[11px] text-slate-500">Clean question paper without revealing answers</div></div>
+            <div><div class="font-extrabold text-sm text-slate-900">PDF â€” Questions Only</div><div class="text-[11px] text-slate-500">Clean question paper without revealing answers</div></div>
           </button>
           <button onclick="document.getElementById('${modalId}').remove(); exportQuiz('txt');" class="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-4 group">
             <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-xl group-hover:scale-110 transition"><i class="fa-solid fa-file-lines"></i></div>
@@ -4118,7 +4118,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const scored = sentences.map(s => {
       let score = 0;
       kws.forEach(k => { if (s.toLowerCase().includes(k)) score += 2; });
-      if (/^\d/.test(s) || s.includes(':') || s.includes('—')) score += 1;
+      if (/^\d/.test(s) || s.includes(':') || s.includes('â€”')) score += 1;
       if (s.length > 80) score += 1;
       return { s, score };
     }).sort((a, b) => b.score - a.score).slice(0, target).map(o => o.s);
@@ -4126,30 +4126,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const isChat = toolId === 'ai-doc-chat';
     if (isChat) {
       return `AI Document Q&A Assistant
-═══════════════════════════════════
-📋 Top Questions You Can Ask:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸ“‹ Top Questions You Can Ask:
 
 1. What is the main topic or thesis of this document?
-   → ${ordered[0] || 'Summarize key finding.'}
+   â†’ ${ordered[0] || 'Summarize key finding.'}
 
 2. What are the key takeaways for the reader?
-   ${ordered.slice(1, 4).map((o, i) => `   ${i + 1}. ${o}`).join('\n') || '   → Review bulleted list above.'}
+   ${ordered.slice(1, 4).map((o, i) => `   ${i + 1}. ${o}`).join('\n') || '   â†’ Review bulleted list above.'}
 
 3. What supporting evidence does the author provide?
-   → Key terms highlighted: ${kws.slice(0, 5).join(', ')}.
+   â†’ Key terms highlighted: ${kws.slice(0, 5).join(', ')}.
 
 4. What conclusions or recommendations are made?
-   → ${ordered[ordered.length - 1] || 'Concluding summary.'}
+   â†’ ${ordered[ordered.length - 1] || 'Concluding summary.'}
 
 5. Which sections should I read in detail?
-   → Focus on sentences containing: ${kws.slice(0, 4).join(', ')}.
+   â†’ Focus on sentences containing: ${kws.slice(0, 4).join(', ')}.
 
-💡 Tip: Paste your own question into the extracted-text box above (toggle edit) and re-run for a targeted response.
-═══════════════════════════════════`;
+ðŸ’¡ Tip: Paste your own question into the extracted-text box above (toggle edit) and re-run for a targeted response.
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•`;
     }
-    const header = lenSel === 'executive' ? '🏢 EXECUTIVE BRIEF\n\nTL;DR (30 sec): ' + (ordered[0] || '') + '\n\n📌 KEY FINDINGS\n' : '📋 SUMMARY OF DOCUMENT\n\n';
-    const bullets = ordered.map((s, i) => `${lenSel === 'detailed' ? '•' : '•'} ${s}`).join('\n\n');
-    const footer = `\n\n🔑 KEY TERMS: ${kws.slice(0, 8).join(' • ')}`;
+    const header = lenSel === 'executive' ? 'ðŸ¢ EXECUTIVE BRIEF\n\nTL;DR (30 sec): ' + (ordered[0] || '') + '\n\nðŸ“Œ KEY FINDINGS\n' : 'ðŸ“‹ SUMMARY OF DOCUMENT\n\n';
+    const bullets = ordered.map((s, i) => `${lenSel === 'detailed' ? 'â€¢' : 'â€¢'} ${s}`).join('\n\n');
+    const footer = `\n\nðŸ”‘ KEY TERMS: ${kws.slice(0, 8).join(' â€¢ ')}`;
     return header + bullets + footer;
   }
 
@@ -4372,7 +4372,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="space-y-2">
                 <div class="flex items-center gap-2 text-indigo-300 text-[10px] font-extrabold uppercase tracking-wider">
                   <a href="#" class="hover:text-white flex items-center gap-1"><i class="fa-solid fa-arrow-left"></i> Back to Tools</a>
-                  <span class="text-slate-500">•</span>
+                  <span class="text-slate-500">â€¢</span>
                   <i class="fa-solid fa-gauge-high"></i> Quiz Creator Dashboard
                 </div>
                 <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">${quiz.title}</h1>
@@ -4408,7 +4408,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="text-[10px] text-emerald-600 font-semibold mt-0.5"><i class="fa-solid fa-chart-line"></i> Across all attempts</div>
             </div>
             <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
-              <div class="text-[10px] font-bold text-slate-500 uppercase">Pass Rate (≥70%)</div>
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Pass Rate (â‰¥70%)</div>
               <div class="text-2xl font-extrabold text-indigo-600 mt-1">${passRate}%</div>
               <div class="text-[10px] text-indigo-600 font-semibold mt-0.5"><i class="fa-solid fa-check-circle"></i> ${passedCount} / ${submissions.length}</div>
             </div>
@@ -4434,7 +4434,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div id="dash-tab-content-questions" class="dash-tab-content bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div class="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3 bg-slate-50/80">
               <div>
-                <h3 class="font-extrabold text-slate-900 text-sm">Question Bank — Edit, Add or Remove Questions</h3>
+                <h3 class="font-extrabold text-slate-900 text-sm">Question Bank â€” Edit, Add or Remove Questions</h3>
                 <p class="text-[11px] text-slate-500 mt-0.5">All changes auto-save to the shared quiz. Participants will see updates next attempt.</p>
               </div>
               <div class="flex gap-2">
@@ -4924,6 +4924,12 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>`;
     document.body.appendChild(modal);
+  };
+
+  // Mobile search bar toggle
+  window.toggleMobileSearch = function() {
+    const bar = document.getElementById('mobile-search-bar');
+    if (bar) bar.classList.toggle('hidden');
   };
 
   function showToast(message, type = 'info') {

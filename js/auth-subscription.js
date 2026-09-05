@@ -1,18 +1,18 @@
-/**
- * StudioSuite Pro — Authentication, Subscription & INR Payment Verification Engine
+﻿/**
+ * StudioSuite Pro â€” Authentication, Subscription & INR Payment Verification Engine
  * Data layer: Neon Postgres via NeonEngine API calls.
  * Session (current logged-in user) is still kept in localStorage for client-side access.
  */
 
 class AuthSubscriptionEngine {
-  // ── Only localStorage key kept ────────────────────────────────────────────
+  // â”€â”€ Only localStorage key kept â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static STORAGE_CURRENT_USER = 'studiosuite_current_user';
 
-  // ── In-memory caches ──────────────────────────────────────────────────────
+  // â”€â”€ In-memory caches â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static _plansCache = null;   // Array of plan objects loaded from DB
   static pendingPlanId = null;
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /**
    * Called on page load. Loads plans from DB into cache.
@@ -35,7 +35,7 @@ class AuthSubscriptionEngine {
     this.renderHeaderAuthControls();
   }
 
-  // ── Plans ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Plans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /**
    * Returns plans from cache synchronously, or triggers async fetch.
@@ -50,7 +50,7 @@ class AuthSubscriptionEngine {
     return [];
   }
 
-  /** Async version — always fresh from DB */
+  /** Async version â€” always fresh from DB */
   static async fetchPlans() {
     try {
       const plans = await NeonEngine.call('/api/plans', 'GET');
@@ -62,7 +62,7 @@ class AuthSubscriptionEngine {
     }
   }
 
-  // ── Users ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Users â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /** Admin: fetch all users from DB */
   static async getUsers() {
@@ -74,7 +74,7 @@ class AuthSubscriptionEngine {
     }
   }
 
-  // ── Current session user (localStorage) ──────────────────────────────────
+  // â”€â”€ Current session user (localStorage) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static getCurrentUser() {
     try {
@@ -92,7 +92,7 @@ class AuthSubscriptionEngine {
     }
   }
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static async register(email, password, name = 'User') {
     const user = await NeonEngine.call('/api/auth/register', 'POST', { email, password, name });
@@ -112,7 +112,7 @@ class AuthSubscriptionEngine {
     if (window.showToast) window.showToast('Logged out successfully', 'info');
   }
 
-  // ── Subscription ──────────────────────────────────────────────────────────
+  // â”€â”€ Subscription â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static async subscribeUser(userId, planId, transactionId = '') {
     const user = await NeonEngine.call('/api/subscribe', 'POST', {
@@ -146,7 +146,7 @@ class AuthSubscriptionEngine {
         }
         return updated;
       }
-      // Profile fields (name, email, phone, org) — use profile endpoint
+      // Profile fields (name, email, phone, org) â€” use profile endpoint
       if (userData.name || userData.email) {
         const updated = await NeonEngine.call(`/api/users/${userData.id}/profile`, 'POST', {
           name: userData.name,
@@ -182,7 +182,7 @@ class AuthSubscriptionEngine {
     if (window.showToast) window.showToast('Account deleted.', 'info');
   }
 
-  // ── Expiry ────────────────────────────────────────────────────────────────
+  // â”€â”€ Expiry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static checkSubscriptionExpiry() {
     const user = this.getCurrentUser();
@@ -193,13 +193,13 @@ class AuthSubscriptionEngine {
     }
   }
 
-  // ── Tool access control ───────────────────────────────────────────────────
+  // â”€â”€ Tool access control â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /**
    * CRITICAL: Subscription enforcement.
-   * - Not logged in → false (no access)
-   * - Free plan    → false (no access — must subscribe)
-   * - Pro plans & active → true (full access)
+   * - Not logged in â†’ false (no access)
+   * - Free plan    â†’ false (no access â€” must subscribe)
+   * - Pro plans & active â†’ true (full access)
    */
   static isToolAllowedForUser(toolId) {
     const user = this.getCurrentUser();
@@ -209,7 +209,7 @@ class AuthSubscriptionEngine {
 
     // Pro users get all tools
     const plan = (this._plansCache || []).find(p => p.id === user.planId);
-    if (!plan) return true; // plan data not loaded yet — allow to avoid blocking
+    if (!plan) return true; // plan data not loaded yet â€” allow to avoid blocking
 
     if (plan.allowedToolIds === 'all' || !plan.allowedToolIds) return true;
     if (Array.isArray(plan.allowedToolIds)) {
@@ -296,7 +296,7 @@ class AuthSubscriptionEngine {
     document.body.appendChild(modal);
   }
 
-  // ── Header Auth Controls ──────────────────────────────────────────────────
+  // â”€â”€ Header Auth Controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static renderHeaderAuthControls() {
     const container = document.getElementById('header-auth-controls');
@@ -385,7 +385,7 @@ class AuthSubscriptionEngine {
     }
   }
 
-  // ── Profile Modal ─────────────────────────────────────────────────────────
+  // â”€â”€ Profile Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static openProfileModal() {
     const user = this.getCurrentUser();
@@ -519,14 +519,14 @@ class AuthSubscriptionEngine {
               <div class="flex items-center gap-2">
                 <i class="fa-solid fa-arrow-up text-indigo-600"></i>
                 <span class="font-extrabold text-indigo-900 text-sm">Upgrade to ${nextPlan.name}</span>
-                <span class="ml-auto text-xs font-extrabold text-indigo-700">₹${nextPlan.priceINR}</span>
+                <span class="ml-auto text-xs font-extrabold text-indigo-700">â‚¹${nextPlan.priceINR}</span>
               </div>
               ${Array.isArray(nextPlan.features) ? `
               <ul class="space-y-1.5">
                 ${nextPlan.features.slice(0, 4).map(f => `<li class="text-xs text-indigo-800 flex items-center gap-1.5"><i class="fa-solid fa-sparkles text-amber-500"></i>${f}</li>`).join('')}
               </ul>` : ''}
               <button onclick="document.getElementById('${modalId}').remove(); AuthSubscriptionEngine.openPaymentModal('${nextPlan.id}');" class="w-full btn-gradient py-3 text-xs font-extrabold rounded-xl shadow-lg flex items-center justify-center gap-2">
-                <i class="fa-solid fa-crown text-amber-300"></i> Upgrade to ${nextPlan.name} — ₹${nextPlan.priceINR}
+                <i class="fa-solid fa-crown text-amber-300"></i> Upgrade to ${nextPlan.name} â€” â‚¹${nextPlan.priceINR}
               </button>
             </div>
             ` : `
@@ -544,7 +544,7 @@ class AuthSubscriptionEngine {
                 return `<div class="flex items-center justify-between p-3 rounded-xl border ${isCur ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white hover:bg-slate-50'} transition">
                   <div>
                     <span class="font-extrabold text-xs text-slate-900">${p.name}</span>
-                    <span class="text-[10px] text-slate-500 ml-2">₹${p.priceINR} / ${p.durationDays >= 365 ? 'year' : 'month'}</span>
+                    <span class="text-[10px] text-slate-500 ml-2">â‚¹${p.priceINR} / ${p.durationDays >= 365 ? 'year' : 'month'}</span>
                   </div>
                   ${isCur
                     ? `<span class="text-[10px] font-extrabold px-2 py-1 rounded-full bg-indigo-600 text-white">Active</span>`
@@ -564,15 +564,15 @@ class AuthSubscriptionEngine {
               </div>
               <div class="space-y-1">
                 <label class="text-[10px] font-extrabold text-slate-500 uppercase">Current Password</label>
-                <input type="password" id="profile-current-pw" class="custom-input w-full text-sm" placeholder="••••••••" required>
+                <input type="password" id="profile-current-pw" class="custom-input w-full text-sm" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required>
               </div>
               <div class="space-y-1">
                 <label class="text-[10px] font-extrabold text-slate-500 uppercase">New Password</label>
-                <input type="password" id="profile-new-pw" class="custom-input w-full text-sm" placeholder="••••••••" required minlength="6">
+                <input type="password" id="profile-new-pw" class="custom-input w-full text-sm" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required minlength="6">
               </div>
               <div class="space-y-1">
                 <label class="text-[10px] font-extrabold text-slate-500 uppercase">Confirm New Password</label>
-                <input type="password" id="profile-confirm-pw" class="custom-input w-full text-sm" placeholder="••••••••" required minlength="6">
+                <input type="password" id="profile-confirm-pw" class="custom-input w-full text-sm" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required minlength="6">
               </div>
               <div id="profile-pw-msg" class="hidden p-3 rounded-xl text-xs font-bold"></div>
               <button type="submit" class="w-full py-3 text-xs font-extrabold rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition shadow">
@@ -658,7 +658,7 @@ class AuthSubscriptionEngine {
     }
   }
 
-  // ── Auth Modal ────────────────────────────────────────────────────────────
+  // â”€â”€ Auth Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static openAuthModal(initialTab = 'login', pendingPlanId = null) {
     this.pendingPlanId = pendingPlanId;
@@ -708,7 +708,7 @@ class AuthSubscriptionEngine {
 
             <div class="space-y-1">
               <label class="text-xs font-bold text-slate-600">Password</label>
-              <input type="password" id="auth-password" class="custom-input w-full text-xs" placeholder="••••••••" required>
+              <input type="password" id="auth-password" class="custom-input w-full text-xs" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required>
             </div>
 
             <div id="auth-error-msg" class="hidden p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-bold"></div>
@@ -774,9 +774,11 @@ class AuthSubscriptionEngine {
 
       document.getElementById('studiosuite-auth-modal')?.remove();
       this.renderHeaderAuthControls();
-
       // Re-render tools to apply access control for newly logged in user
       if (window.renderTools) window.renderTools();
+      // Hide gate screen if now subscribed
+      this.checkAndShowGateScreen();
+      document.body.style.overflow = '';
 
       const pending = this.pendingPlanId;
       this.pendingPlanId = null;
@@ -795,7 +797,7 @@ class AuthSubscriptionEngine {
     }
   }
 
-  // ── Subscription Modal ────────────────────────────────────────────────────
+  // â”€â”€ Subscription Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static openSubscriptionModal() {
     const modalId = 'studiosuite-sub-modal';
@@ -845,7 +847,7 @@ class AuthSubscriptionEngine {
                   <div>
                     <h3 class="font-extrabold text-base sm:text-lg text-slate-900">${plan.name}</h3>
                     <div class="mt-2 flex items-baseline gap-1">
-                      <span class="text-2xl sm:text-3xl font-black text-slate-900">₹${plan.priceINR}</span>
+                      <span class="text-2xl sm:text-3xl font-black text-slate-900">â‚¹${plan.priceINR}</span>
                       <span class="text-xs text-slate-500 font-bold">/ ${plan.durationDays >= 365 ? 'year' : plan.durationDays > 1 ? 'month' : 'lifetime'}</span>
                     </div>
                     <ul class="mt-4 space-y-2 text-xs text-slate-600 border-t border-slate-100 pt-3">${featuresHtml}</ul>
@@ -858,7 +860,7 @@ class AuthSubscriptionEngine {
                     ` : `
                       <button onclick="AuthSubscriptionEngine.openPaymentModal('${plan.id}')" class="w-full ${isPopular ? 'btn-gradient' : 'bg-slate-900 hover:bg-slate-800 text-white'} py-2.5 sm:py-3 rounded-xl text-xs font-extrabold transition shadow-md flex items-center justify-center gap-2">
                         <i class="fa-solid fa-qrcode"></i>
-                        <span>${plan.priceINR === 0 ? 'Select Free Plan' : `Pay ₹${plan.priceINR} via UPI`}</span>
+                        <span>${plan.priceINR === 0 ? 'Select Free Plan' : `Pay â‚¹${plan.priceINR} via UPI`}</span>
                       </button>
                     `}
                   </div>
@@ -867,7 +869,7 @@ class AuthSubscriptionEngine {
             }).join('')}
           </div>
           <p class="text-center text-xs text-slate-400 mt-5 pb-2">
-            <i class="fa-solid fa-shield-check text-indigo-600 mr-1"></i> All payments in ₹ INR. Verified via UTR reference &amp; recorded in Admin Panel.
+            <i class="fa-solid fa-shield-check text-indigo-600 mr-1"></i> All payments in â‚¹ INR. Verified via UTR reference &amp; recorded in Admin Panel.
           </p>
         </div>
       </div>
@@ -875,7 +877,7 @@ class AuthSubscriptionEngine {
     document.body.appendChild(modal);
   }
 
-  // ── Payment Modal ─────────────────────────────────────────────────────────
+  // â”€â”€ Payment Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static openPaymentModal(planId) {
     let user = this.getCurrentUser();
@@ -937,7 +939,7 @@ class AuthSubscriptionEngine {
             </div>
             <div class="flex justify-between font-bold text-slate-700 pt-2 border-t border-slate-200 text-sm">
               <span>Total Payable:</span>
-              <span class="text-emerald-600 font-black text-base">₹${plan.priceINR} INR</span>
+              <span class="text-emerald-600 font-black text-base">â‚¹${plan.priceINR} INR</span>
             </div>
           </div>
 
@@ -974,7 +976,7 @@ class AuthSubscriptionEngine {
               </p>
             </div>
             <button type="submit" class="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:opacity-95 text-white py-3.5 text-xs rounded-2xl font-extrabold shadow-lg transition flex items-center justify-center gap-2">
-              <i class="fa-solid fa-shield-check"></i> Verify UTR & Activate Premium (₹${plan.priceINR})
+              <i class="fa-solid fa-shield-check"></i> Verify UTR & Activate Premium (â‚¹${plan.priceINR})
             </button>
           </form>
         </div>
@@ -1009,6 +1011,8 @@ class AuthSubscriptionEngine {
       document.getElementById('studiosuite-sub-modal')?.remove();
       this.renderHeaderAuthControls();
       if (window.renderTools) window.renderTools();
+      this.checkAndShowGateScreen();
+      document.body.style.overflow = '';
       if (window.showToast) window.showToast(`Payment verified via UTR ${utr}! Your subscription is now ACTIVE.`, 'success');
     } catch (err) {
       if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="fa-solid fa-shield-check"></i> Verify UTR & Activate Premium'; }
@@ -1017,9 +1021,43 @@ class AuthSubscriptionEngine {
   }
 }
 
+  /** Show or hide the subscription gate screen based on user auth state */
+  static checkAndShowGateScreen() {
+    const gate = document.getElementById('subscription-gate-screen');
+    if (!gate) return;
+    const user = this.getCurrentUser();
+    const isSubscribed = user && user.planId !== 'free' && user.status === 'active';
+    const isAdmin = window.AdminPanelEngine && AdminPanelEngine.isAdminLoggedIn();
+    const hash = window.location.hash;
+    // Bypass gate for admin/quiz pages
+    if (hash === '#admin-page' || hash === '#admin' || hash.startsWith('#quiz/') || hash.startsWith('#take-quiz/') || hash.startsWith('#quiz-dashboard/')) {
+      gate.classList.add('hidden');
+      return;
+    }
+    if (!user || (!isSubscribed && !isAdmin)) {
+      gate.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    } else {
+      gate.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+  }
 window.AuthSubscriptionEngine = AuthSubscriptionEngine;
 
 // Boot: load plans from DB (async), then render header
 AuthSubscriptionEngine.initDefaults().catch(e => {
   console.warn('[Auth] initDefaults error:', e);
+});
+
+// Show gate screen to visitors who are not subscribed
+window.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    AuthSubscriptionEngine.checkAndShowGateScreen();
+  }, 400);
+});
+window.addEventListener('hashchange', function() {
+  const h = window.location.hash;
+  // Don't show gate on admin/quiz pages
+  if (h === '#admin-page' || h === '#admin' || h.startsWith('#quiz/') || h.startsWith('#take-quiz/') || h.startsWith('#quiz-dashboard/')) return;
+  AuthSubscriptionEngine.checkAndShowGateScreen();
 });

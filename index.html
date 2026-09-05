@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -7,7 +7,7 @@
     <meta name="description" content="50 Free, 100% private in-browser PDF, graphic design, prepress, typography, CAD, 3D, image & developer processing suite. Merge, split, RGB to CMYK, bleed marks, SVGO, font converters, OCR and translate directly in your browser.">
     <meta name="keywords" content="50 PDF tools, merge PDF, split PDF, RGB to CMYK, bleed marks, crop marks, SVG optimizer, font converter, WOFF2, OCR, CAD blueprints, glassmorphism, image resizer">
     
-    <!-- Neon Functions API base URL — must be set before any app scripts -->
+    <!-- Neon Functions API base URL â€” must be set before any app scripts -->
     <script>window.NEON_API_URL = 'https://br-curly-term-ayxbe0h1-api.compute.c-5.us-east-2.aws.neon.tech';</script>
 
     <!-- Tailwind CSS -->
@@ -53,7 +53,7 @@
                 <div class="relative hidden md:block">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                     <input type="text" id="tool-search" placeholder="Search 50 tools (e.g. CMYK, Bleed, OCR)..." class="custom-input pl-9 pr-12 py-1.5 text-xs w-64 lg:w-80 rounded-xl bg-slate-50 hover:bg-white focus:bg-white transition shadow-inner">
-                    <kbd class="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[9px] font-mono font-bold text-slate-400 bg-slate-200/60 rounded border border-slate-300/60 pointer-events-none">⌘K</kbd>
+                    <kbd class="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[9px] font-mono font-bold text-slate-400 bg-slate-200/60 rounded border border-slate-300/60 pointer-events-none">âŒ˜K</kbd>
                 </div>
 
                 <!-- Structured Clean Nav Links -->
@@ -82,6 +82,68 @@
         </div>
     </header>
 
+    <!-- ═══ SUBSCRIPTION GATE SCREEN ════════════════════════════════════════════
+         Shown to visitors who are NOT logged in OR are on free plan.
+         Hides the tool grid and shows a compelling subscribe/login prompt instead.
+    ════════════════════════════════════════════════════════════════════════════ -->
+    <div id="subscription-gate-screen" class="hidden fixed inset-0 z-[200] overflow-y-auto">
+        <!-- Animated gradient background -->
+        <div class="gate-bg-animation absolute inset-0"></div>
+
+        <!-- Glassmorphic overlay content -->
+        <div class="relative min-h-screen flex items-center justify-center px-4 py-12">
+            <div class="gate-card w-full max-w-md">
+                <!-- Brand -->
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center text-white text-3xl mx-auto mb-3 shadow-xl shadow-indigo-500/30">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                    <h1 class="text-2xl font-black text-white tracking-tight">StudioSuite <span class="text-amber-300">50 PRO</span></h1>
+                    <p class="text-sm text-white/70 mt-1">Professional PDF & Design Tools Suite</p>
+                </div>
+
+                <!-- Feature highlights -->
+                <div class="gate-features mb-6">
+                    <div class="gate-feature-item"><i class="fa-solid fa-file-pdf text-rose-400"></i><span>50 PDF & Image Processing Tools</span></div>
+                    <div class="gate-feature-item"><i class="fa-solid fa-shield-check text-emerald-400"></i><span>100% In-Browser — Files Never Leave Your Device</span></div>
+                    <div class="gate-feature-item"><i class="fa-solid fa-bolt text-amber-400"></i><span>WebAssembly Processing Engine</span></div>
+                    <div class="gate-feature-item"><i class="fa-solid fa-crown text-purple-400"></i><span>Subscribe Once, Access Everything</span></div>
+                </div>
+
+                <!-- CTA buttons -->
+                <div class="space-y-3">
+                    <button onclick="AuthSubscriptionEngine.openSubscriptionModal(); document.getElementById('subscription-gate-screen').classList.add('gate-blur-tools');"
+                        class="gate-btn-primary w-full">
+                        <i class="fa-solid fa-crown text-amber-300"></i>
+                        View Plans & Subscribe
+                        <span class="gate-badge-pill">From ₹499/mo</span>
+                    </button>
+                    <button onclick="AuthSubscriptionEngine.openAuthModal('login')"
+                        class="gate-btn-secondary w-full">
+                        <i class="fa-solid fa-right-to-bracket"></i>
+                        Already Subscribed? Sign In
+                    </button>
+                    <button onclick="AuthSubscriptionEngine.openAuthModal('register')"
+                        class="gate-btn-ghost w-full">
+                        <i class="fa-solid fa-user-plus"></i>
+                        Create Account
+                    </button>
+                </div>
+
+                <!-- Trust badges -->
+                <div class="flex justify-center gap-4 mt-5 text-[10px] text-white/50 font-semibold">
+                    <span><i class="fa-solid fa-lock mr-1"></i>Secure</span>
+                    <span><i class="fa-solid fa-server mr-1"></i>No Server Upload</span>
+                    <span><i class="fa-solid fa-indian-rupee-sign mr-1"></i>INR Payments</span>
+                </div>
+
+                <!-- Admin link -->
+                <div class="text-center mt-4">
+                    <a href="#admin-page" onclick="document.getElementById('subscription-gate-screen').classList.add('hidden');" class="text-[10px] text-white/30 hover:text-white/60 transition">Admin Portal</a>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Main Content Container View -->
     <div id="main-app-view">
         <main class="max-w-7xl mx-auto px-4 py-8 flex-1 w-full space-y-8">
@@ -217,7 +279,7 @@
         </div>
 
         <div class="max-w-7xl mx-auto px-4 pt-8 mt-8 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 text-slate-400 text-[11px]">
-            <p>© 2026 StudioSuite 50 MASTER TOOLS PRO. All Rights Reserved.</p>
+            <p>Â© 2026 StudioSuite 50 MASTER TOOLS PRO. All Rights Reserved.</p>
             <p>Powered by Supabase Cloud & WebAssembly Client Engine.</p>
         </div>
     </footer>
