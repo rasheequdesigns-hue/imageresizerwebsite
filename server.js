@@ -1,4 +1,5 @@
-﻿const http = require('http');
+﻿const crypto = require('crypto');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
