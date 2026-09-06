@@ -1,11 +1,10 @@
-/**
+﻿/**
  * StudioSuite 50 MASTER TOOLS PRO - App Controller
  */
 
 document.addEventListener('DOMContentLoaded', () => {
   window.renderFooterContact = function() {
-    if (!window.AdminPanelEngine) return;
-    const info = AdminPanelEngine.getContactInfo();
+    const info = window.AdminPanelEngine ? AdminPanelEngine.getContactInfo() : {};
     const nameEl = document.getElementById('footer-company-name');
     const addrEl = document.getElementById('footer-company-address');
     const phoneEl = document.getElementById('footer-company-phone');
@@ -33,16 +32,16 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const LANGUAGES = [
-    { code: 'en', name: 'English' }, { code: 'es', name: 'Spanish (EspaÃ±ol)' }, { code: 'fr', name: 'French (FranÃ§ais)' },
-    { code: 'de', name: 'German (Deutsch)' }, { code: 'it', name: 'Italian (Italiano)' }, { code: 'pt', name: 'Portuguese (PortuguÃªs)' },
-    { code: 'ru', name: 'Russian (Ð ÑƒÑÑÐºÐ¸Ð¹)' }, { code: 'ja', name: 'Japanese (æ—¥æœ¬èªž)' }, { code: 'ko', name: 'Korean (í•œêµ­ì–´)' },
-    { code: 'zh', name: 'Chinese (ä¸­æ–‡)' }, { code: 'hi', name: 'Hindi (à¤¹à¤¿à¤¨à¥à¤¦à¥€)' }, { code: 'ar', name: 'Arabic (Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©)' },
-    { code: 'bn', name: 'Bengali (à¦¬à¦¾à¦‚à¦²à¦¾)' }, { code: 'ur', name: 'Urdu (Ø§Ø±Ø¯Ùˆ)' }, { code: 'ta', name: 'Tamil (à®¤à®®à®¿à®´à¯)' },
-    { code: 'te', name: 'Telugu (à°¤à±†à°²à±à°—à±)' }, { code: 'ml', name: 'Malayalam (à´®à´²à´¯à´¾à´³à´‚)' }, { code: 'mr', name: 'Marathi (à¤®à¤°à¤¾à¤ à¥€)' },
-    { code: 'gu', name: 'Gujarati (àª—à«àªœàª°àª¾àª¤à«€)' }, { code: 'pa', name: 'Punjabi (à¨ªà©°à¨œà¨¾à¨¬à©€)' }, { code: 'tr', name: 'Turkish (TÃ¼rkÃ§e)' },
-    { code: 'nl', name: 'Dutch (Nederlands)' }, { code: 'pl', name: 'Polish (Polski)' }, { code: 'vi', name: 'Vietnamese (Tiáº¿ng Viá»‡t)' },
-    { code: 'th', name: 'Thai (à¹„à¸—à¸¢)' }, { code: 'id', name: 'Indonesian (Bahasa)' }, { code: 'ms', name: 'Malay (Melayu)' },
-    { code: 'fil', name: 'Filipino' }, { code: 'fa', name: 'Persian (ÙØ§Ø±Ø³ÛŒ)' }, { code: 'he', name: 'Hebrew (×¢×‘×¨×™×ª)' }
+    { code: 'en', name: 'English' }, { code: 'es', name: 'Spanish (Español)' }, { code: 'fr', name: 'French (Français)' },
+    { code: 'de', name: 'German (Deutsch)' }, { code: 'it', name: 'Italian (Italiano)' }, { code: 'pt', name: 'Portuguese (Português)' },
+    { code: 'ru', name: 'Russian (Русский)' }, { code: 'ja', name: 'Japanese (日本語)' }, { code: 'ko', name: 'Korean (한국어)' },
+    { code: 'zh', name: 'Chinese (中文)' }, { code: 'hi', name: 'Hindi (हिन्दी)' }, { code: 'ar', name: 'Arabic (العربية)' },
+    { code: 'bn', name: 'Bengali (বাংলা)' }, { code: 'ur', name: 'Urdu (اردو)' }, { code: 'ta', name: 'Tamil (தமிழ்)' },
+    { code: 'te', name: 'Telugu (తెలుగు)' }, { code: 'ml', name: 'Malayalam (മലയാളം)' }, { code: 'mr', name: 'Marathi (मराठी)' },
+    { code: 'gu', name: 'Gujarati (ગુજરાતી)' }, { code: 'pa', name: 'Punjabi (ਪੰਜਾਬੀ)' }, { code: 'tr', name: 'Turkish (Türkçe)' },
+    { code: 'nl', name: 'Dutch (Nederlands)' }, { code: 'pl', name: 'Polish (Polski)' }, { code: 'vi', name: 'Vietnamese (Tiếng Việt)' },
+    { code: 'th', name: 'Thai (ไทย)' }, { code: 'id', name: 'Indonesian (Bahasa)' }, { code: 'ms', name: 'Malay (Melayu)' },
+    { code: 'fil', name: 'Filipino' }, { code: 'fa', name: 'Persian (فارسی)' }, { code: 'he', name: 'Hebrew (עברית)' }
   ];
 
   const TOOLS = [
@@ -100,109 +99,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.TOOLS = TOOLS;
 
-  // â”€â”€ Init features from DB (async) before rendering tool grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // NeonEngine.initFeatures() fetches enabled/disabled states from Neon Postgres
-  // and populates AdminPanelEngine._featuresCache so renderTools() picks them up.
-  if (window.NeonEngine) {
-    NeonEngine.initFeatures()
-      .then(() => {
-        renderTools();
-        window.dispatchEvent(new Event('featuresUpdated'));
-      })
-      .catch(() => {
-        // Fallback: render with all tools enabled if DB is unreachable
-        renderTools();
-      });
-  }
-
-  // Also load settings into cache early (for UPI, contact info, etc.)
-  if (window.AdminPanelEngine) {
-    AdminPanelEngine._loadSettings().then(() => {
-      if (window.renderFooterContact) renderFooterContact();
-    }).catch(() => {});
-  }
-
-  function formatFileSize(bytes) {
-    if (!bytes || isNaN(bytes) || bytes <= 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  }
-  window.formatFileSize = formatFileSize;
-
-  let state = {
-    activeTool: null,
-    files: [],
-    pdfPageCards: [],
-    processedResult: null,
-    quizData: null,
-    extractedText: '',
-    detectedSubDocs: [],
-    selectedDeletePages: new Set(),
-    cropState: { top: 20, right: 20, bottom: 20, left: 20, unit: 'px' },
-    extractedTableRows: [],
-    batchResizeResults: [],
-    pngComparison: null,
-    activeDragIndex: null
-  };
-
-  window.addEventListener('hashchange', handleRoute);
-  handleRoute();
-
-  function handleRoute() {
-    const hash = window.location.hash;
-    const mainApp = document.getElementById('main-app-view');
-    const toolStudioView = document.getElementById('tool-studio-view');
-    const adminPage = document.getElementById('admin-page-view');
-    const historyPage = document.getElementById('user-history-view');
-    const publicQuizView = document.getElementById('public-quiz-view');
-    const quizDashboardView = document.getElementById('quiz-dashboard-view');
-
-    if (mainApp) mainApp.classList.add('hidden');
-    if (toolStudioView) toolStudioView.classList.add('hidden');
-    if (adminPage) adminPage.classList.add('hidden');
-    if (historyPage) historyPage.classList.add('hidden');
-    if (publicQuizView) publicQuizView.classList.add('hidden');
-    if (quizDashboardView) quizDashboardView.classList.add('hidden');
-
-    if (hash === '#admin-page' || hash === '#admin') {
-      if (adminPage) { adminPage.classList.remove('hidden'); if (typeof renderFullAdminPage === 'function') renderFullAdminPage(); }
-    } else if (hash === '#history') {
-      if (historyPage) { historyPage.classList.remove('hidden'); renderUserHistoryPage(); }
-    } else if (hash.startsWith('#quiz/') || hash.startsWith('#take-quiz/')) {
-      const quizId = hash.replace(/^#(quiz|take-quiz)\//, '');
-      if (publicQuizView) {
-        publicQuizView.classList.remove('hidden');
-        if (typeof renderParticipantQuizPage === 'function') renderParticipantQuizPage(quizId);
-      }
-    } else if (hash.startsWith('#quiz-dashboard/')) {
-      const quizId = hash.replace('#quiz-dashboard/', '');
-      if (quizDashboardView) {
-        quizDashboardView.classList.remove('hidden');
-        if (typeof renderQuizCreatorDashboard === 'function') renderQuizCreatorDashboard(quizId);
-      }
-    } else if (hash.startsWith('#tool/')) {
-      const toolId = hash.replace('#tool/', '');
-      const tool = TOOLS.find(t => t.id === toolId);
-      const toolEnabled = window.AdminPanelEngine ? AdminPanelEngine.isFeatureEnabled(toolId) : false;
-      const isAllowedForUser = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.isToolAllowedForUser(toolId) : true;
-
-      if (tool && toolStudioView && toolEnabled && isAllowedForUser) {
-        toolStudioView.classList.remove('hidden');
-        renderDedicatedToolStudioPage(tool);
-      } else if (tool && toolStudioView && !isAllowedForUser) {
-        mainApp.classList.remove('hidden');
-        window.location.hash = '#';
-        if (window.AuthSubscriptionEngine) AuthSubscriptionEngine.openProUpgradeLockModal(tool);
-      } else if (tool && toolStudioView) {
-        mainApp.classList.remove('hidden');
-        window.location.hash = '#';
-        if (window.showToast) showToast('This tool is currently disabled by the administrator.', 'error');
-      } else if (mainApp) mainApp.classList.remove('hidden');
-    } else if (mainApp) mainApp.classList.remove('hidden');
-  }
-
   const toolGrid = document.getElementById('tool-grid');
   const searchInput = document.getElementById('tool-search');
   const categoryTabs = document.querySelectorAll('.category-tab');
@@ -211,35 +107,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!toolGrid) return;
     toolGrid.innerHTML = '';
 
-    // Get enabled IDs from DB-backed cache (via AdminPanelEngine)
-    let enabledIds = window.AdminPanelEngine ? AdminPanelEngine.getEnabledFeatures() : [];
-    if (enabledIds === null || !Array.isArray(enabledIds)) {
-      enabledIds = [];
-    }
     const visibleTools = TOOLS.filter(tool => {
       const matchesSearch = tool.name.toLowerCase().includes(filterText.toLowerCase()) || tool.description.toLowerCase().includes(filterText.toLowerCase());
       const matchesCategory = category === 'all' || tool.category === category;
-      const isVisible = enabledIds.includes(tool.id);
-      return matchesSearch && matchesCategory && isVisible;
+      return matchesSearch && matchesCategory;
     });
 
-    // --- Update live enabled feature count in hero section & "All N Tools" tab ---
-    const totalEnabled = enabledIds.length;
-    // Hero section count (the big heading mentions "50 tools")
+    const totalCount = TOOLS.length;
     const heroCount = document.querySelector('[data-tool-count]');
-    if (heroCount) heroCount.textContent = totalEnabled;
-    // "All X Tools" category tab
+    if (heroCount) heroCount.textContent = totalCount;
     const allTab = document.querySelector('.category-tab[data-category="all"]');
-    if (allTab) allTab.textContent = `All ${totalEnabled} Tool${totalEnabled !== 1 ? 's' : ''}`;
-    // Per-category counts on tabs
+    if (allTab) allTab.textContent = `All ${totalCount} Tools`;
+
     document.querySelectorAll('.category-tab[data-category]').forEach(tab => {
       const cat = tab.dataset.category;
       if (cat === 'all') return;
-      const count = enabledIds.filter(id => {
-        const t = TOOLS.find(x => x.id === id);
-        return t && t.category === cat;
-      }).length;
-      // Strip old count "(N)" and append new
+      const count = TOOLS.filter(t => t.category === cat).length;
       const baseLabel = tab.textContent.replace(/\s*\(\d+\)\s*$/, '').trim();
       tab.textContent = `${baseLabel} (${count})`;
     });
@@ -248,9 +131,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const msg = document.createElement('div');
       msg.className = 'col-span-full text-center py-16 space-y-4 animate-fade-in';
       msg.innerHTML = `
-        <div class="w-16 h-16 mx-auto rounded-3xl bg-amber-100 text-amber-700 flex items-center justify-center text-3xl shadow-inner"><i class="fa-solid fa-ban"></i></div>
-        <h3 class="text-xl font-extrabold text-slate-900">All Tools Currently Disabled</h3>
-        <p class="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">The website administrator has currently hidden all features from the portal. Please log in to the <a href="#admin-page" class="text-indigo-600 font-bold underline">Admin Portal</a> to enable tools.</p>
+        <div class="w-16 h-16 mx-auto rounded-3xl bg-slate-100 text-slate-400 flex items-center justify-center text-3xl shadow-inner"><i class="fa-solid fa-magnifying-glass"></i></div>
+        <h3 class="text-xl font-extrabold text-slate-900">No Matching Tools Found</h3>
+        <p class="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">Try searching with a different keyword or select another category.</p>
       `;
       toolGrid.appendChild(msg);
       return;
@@ -297,9 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.renderTools = renderTools;
   window.addEventListener('featuresUpdated', () => renderTools());
   window.addEventListener('storage', () => renderTools());
-  // Initial render is triggered by NeonEngine.initFeatures().then(renderTools) above.
-  // This fallback ensures tools render even if NeonEngine is not available.
-  if (!window.NeonEngine) renderTools();
+  renderTools();
   if (searchInput) searchInput.addEventListener('input', (e) => {
     const activeCat = document.querySelector('.category-tab.active')?.dataset.category || 'all';
     renderTools(e.target.value, activeCat);
@@ -309,6 +190,90 @@ document.addEventListener('DOMContentLoaded', () => {
     tab.classList.add('active', 'bg-indigo-600', 'text-white');
     renderTools(searchInput?.value || '', tab.dataset.category);
   }));
+
+  function formatFileSize(bytes) {
+    if (!bytes || isNaN(bytes) || bytes <= 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+  window.formatFileSize = formatFileSize;
+
+  let state = {
+    activeTool: null,
+    files: [],
+    pdfPageCards: [],
+    processedResult: null,
+    quizData: null,
+    extractedText: '',
+    detectedSubDocs: [],
+    selectedDeletePages: new Set(),
+    cropState: { top: 20, right: 20, bottom: 20, left: 20, unit: 'px' },
+    extractedTableRows: [],
+    batchResizeResults: [],
+    pngComparison: null,
+    activeDragIndex: null
+  };
+
+  window.addEventListener('hashchange', handleRoute);
+  handleRoute();
+
+  function handleRoute() {
+    const hash = window.location.hash;
+    const mainApp = document.getElementById('main-app-view');
+    const toolStudioView = document.getElementById('tool-studio-view');
+    const adminPage = document.getElementById('admin-page-view');
+    const historyPage = document.getElementById('user-history-view');
+    const publicQuizView = document.getElementById('public-quiz-view');
+    const quizDashboardView = document.getElementById('quiz-dashboard-view');
+
+    if (mainApp) mainApp.classList.add('hidden');
+    if (toolStudioView) toolStudioView.classList.add('hidden');
+    if (adminPage) adminPage.classList.add('hidden');
+    if (historyPage) historyPage.classList.add('hidden');
+    if (publicQuizView) publicQuizView.classList.add('hidden');
+    if (quizDashboardView) quizDashboardView.classList.add('hidden');
+
+    if (hash === '#admin-page' || hash === '#admin') {
+      if (adminPage) {
+        adminPage.classList.remove('hidden');
+        if (window.AdminPanelEngine) AdminPanelEngine.renderAdminPage();
+      }
+    } else if (hash === '#history') {
+      if (historyPage) { historyPage.classList.remove('hidden'); renderUserHistoryPage(); }
+    } else if (hash.startsWith('#quiz/') || hash.startsWith('#take-quiz/')) {
+      const quizId = hash.replace(/^#(quiz|take-quiz)\//, '');
+      if (publicQuizView) {
+        publicQuizView.classList.remove('hidden');
+        if (typeof renderParticipantQuizPage === 'function') renderParticipantQuizPage(quizId);
+      }
+    } else if (hash.startsWith('#quiz-dashboard/')) {
+      const quizId = hash.replace('#quiz-dashboard/', '');
+      if (quizDashboardView) {
+        quizDashboardView.classList.remove('hidden');
+        if (typeof renderQuizCreatorDashboard === 'function') renderQuizCreatorDashboard(quizId);
+      }
+    } else if (hash.startsWith('#tool/')) {
+      const toolId = hash.replace('#tool/', '');
+      const tool = TOOLS.find(t => t.id === toolId);
+      const isFeatureEnabled = window.AdminPanelEngine && AdminPanelEngine._featuresCache ? AdminPanelEngine._featuresCache[toolId] !== false : true;
+      const isAllowedForUser = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.isToolAllowedForUser(toolId) : false;
+
+      if (!isFeatureEnabled) {
+        mainApp.classList.remove('hidden');
+        window.location.hash = '#';
+        if (window.showToast) showToast('This tool has been globally disabled by the administrator.', 'error');
+      } else if (tool && toolStudioView && isAllowedForUser) {
+        toolStudioView.classList.remove('hidden');
+        renderDedicatedToolStudioPage(tool);
+      } else if (tool && toolStudioView && !isAllowedForUser) {
+        mainApp.classList.remove('hidden');
+        window.location.hash = '#';
+        if (window.AuthSubscriptionEngine) AuthSubscriptionEngine.openProUpgradeLockModal(tool);
+      } else if (mainApp) mainApp.classList.remove('hidden');
+    } else if (mainApp) mainApp.classList.remove('hidden');
+  }
 
   function getWorkAreaTitle(tool) {
     const titles = {
@@ -421,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <input type="file" id="studio-file-input" class="hidden" accept="${tool.accept || '*'}" ${tool.multiple ? 'multiple' : ''}>
           <div class="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-3xl mb-3 shadow-inner"><i class="fa-solid fa-cloud-arrow-up"></i></div>
           <p class="font-extrabold text-base text-slate-800 mb-1">Click to Upload ${acceptHint}</p>
-          <p class="text-xs text-slate-400">Support for ${acceptHint} files â€¢ Drag & drop supported</p>
+          <p class="text-xs text-slate-400">Support for ${acceptHint} files • Drag & drop supported</p>
         </div>
         <div id="studio-work-area" class="hidden p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div class="flex flex-wrap justify-between items-center pb-3 border-b border-slate-200 gap-2">
@@ -430,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <span id="studio-item-count-badge" class="text-xs font-extrabold bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full border border-indigo-200"></span>
             </div>
             <div class="flex gap-2">
-              ${tool.uiType === TOOL_UI_TYPES.PDF_PAGE_ORGANIZER ? `<button type="button" onclick="rotateAllPages(90)" class="text-xs px-2.5 py-1 rounded bg-slate-100 font-bold hover:bg-slate-200 transition text-slate-700"><i class="fa-solid fa-rotate-right"></i> Rotate All 90Â°</button>` : ''}
+              ${tool.uiType === TOOL_UI_TYPES.PDF_PAGE_ORGANIZER ? `<button type="button" onclick="rotateAllPages(90)" class="text-xs px-2.5 py-1 rounded bg-slate-100 font-bold hover:bg-slate-200 transition text-slate-700"><i class="fa-solid fa-rotate-right"></i> Rotate All 90°</button>` : ''}
               <button type="button" onclick="document.getElementById('studio-file-input').click()" class="text-xs px-2.5 py-1 rounded bg-indigo-600 text-white font-bold transition">+ ${tool.uiType === TOOL_UI_TYPES.PDF_PAGE_ORGANIZER ? 'Add File' : 'Replace File'}</button>
             </div>
           </div>
@@ -576,7 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <button type="button" onclick="selectDeleterPages('clear')" class="text-xs px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg font-bold text-slate-700 transition">Clear All</button>
             </div>
             <div id="deleter-status-summary" class="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
-              0 to delete â€¢ 0 remaining
+              0 to delete • 0 remaining
             </div>
           </div>
           <div id="deleter-thumbnail-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[460px] overflow-y-auto p-1"></div>
@@ -1027,14 +992,14 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (tool.id === 'pptx-to-pdf') {
       initPptxToPdfView(file);
     } else if (tool.uiType === TOOL_UI_TYPES.CONVERTER_SIMPLE || tool.id === 'pdf-to-docx' || tool.id === 'docx-to-pdf') {
-      // Converter tools â€” just show file info, work area already visible, ready to process
+      // Converter tools "” just show file info, work area already visible, ready to process
       const convInfoEl = document.getElementById('converter-file-info');
       if (convInfoEl) {
         convInfoEl.innerHTML = `<div class="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
           <i class="fa-solid fa-file text-indigo-600 text-2xl flex-shrink-0"></i>
           <div class="min-w-0">
             <p class="font-extrabold text-sm text-slate-900 truncate">${file.name}</p>
-            <p class="text-xs text-slate-500">${formatFileSize(file.size)} Â· Ready to convert</p>
+            <p class="text-xs text-slate-500">${formatFileSize(file.size)} · Ready to convert</p>
           </div>
           <span class="ml-auto text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex-shrink-0">
             <i class="fa-solid fa-check mr-1"></i>File loaded
@@ -1236,7 +1201,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">${idx + 1}</div>
             <div>
               <h5 class="text-xs font-extrabold text-slate-900">${doc.title}</h5>
-              <p class="text-[10px] text-slate-500 font-bold">Pages ${doc.startPage} â€“ ${doc.endPage} (${doc.pageCount} Pages)</p>
+              <p class="text-[10px] text-slate-500 font-bold">Pages ${doc.startPage} "“ ${doc.endPage} (${doc.pageCount} Pages)</p>
             </div>
           </div>
           <div class="flex items-center gap-2 text-xs">
@@ -1300,9 +1265,9 @@ document.addEventListener('DOMContentLoaded', () => {
           <img src="${card.dataUrl}" class="max-h-full max-w-full object-contain transition-transform duration-300" style="transform: rotate(${card.rotation}deg)">
         </div>
         <div class="flex justify-between items-center w-full pt-1.5 border-t border-slate-100 text-xs text-slate-600">
-          <button type="button" onclick="rotateStudioPageAt(${index}, -90)" class="hover:text-indigo-600 font-semibold p-1" title="Rotate 90Â° CCW"><i class="fa-solid fa-rotate-left"></i></button>
-          <span class="text-[10px] font-bold text-slate-400">${card.rotation}Â°</span>
-          <button type="button" onclick="rotateStudioPageAt(${index}, 90)" class="hover:text-indigo-600 font-semibold p-1" title="Rotate 90Â° CW"><i class="fa-solid fa-rotate-right"></i></button>
+          <button type="button" onclick="rotateStudioPageAt(${index}, -90)" class="hover:text-indigo-600 font-semibold p-1" title="Rotate 90° CCW"><i class="fa-solid fa-rotate-left"></i></button>
+          <span class="text-[10px] font-bold text-slate-400">${card.rotation}°</span>
+          <button type="button" onclick="rotateStudioPageAt(${index}, 90)" class="hover:text-indigo-600 font-semibold p-1" title="Rotate 90° CW"><i class="fa-solid fa-rotate-right"></i></button>
         </div>`;
       grid.appendChild(cardEl);
     });
@@ -1413,7 +1378,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const total = state.pdfPageCards.length;
     const delCount = state.selectedDeletePages.size;
     const remCount = total - delCount;
-    sumEl.textContent = `${delCount} marked to delete â€¢ ${remCount} remaining`;
+    sumEl.textContent = `${delCount} marked to delete • ${remCount} remaining`;
   };
 
   // --- 6. PDF CROP TOOL ---
@@ -1626,7 +1591,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileNameEl = document.getElementById('xlsx-file-name');
     const fileDetailsEl = document.getElementById('xlsx-file-details');
     if (fileNameEl) fileNameEl.textContent = file.name;
-    if (fileDetailsEl) fileDetailsEl.textContent = `${formatFileSize(file.size)} â€¢ Spreadsheet Ready`;
+    if (fileDetailsEl) fileDetailsEl.textContent = `${formatFileSize(file.size)} • Spreadsheet Ready`;
 
     const buffer = await file.arrayBuffer();
     const workbook = window.XLSX.read(buffer, { type: 'array' });
@@ -1860,9 +1825,9 @@ document.addEventListener('DOMContentLoaded', () => {
     switch (ctrl) {
       case 'compression-level': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between"><span><i class="fa-solid fa-gauge-high text-indigo-600"></i> Compression Level</span><span id="ctrl-compression-label" class="text-indigo-600">Balanced</span></label><select id="ctrl-compression-level" class="custom-input w-full text-xs"><option value="low">Low (85% size, highest quality)</option><option value="medium" selected>Medium / Balanced (60%)</option><option value="high">High Aggressive (40%)</option><option value="max">Maximum / Extreme (25%)</option></select></div>`;
       case 'target-size': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-weight-hanging text-indigo-600"></i> Target File Size</label><div class="flex gap-2"><input type="number" id="ctrl-target-size" class="custom-input flex-1 text-xs" placeholder="2" value="2" min="0.1" step="0.1"><select id="ctrl-target-unit" class="custom-input text-xs px-2"><option value="MB" selected>MB</option><option value="KB">KB</option></select></div><p class="text-[10px] text-slate-400">Engine iteratively compresses until under limit.</p></div>`;
-      case 'split-mode': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-scissors text-indigo-600"></i> Split Mode</label><select id="ctrl-split-mode" class="custom-input w-full text-xs"><option value="ranges" selected>Split by Custom Page Ranges</option><option value="individual">Every Page â†’ Separate PDF</option><option value="every-n">Every N Pages â†’ New PDF</option><option value="half">Split into 2 Equal Halves</option></select></div>`;
+      case 'split-mode': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-scissors text-indigo-600"></i> Split Mode</label><select id="ctrl-split-mode" class="custom-input w-full text-xs"><option value="ranges" selected>Split by Custom Page Ranges</option><option value="individual">Every Page -> Separate PDF</option><option value="every-n">Every N Pages -> New PDF</option><option value="half">Split into 2 Equal Halves</option></select></div>`;
       case 'page-range': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-hashtag text-indigo-600"></i> Page Range(s)</label><input type="text" id="ctrl-page-range" class="custom-input w-full text-xs" placeholder="e.g. 1-5, 8, 12-15"><p class="text-[10px] text-slate-400">Comma-separated list. Use hyphen for ranges.</p></div>`;
-      case 'rotate-angle': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-rotate-right text-indigo-600"></i> Default Rotation</label><div class="grid grid-cols-4 gap-1">${['0Â°','90Â°','180Â°','270Â°'].map((a,i)=>`<label class="flex flex-col items-center justify-center p-2 rounded-lg border border-slate-200 cursor-pointer hover:border-indigo-500 transition ${i===0?'bg-indigo-50 border-indigo-500':''}"><input type="radio" name="rotate-default" value="${i*90}" ${i===0?'checked':''} class="accent-indigo-600"><span class="text-[10px] font-bold text-slate-700 mt-0.5">${a}</span></label>`).join('')}</div></div>`;
+      case 'rotate-angle': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-rotate-right text-indigo-600"></i> Default Rotation</label><div class="grid grid-cols-4 gap-1">${['0°','90°','180°','270°'].map((a,i)=>`<label class="flex flex-col items-center justify-center p-2 rounded-lg border border-slate-200 cursor-pointer hover:border-indigo-500 transition ${i===0?'bg-indigo-50 border-indigo-500':''}"><input type="radio" name="rotate-default" value="${i*90}" ${i===0?'checked':''} class="accent-indigo-600"><span class="text-[10px] font-bold text-slate-700 mt-0.5">${a}</span></label>`).join('')}</div></div>`;
       case 'crop-margins': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-crop-simple text-indigo-600"></i> Crop Preset</label><select id="ctrl-crop-preset" class="custom-input w-full text-xs"><option value="custom" selected>Custom Margins (use workspace)</option><option value="tight">Tight Trim (remove 5mm all sides)</option><option value="standard">Standard Print Trim (10mm)</option><option value="ebook">E-Reader Friendly (15mm top/bottom)</option><option value="remove-white">Auto-remove Whitespace</option></select></div>`;
       case 'crop-pages-select': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-copy text-indigo-600"></i> Apply to All Pages</label><label class="inline-flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-50 p-2 rounded-lg cursor-pointer"><input type="checkbox" id="ctrl-crop-all" checked class="accent-indigo-600 w-4 h-4"> Apply crop margin values to all selected pages</label></div>`;
       case 'output-img-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file-image text-indigo-600"></i> Output Image Format</label><select id="ctrl-img-format" class="custom-input w-full text-xs"><option value="jpg" selected>JPEG (Photo optimized)</option><option value="png">PNG (Lossless, transparent)</option><option value="webp">WEBP (Modern, smallest)</option><option value="tiff">TIFF (Print, uncompressed)</option></select></div>`;
@@ -1874,8 +1839,8 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'paper-size-orientation': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file text-indigo-600"></i> Paper & Orientation</label><select id="ctrl-paper-size" class="custom-input w-full text-xs mb-1"><option value="A4" selected>A4 International (210Ã—297mm)</option><option value="Letter">US Letter (8.5Ã—11 in)</option><option value="Legal">US Legal (8.5Ã—14 in)</option><option value="A3">A3 Poster (297Ã—420mm)</option><option value="fit">Fit to Content Size</option></select><div class="grid grid-cols-2 gap-1"><label class="flex items-center justify-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer hover:border-indigo-500 transition bg-indigo-50 border-indigo-500"><input type="radio" name="orientation" value="portrait" checked class="accent-indigo-600"><span class="text-[11px] font-bold text-slate-700"><i class="fa-solid fa-file-lines"></i> Portrait</span></label><label class="flex items-center justify-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer hover:border-indigo-500 transition"><input type="radio" name="orientation" value="landscape" class="accent-indigo-600"><span class="text-[11px] font-bold text-slate-700"><i class="fa-solid fa-file-lines fa-rotate-90"></i> Landscape</span></label></div></div>`;
       case 'image-layout': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-layer-group text-indigo-600"></i> Multi-Image Layout</label><select id="ctrl-img-layout" class="custom-input w-full text-xs"><option value="one-per-page" selected>One Image per Page</option><option value="fit-multiple">Fit as Many as Possible</option><option value="2-per-page">2 Images per Page</option><option value="4-per-page">4 Images per Page (contact sheet)</option></select><div class="space-y-1 pt-1"><label class="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><input type="checkbox" id="ctrl-margin-auto" checked class="accent-indigo-600"> Auto-center margins</label><br><label class="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><input type="checkbox" id="ctrl-page-numbers" class="accent-indigo-600"> Add page numbers</label></div></div>`;
       case 'docx-format-options': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file-word text-indigo-600"></i> DOCX Layout Mode</label><select id="ctrl-docx-mode" class="custom-input w-full text-xs"><option value="faithful" selected>Faithful Visual Layout (frames)</option><option value="flowable">Editable Flowable Text (recommended)</option><option value="text-only">Text Extraction Only</option></select></div>`;
-      case 'excel-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-table-cells text-indigo-600"></i> Table Extraction Mode</label><select id="ctrl-excel-mode" class="custom-input w-full text-xs"><option value="ai" selected>Smart Table Detection (AI)</option><option value="ocr-grid">OCR Grid Extraction</option><option value="whole-page">Whole Page â†’ Single Sheet</option></select></div>`;
-      case 'pptx-layout': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file-powerpoint text-indigo-600"></i> Slide Strategy</label><select id="ctrl-pptx-mode" class="custom-input w-full text-xs"><option value="1-to-1" selected>1 PDF Page = 1 Slide (image)</option><option value="text-extract">Extract text â†’ Title + Bullets</option><option value="template">Apply Slide Master Template</option></select></div>`;
+      case 'excel-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-table-cells text-indigo-600"></i> Table Extraction Mode</label><select id="ctrl-excel-mode" class="custom-input w-full text-xs"><option value="ai" selected>Smart Table Detection (AI)</option><option value="ocr-grid">OCR Grid Extraction</option><option value="whole-page">Whole Page -> Single Sheet</option></select></div>`;
+      case 'pptx-layout': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file-powerpoint text-indigo-600"></i> Slide Strategy</label><select id="ctrl-pptx-mode" class="custom-input w-full text-xs"><option value="1-to-1" selected>1 PDF Page = 1 Slide (image)</option><option value="text-extract">Extract text -> Title + Bullets</option><option value="template">Apply Slide Master Template</option></select></div>`;
       case 'cmyk-picker': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-palette text-indigo-600"></i> CMYK Conversion Profile</label><select id="ctrl-cmyk-profile" class="custom-input w-full text-xs"><option value="us-web-coated" selected>US Web Coated SWOP v2</option><option value="fogra39">FOGRA39 (Europe coated)</option><option value="japan-color">Japan Color 2001 Coated</option><option value="newspaper">Newspaper SNAP (uncoated)</option></select><label class="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-700 mt-1"><input type="checkbox" checked class="accent-indigo-600"> Embed ICC profile for press</label></div>`;
       case 'icc-profile': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-shield text-indigo-600"></i> Rendering Intent</label><select id="ctrl-rendering-intent" class="custom-input w-full text-xs"><option value="perceptual" selected>Perceptual (Photographs)</option><option value="relative">Relative Colorimetric (Best for logos)</option><option value="saturation">Saturation (Charts / Graphs)</option><option value="absolute">Absolute Colorimetric (Proofing)</option></select></div>`;
       case 'bleed-size': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-ruler text-indigo-600"></i> Bleed Size</label><select id="ctrl-bleed-size" class="custom-input w-full text-xs"><option value="3">3mm (Digital Print)</option><option value="5" selected>5mm (Standard Offset)</option><option value="8">8mm (Large Format)</option><option value="custom">Custom value...</option></select></div>`;
@@ -1890,7 +1855,7 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'audio-bitrate': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-music text-indigo-600"></i> Audio Bitrate (kbps)</label><select id="ctrl-bitrate" class="custom-input w-full text-xs"><option value="128">128 kbps (Good)</option><option value="192" selected>192 kbps (Better)</option><option value="256">256 kbps (Excellent)</option><option value="320">320 kbps (Studio Quality)</option></select></div>`;
       case 'audio-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-file-audio text-indigo-600"></i> Output Format</label><select id="ctrl-audio-fmt" class="custom-input w-full text-xs"><option value="mp3" selected>MP3 (Universal)</option><option value="wav">WAV (Uncompressed)</option><option value="ogg">OGG Vorbis (Open)</option><option value="m4a">M4A / AAC (Apple)</option></select></div>`;
       case 'font-output-format': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-font text-indigo-600"></i> Target Format(s)</label><div class="space-y-1 text-[11px]">${['WOFF2','WOFF','TTF','OTF','EOT'].map(f=>`<label class="flex items-center gap-1.5 font-bold text-slate-700 p-1.5 rounded hover:bg-slate-50 cursor-pointer"><input type="checkbox" ${f!=='EOT'?'checked':''} class="font-format-check accent-indigo-600" value="${f.toLowerCase()}"> ${f} <span class="text-slate-400 font-normal text-[10px] ml-auto">${fontHint(f)}</span></label>`).join('')}</div></div>`;
-      case 'px-rem-picker': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-calculator text-indigo-600"></i> Conversion Type</label><select id="ctrl-pxrem-type" class="custom-input w-full text-xs"><option value="px-to-rem" selected>PX â†’ REM</option><option value="rem-to-px">REM â†’ PX</option><option value="px-to-em">PX â†’ EM</option><option value="em-to-px">EM â†’ PX</option></select></div>`;
+      case 'px-rem-picker': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-calculator text-indigo-600"></i> Conversion Type</label><select id="ctrl-pxrem-type" class="custom-input w-full text-xs"><option value="px-to-rem" selected>PX -> REM</option><option value="rem-to-px">REM -> PX</option><option value="px-to-em">PX -> EM</option><option value="em-to-px">EM -> PX</option></select></div>`;
       case 'base-font-size': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-text-height text-indigo-600"></i> Root Font Size (PX)</label><input type="number" id="ctrl-base-font" class="custom-input w-full text-xs" value="16" min="8" max="32"><p class="text-[10px] text-slate-400">Browser default: 16px. Custom designs may use 10px (62.5% trick).</p></div>`;
       case 'case-picker': return `<div class="space-y-2"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-font-case text-indigo-600"></i> Target Case</label><select id="ctrl-case-type" class="custom-input w-full text-xs"><option value="upper">UPPERCASE</option><option value="lower">lowercase</option><option value="title" selected>Title Case</option><option value="sentence">Sentence case</option><option value="camel">camelCase</option><option value="pascal">PascalCase</option><option value="snake">snake_case</option><option value="kebab">kebab-case</option></select></div>`;
       case 'glass-picker': return `<div class="space-y-3"><label class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><i class="fa-solid fa-sparkles text-indigo-600"></i> Glassmorphism Params</label><div><label class="text-[10px] text-slate-500 flex justify-between">Blur: <span id="lbl-blur">16px</span></label><input type="range" id="ctrl-blur" min="0" max="60" value="16" class="w-full accent-indigo-600"></div><div><label class="text-[10px] text-slate-500 flex justify-between">Opacity: <span id="lbl-opacity">10%</span></label><input type="range" id="ctrl-opacity" min="0" max="100" value="10" class="w-full accent-indigo-600"></div><div><label class="text-[10px] text-slate-500 flex justify-between">Saturation: <span id="lbl-sat">180%</span></label><input type="range" id="ctrl-sat" min="50" max="300" value="180" class="w-full accent-indigo-600"></div><div class="grid grid-cols-2 gap-2"><div><label class="text-[10px] text-slate-500">BG Color</label><input type="color" id="ctrl-glass-bg" value="#ffffff" class="w-full h-8 rounded"></div><div><label class="text-[10px] text-slate-500">Border</label><input type="color" id="ctrl-glass-border" value="#ffffff" class="w-full h-8 rounded"></div></div><div id="glass-preview" class="h-20 rounded-xl mt-2 flex items-center justify-center relative overflow-hidden"><div class="absolute inset-0 bg-gradient-to-br from-indigo-400 via-purple-400 to-pink-400"></div><div id="glass-preview-box" class="relative z-10 px-3 py-2 rounded-lg text-[10px] font-bold text-slate-900 border">Preview Box</div></div></div>`;
@@ -2132,16 +2097,16 @@ document.addEventListener('DOMContentLoaded', () => {
     result.innerHTML = `
       <div class="flex justify-between items-center"><span class="font-bold">Contrast Ratio:</span><span class="font-extrabold text-lg">${ratio.toFixed(2)} : 1</span></div>
       <div class="pt-2 border-t space-y-1">
-        <div class="flex justify-between"><span>AA Normal (4.5:1)</span><span class="font-bold ${passNormal ? 'text-emerald-600' : 'text-red-500'}">${passNormal ? 'âœ“ PASS' : 'âœ— FAIL'}</span></div>
-        <div class="flex justify-between"><span>AA Large Text (3:1)</span><span class="font-bold ${passLarge ? 'text-emerald-600' : 'text-red-500'}">${passLarge ? 'âœ“ PASS' : 'âœ— FAIL'}</span></div>
-        <div class="flex justify-between"><span>AAA Normal (7:1)</span><span class="font-bold ${passAAA ? 'text-emerald-600' : 'text-red-500'}">${passAAA ? 'âœ“ PASS' : 'âœ— FAIL'}</span></div>
+        <div class="flex justify-between"><span>AA Normal (4.5:1)</span><span class="font-bold ${passNormal ? 'text-emerald-600' : 'text-red-500'}">${passNormal ? '✓ PASS' : '✗ FAIL'}</span></div>
+        <div class="flex justify-between"><span>AA Large Text (3:1)</span><span class="font-bold ${passLarge ? 'text-emerald-600' : 'text-red-500'}">${passLarge ? '✓ PASS' : '✗ FAIL'}</span></div>
+        <div class="flex justify-between"><span>AAA Normal (7:1)</span><span class="font-bold ${passAAA ? 'text-emerald-600' : 'text-red-500'}">${passAAA ? '✓ PASS' : '✗ FAIL'}</span></div>
       </div>
       <div class="flex gap-2 pt-2 border-t">
         <div class="flex-1 text-center py-2 rounded font-bold text-sm" style="background:${bg};color:${fg}">Sample Aa</div>
         <div class="flex-1 text-center py-2 rounded font-bold text-lg" style="background:${bg};color:${fg}">Large 24px</div>
       </div>`;
     if (out && preview) {
-      out.textContent = `/* WCAG Contrast Report */\nForeground: ${fg}\nBackground: ${bg}\nContrast Ratio: ${ratio.toFixed(2)}:1\n\nâœ“ AA Normal (4.5:1):    ${passNormal ? 'PASS' : 'FAIL'}\nâœ“ AA Large  (3:1):      ${passLarge ? 'PASS' : 'FAIL'}\nâœ“ AAA Normal (7:1):     ${passAAA ? 'PASS' : 'FAIL'}`;
+      out.textContent = `/* WCAG Contrast Report */\nForeground: ${fg}\nBackground: ${bg}\nContrast Ratio: ${ratio.toFixed(2)}:1\n\n✓ AA Normal (4.5:1):    ${passNormal ? 'PASS' : 'FAIL'}\n✓ AA Large  (3:1):      ${passLarge ? 'PASS' : 'FAIL'}\n✓ AAA Normal (7:1):     ${passAAA ? 'PASS' : 'FAIL'}`;
       preview.classList.remove('hidden');
     }
   }
@@ -2198,7 +2163,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isText = tool.uiType === TOOL_UI_TYPES.TEXT_INPUT;
       if (!isText && state.files.length === 0) { showToast('Please upload a file first.', 'error'); return; }
 
-      // â”€â”€ Loading overlay (full workspace) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // -- Loading overlay (full workspace) ----------------------------------
       let overlay = document.getElementById('studio-loading-overlay');
       if (!overlay) {
         overlay = document.createElement('div');
@@ -2214,13 +2179,13 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
             </div>
             <div class="text-center">
-              <h4 class="font-extrabold text-slate-900 text-sm mb-1" id="overlay-title">Processingâ€¦</h4>
+              <h4 class="font-extrabold text-slate-900 text-sm mb-1" id="overlay-title">Processing...</h4>
               <p id="overlay-status" class="text-xs text-slate-500 min-h-[1.5rem]">Please wait, this may take a moment</p>
             </div>
             <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
               <div id="overlay-progress-bar" class="h-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300 animate-pulse" style="width: 15%"></div>
             </div>
-            <p class="text-[10px] text-slate-400 text-center">Your file never leaves your device â€” 100% in-browser processing</p>
+            <p class="text-[10px] text-slate-400 text-center">Your file never leaves your device "” 100% in-browser processing</p>
           </div>`;
         document.body.appendChild(overlay);
       }
@@ -2235,11 +2200,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (overlayTitle) overlayTitle.textContent = getProcessButtonText(tool).replace(/&amp;/g, '&');
       overlay.classList.remove('hidden');
-      setOverlayProgress(15, 'Initialisingâ€¦');
+      setOverlayProgress(15, 'Initialising...');
 
-      // â”€â”€ Button state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // -- Button state ------------------------------------------------------
       const originalBtnHTML = btn.innerHTML;
-      btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i><span>Processingâ€¦</span>`;
+      btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin mr-2"></i><span>Processing...</span>`;
       btn.classList.add('opacity-75', 'cursor-not-allowed');
       btn.disabled = true;
 
@@ -2254,26 +2219,26 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         let resultBlob = null, filename = `export_${Date.now()}`;
 
-        // â”€â”€ 1. PDF MERGER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 1. PDF MERGER -------------------------------------------------
         if (tool.id === 'pdf-merger') {
           if (state.files.length < 1) throw new Error('Please upload at least one PDF to merge.');
-          setOverlayProgress(20, `Merging ${state.files.length} PDF file(s)â€¦`);
+          setOverlayProgress(20, `Merging ${state.files.length} PDF file(s)...`);
           const orientation = document.getElementById('ctrl-merge-orientation')?.value || 'auto';
           const customName  = document.getElementById('ctrl-merge-filename')?.value?.trim() || 'merged_document';
           const mergedBytes = await PDFEngine.mergePDFs(state.files, { orientation });
-          setOverlayProgress(95, 'Finalising documentâ€¦');
+          setOverlayProgress(95, 'Finalising document...');
           resultBlob = new Blob([mergedBytes], { type: 'application/pdf' });
           filename   = customName.endsWith('.pdf') ? customName : `${customName}.pdf`;
           showToast('PDFs merged successfully!', 'success');
         }
-        // â”€â”€ 2. PDF SPLITTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 2. PDF SPLITTER -----------------------------------------------
         else if (tool.id === 'pdf-splitter') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(20, 'Parsing page rangesâ€¦');
+          setOverlayProgress(20, 'Parsing page ranges...');
           const mode      = document.getElementById('splitter-mode-select')?.value || document.getElementById('ctrl-split-mode')?.value || 'ranges';
           const rangeStr  = document.getElementById('splitter-range-input')?.value || document.getElementById('ctrl-page-range')?.value || '1';
           const splitRes  = await PDFEngine.splitPDF(await state.files[0].arrayBuffer(), { mode, rangeStr });
-          setOverlayProgress(90, 'Packaging outputâ€¦');
+          setOverlayProgress(90, 'Packaging output...');
           if (splitRes.isZip) {
             resultBlob = splitRes.zipBlob;
             filename   = splitRes.filename || 'split_pages.zip';
@@ -2283,16 +2248,16 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           showToast('PDF split successfully!', 'success');
         }
-        // â”€â”€ 3. PDF UN-MERGER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 3. PDF UN-MERGER ----------------------------------------------
         else if (tool.id === 'pdf-unmerger') {
           if (!state.files[0]) throw new Error('Please upload a merged PDF file.');
-          setOverlayProgress(20, 'Analysing document structureâ€¦');
+          setOverlayProgress(20, 'Analysing document structure...');
           if (!state.detectedSubDocs || state.detectedSubDocs.length === 0) {
             state.detectedSubDocs = await PDFEngine.unmergePDF(await state.files[0].arrayBuffer());
           }
-          setOverlayProgress(60, `Extracting ${state.detectedSubDocs.length} sub-documentsâ€¦`);
+          setOverlayProgress(60, `Extracting ${state.detectedSubDocs.length} sub-documents...`);
           const unmergeRes = await PDFEngine.exportUnmergedSubDocs(await state.files[0].arrayBuffer(), state.detectedSubDocs);
-          setOverlayProgress(95, 'Packaging archiveâ€¦');
+          setOverlayProgress(95, 'Packaging archive...');
           if (unmergeRes.isZip) {
             resultBlob = unmergeRes.zipBlob;
           } else {
@@ -2301,33 +2266,33 @@ document.addEventListener('DOMContentLoaded', () => {
           filename = unmergeRes.filename;
           showToast(`Extracted ${state.detectedSubDocs.length} sub-document(s)!`, 'success');
         }
-        // â”€â”€ 4. PDF PAGE RE-ORDERER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 4. PDF PAGE RE-ORDERER ----------------------------------------
         else if (tool.id === 'pdf-page-reorder') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(30, 'Reordering pagesâ€¦');
+          setOverlayProgress(30, 'Reordering pages...');
           const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
-          setOverlayProgress(95, 'Saving documentâ€¦');
+          setOverlayProgress(95, 'Saving document...');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'reordered_document.pdf';
           showToast('PDF pages reordered successfully!', 'success');
         }
-        // â”€â”€ 5. PDF PAGE DELETER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 5. PDF PAGE DELETER -------------------------------------------
         else if (tool.id === 'pdf-page-deleter') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
           if (state.selectedDeletePages.size === 0) throw new Error('Select at least one page to delete.');
           if (state.selectedDeletePages.size >= state.pdfPageCards.length) throw new Error('Cannot delete all pages in the document.');
-          setOverlayProgress(30, `Removing ${state.selectedDeletePages.size} page(s)â€¦`);
+          setOverlayProgress(30, `Removing ${state.selectedDeletePages.size} page(s)...`);
           const pagesToDelete = Array.from(state.selectedDeletePages);
           const bytes = await PDFEngine.deletePages(await state.files[0].arrayBuffer(), pagesToDelete);
-          setOverlayProgress(95, 'Saving documentâ€¦');
+          setOverlayProgress(95, 'Saving document...');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'pages_deleted.pdf';
           showToast(`Deleted ${pagesToDelete.length} page(s) successfully!`, 'success');
         }
-        // â”€â”€ 6. PDF CROP TOOL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 6. PDF CROP TOOL ----------------------------------------------
         else if (tool.id === 'pdf-crop-tool') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(30, 'Applying crop geometryâ€¦');
+          setOverlayProgress(30, 'Applying crop geometry...');
           const top    = parseFloat(document.getElementById('crop-input-top')?.value    || 0);
           const right  = parseFloat(document.getElementById('crop-input-right')?.value  || 0);
           const bottom = parseFloat(document.getElementById('crop-input-bottom')?.value || 0);
@@ -2340,56 +2305,56 @@ document.addEventListener('DOMContentLoaded', () => {
             { top, right, bottom, left, unit, canvasW: state.cropState?.origW || 420, canvasH: state.cropState?.origH || 594 },
             { scope, pageRange, activePageIndex: 0 }
           );
-          setOverlayProgress(95, 'Saving cropped PDFâ€¦');
+          setOverlayProgress(95, 'Saving cropped PDF...');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'cropped_document.pdf';
           showToast('Crop applied successfully!', 'success');
         }
-        // â”€â”€ 7. SMART PDF COMPRESSOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 7. SMART PDF COMPRESSOR ---------------------------------------
         else if (tool.id === 'pdf-compressor-smart') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
           const preset = document.getElementById('smart-compress-preset')?.value || document.getElementById('ctrl-compression-level')?.value || 'medium';
-          setOverlayProgress(10, 'Starting smart compressionâ€¦');
+          setOverlayProgress(10, 'Starting smart compression...');
           const compRes = await PDFEngine.compressPDF(await state.files[0].arrayBuffer(), preset, (pct) => {
-            setOverlayProgress(10 + pct * 0.85, `Optimising page ${Math.ceil(pct / (100 / (state.pdfPageCards.length || 1)))} â€” ${pct}% doneâ€¦`);
+            setOverlayProgress(10 + pct * 0.85, `Optimising page ${Math.ceil(pct / (100 / (state.pdfPageCards.length || 1)))} "” ${pct}% done...`);
           });
-          setOverlayProgress(98, 'Finalisingâ€¦');
+          setOverlayProgress(98, 'Finalising...');
           resultBlob = new Blob([compRes.bytes], { type: 'application/pdf' });
           filename   = 'compressed_smart.pdf';
           const metEl = document.getElementById('compress-metric-result');
           if (metEl) {
             metEl.classList.remove('hidden');
-            metEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i>Compressed <b>${formatFileSize(compRes.originalSize)}</b> â†’ <b>${formatFileSize(compRes.compressedSize)}</b> <span class="text-emerald-700 font-black">(${compRes.percentSaved}% saved)</span>`;
+            metEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i>Compressed <b>${formatFileSize(compRes.originalSize)}</b> -> <b>${formatFileSize(compRes.compressedSize)}</b> <span class="text-emerald-700 font-black">(${compRes.percentSaved}% saved)</span>`;
           }
           showToast(`Compressed! Saved ${compRes.percentSaved}%`, 'success');
         }
-        // â”€â”€ 8. LOSSLESS PDF SHRINKER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 8. LOSSLESS PDF SHRINKER --------------------------------------
         else if (tool.id === 'lossless-pdf-shrinker') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(30, 'Stripping metadata & unreferenced objectsâ€¦');
+          setOverlayProgress(30, 'Stripping metadata & unreferenced objects...');
           const shrinkRes = await PDFEngine.shrinkPDFLossless(await state.files[0].arrayBuffer());
-          setOverlayProgress(95, 'Savingâ€¦');
+          setOverlayProgress(95, 'Saving...');
           resultBlob = new Blob([shrinkRes.bytes], { type: 'application/pdf' });
           filename   = 'lossless_shrink.pdf';
           const metEl = document.getElementById('lossless-metric-result');
           if (metEl) {
             metEl.classList.remove('hidden');
-            metEl.innerHTML = `<i class="fa-solid fa-shield-check text-teal-600 mr-2"></i>Lossless: <b>${formatFileSize(shrinkRes.originalSize)}</b> â†’ <b>${formatFileSize(shrinkRes.compressedSize)}</b> <span class="text-emerald-700 font-black">(${shrinkRes.percentSaved}% saved â€” 100% fidelity)</span>`;
+            metEl.innerHTML = `<i class="fa-solid fa-shield-check text-teal-600 mr-2"></i>Lossless: <b>${formatFileSize(shrinkRes.originalSize)}</b> -> <b>${formatFileSize(shrinkRes.compressedSize)}</b> <span class="text-emerald-700 font-black">(${shrinkRes.percentSaved}% saved "” 100% fidelity)</span>`;
           }
           showToast('Lossless shrink complete!', 'success');
         }
-        // â”€â”€ 9. PDF TARGET SIZE SHRINKER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 9. PDF TARGET SIZE SHRINKER -----------------------------------
         else if (tool.id === 'pdf-target-shrinker') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
           let targetVal = parseFloat(document.getElementById('target-size-number')?.value || document.getElementById('target-size-kb-input')?.value || document.getElementById('ctrl-target-size')?.value || 2);
           const targetUnitEl = document.getElementById('target-size-unit') || document.getElementById('ctrl-target-unit');
           const targetUnit   = targetUnitEl?.value || 'MB';
           const targetBytes  = targetUnit === 'MB' ? targetVal * 1024 * 1024 : targetVal * 1024;
-          setOverlayProgress(5, `Target: ${targetVal} ${targetUnit} â€” starting iterative compressionâ€¦`);
+          setOverlayProgress(5, `Target: ${targetVal} ${targetUnit} "” starting iterative compression...`);
           const targetRes = await PDFEngine.shrinkPDFTargetSize(await state.files[0].arrayBuffer(), targetBytes, (statusStr) => {
             setOverlayProgress(30, statusStr);
           });
-          setOverlayProgress(98, 'Finalisingâ€¦');
+          setOverlayProgress(98, 'Finalising...');
           resultBlob = new Blob([targetRes.bytes], { type: 'application/pdf' });
           filename   = `shrunk_${targetVal}${targetUnit.toLowerCase()}.pdf`;
           const feedEl = document.getElementById('target-shrinker-feedback');
@@ -2397,64 +2362,64 @@ document.addEventListener('DOMContentLoaded', () => {
             feedEl.classList.remove('hidden');
             feedEl.innerHTML = targetRes.hitTarget
               ? `<div class="p-3 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 font-bold text-xs flex items-center gap-2"><i class="fa-solid fa-check-circle text-emerald-600"></i>Target met! Compressed to <b>${formatFileSize(targetRes.finalSize)}</b></div>`
-              : `<div class="p-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 font-bold text-xs flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-amber-500"></i>Best achievable: <b>${formatFileSize(targetRes.finalSize)}</b> â€” target could not be strictly met.</div>`;
+              : `<div class="p-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 font-bold text-xs flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-amber-500"></i>Best achievable: <b>${formatFileSize(targetRes.finalSize)}</b> "” target could not be strictly met.</div>`;
           }
           showToast('Target compression finished!', 'success');
         }
-        // â”€â”€ 10. PDF TO EXCEL (XLSX) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 10. PDF TO EXCEL (XLSX) ---------------------------------------
         else if (tool.id === 'pdf-to-xlsx') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(20, 'Extracting text and table structuresâ€¦');
+          setOverlayProgress(20, 'Extracting text and table structures...');
           const xlsxRes = await PDFEngine.pdfToExcel(await state.files[0].arrayBuffer());
-          setOverlayProgress(95, 'Building workbookâ€¦');
+          setOverlayProgress(95, 'Building workbook...');
           resultBlob = xlsxRes.blob;
           filename   = xlsxRes.filename;
           showToast('Tables extracted to Excel (.xlsx)!', 'success');
         }
-        // â”€â”€ 11. EXCEL (XLSX) TO PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 11. EXCEL (XLSX) TO PDF ---------------------------------------
         else if (tool.id === 'xlsx-to-pdf') {
           if (!state.files[0]) throw new Error('Please upload an Excel or CSV spreadsheet.');
-          setOverlayProgress(25, 'Parsing spreadsheetâ€¦');
+          setOverlayProgress(25, 'Parsing spreadsheet...');
           const orientation = document.getElementById('xlsx-paper-orientation')?.value || document.querySelector('input[name="orientation"]:checked')?.value || 'portrait';
           const paper       = document.getElementById('xlsx-paper-size')?.value || document.getElementById('ctrl-paper-size')?.value || 'A4';
           const pdfRes = await PDFEngine.excelToPDF(state.files[0], { orientation, paperSize: paper });
-          setOverlayProgress(95, 'Rendering PDFâ€¦');
+          setOverlayProgress(95, 'Rendering PDF...');
           resultBlob = pdfRes.blob;
           filename   = pdfRes.filename;
           showToast('Spreadsheet converted to PDF!', 'success');
         }
-        // â”€â”€ 12. PDF TO POWERPOINT (PPTX) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 12. PDF TO POWERPOINT (PPTX) ----------------------------------
         else if (tool.id === 'pdf-to-pptx') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
-          setOverlayProgress(5, 'Rendering PDF pages as slidesâ€¦');
+          setOverlayProgress(5, 'Rendering PDF pages as slides...');
           const pptxRes = await PDFEngine.pdfToPPTX(await state.files[0].arrayBuffer(), (msg) => {
             setOverlayProgress(10, msg);
           });
-          setOverlayProgress(98, 'Finalising presentationâ€¦');
+          setOverlayProgress(98, 'Finalising presentation...');
           resultBlob = pptxRes.blob;
           filename   = pptxRes.filename;
           showToast('PDF converted to PowerPoint (.pptx)!', 'success');
         }
-        // â”€â”€ 13. POWERPOINT (PPTX) TO PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 13. POWERPOINT (PPTX) TO PDF ----------------------------------
         else if (tool.id === 'pptx-to-pdf') {
           if (!state.files[0]) throw new Error('Please upload a .pptx file.');
-          setOverlayProgress(10, 'Parsing presentation slidesâ€¦');
+          setOverlayProgress(10, 'Parsing presentation slides...');
           const pdfRes = await PDFEngine.pptxToPDF(state.files[0], (msg) => {
             setOverlayProgress(30, msg);
           });
-          setOverlayProgress(98, 'Saving PDFâ€¦');
+          setOverlayProgress(98, 'Saving PDF...');
           resultBlob = pdfRes.blob;
           filename   = pdfRes.filename;
           showToast('Presentation converted to PDF!', 'success');
         }
-        // â”€â”€ 14. PDF TO JPG CONVERTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 14. PDF TO JPG CONVERTER --------------------------------------
         else if (tool.id === 'pdf-to-jpg') {
           if (!state.files[0]) throw new Error('Please upload a PDF file.');
           const dpi   = parseFloat(document.getElementById('pdf-jpg-dpi')?.value || document.getElementById('ctrl-dpi')?.value || '2');
           const range = document.getElementById('pdf-jpg-range')?.value || '';
-          setOverlayProgress(10, 'Rendering PDF pages as imagesâ€¦');
+          setOverlayProgress(10, 'Rendering PDF pages as images...');
           const images = await PDFEngine.pdfToImages(await state.files[0].arrayBuffer(), 'image/jpeg', dpi, range);
-          setOverlayProgress(90, images.length > 1 ? 'Packaging ZIPâ€¦' : 'Saving imageâ€¦');
+          setOverlayProgress(90, images.length > 1 ? 'Packaging ZIP...' : 'Saving image...');
           if (images.length === 1) {
             resultBlob = dataURLtoBlob(images[0].dataUrl);
             filename   = `page_${images[0].page}.jpg`;
@@ -2466,20 +2431,20 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           showToast(`Rendered ${images.length} high-res image(s)!`, 'success');
         }
-        // â”€â”€ 15. JPG TO PDF CONVERTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 15. JPG TO PDF CONVERTER --------------------------------------
         else if (tool.id === 'jpg-to-pdf') {
           if (state.files.length === 0) throw new Error('Please upload one or more images.');
-          setOverlayProgress(20, `Embedding ${state.files.length} image(s) into PDFâ€¦`);
+          setOverlayProgress(20, `Embedding ${state.files.length} image(s) into PDF...`);
           const orientation = document.querySelector('input[name="orientation"]:checked')?.value || 'auto';
           const marginLevel = document.getElementById('ctrl-margin-auto')?.checked ? 'small' : 'none';
           const pageFormat  = document.getElementById('ctrl-paper-size')?.value || 'A4';
           const bytes = await PDFEngine.imagesToPDF(state.files, { orientation, marginLevel, pageFormat });
-          setOverlayProgress(95, 'Saving PDFâ€¦');
+          setOverlayProgress(95, 'Saving PDF...');
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'compiled_images.pdf';
           showToast('Images compiled into PDF!', 'success');
         }
-        // â”€â”€ 16. BATCH IMAGE RESIZER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 16. BATCH IMAGE RESIZER ---------------------------------------
         else if (tool.id === 'batch-img-resizer') {
           if (state.files.length === 0) throw new Error('Please upload images to resize.');
           const mode      = document.getElementById('batch-resizer-mode')?.value || 'fixed';
@@ -2491,7 +2456,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const processed = await PDFEngine.batchResizeImages(state.files, { mode, width, height, lockAspect, percent, targetSizeKB: targetKB }, (cur, tot, name) => {
             setOverlayProgress(10 + (cur / tot) * 85, `Resizing ${cur}/${tot}: ${name}`);
           });
-          setOverlayProgress(98, 'Packaging resultsâ€¦');
+          setOverlayProgress(98, 'Packaging results...');
           if (processed.length === 1) {
             resultBlob = processed[0].blob;
             filename   = processed[0].name;
@@ -2503,10 +2468,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           showToast(`Resized ${processed.length} image(s)!`, 'success');
         }
-        // â”€â”€ 17. LOSSLESS PNG COMPRESSOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 17. LOSSLESS PNG COMPRESSOR -----------------------------------
         else if (tool.id === 'png-compressor') {
           if (!state.files[0]) throw new Error('Please upload a PNG file.');
-          setOverlayProgress(30, 'Compressing PNG losslesslyâ€¦');
+          setOverlayProgress(30, 'Compressing PNG losslessly...');
           const comp = state.pngComparison?.blob
             ? { blob: state.pngComparison.blob }
             : await PDFEngine.compressPNGLossless(state.files[0]);
@@ -2515,7 +2480,7 @@ document.addEventListener('DOMContentLoaded', () => {
           filename   = `optimised_${state.files[0].name}`;
           showToast('Lossless PNG compression complete!', 'success');
         }
-        // â”€â”€ 18. WEBP IMAGE CONVERTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- 18. WEBP IMAGE CONVERTER --------------------------------------
         else if (tool.id === 'webp-converter') {
           if (state.files.length === 0) throw new Error('Please upload images to convert.');
           const quality  = parseInt(document.getElementById('webp-quality-range')?.value || document.getElementById('ctrl-webp-quality')?.value || 80);
@@ -2523,7 +2488,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const webpResults = await PDFEngine.convertToWebP(state.files, quality, lossless, (cur, tot, name) => {
             setOverlayProgress(10 + (cur / tot) * 85, `Converting ${cur}/${tot}: ${name}`);
           });
-          setOverlayProgress(98, 'Packagingâ€¦');
+          setOverlayProgress(98, 'Packaging...');
           if (webpResults.length === 1) {
             resultBlob = webpResults[0].blob;
             filename   = webpResults[0].name;
@@ -2535,12 +2500,12 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           showToast(`Converted ${webpResults.length} image(s) to WebP!`, 'success');
         }
-        // â”€â”€ REMAINING PLATFORM TOOLS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- REMAINING PLATFORM TOOLS --------------------------------------
         else if (tool.uiType === TOOL_UI_TYPES.QUIZ_CREATOR) {
           const useCustom = document.getElementById('quiz-enable-custom-text')?.checked;
           const customText = useCustom ? (document.getElementById('quiz-extracted-text')?.value || '') : state.extractedText;
           if (!customText?.trim()) { showToast('Please upload content or paste text first.', 'error'); return; }
-          setOverlayProgress(30, 'Generating quiz questionsâ€¦');
+          setOverlayProgress(30, 'Generating quiz questions...');
           const lang  = document.getElementById('ctrl-quiz-language')?.value || 'en';
           const qType = document.getElementById('ctrl-quiz-type')?.value || 'mcq';
           const count = parseInt(document.getElementById('ctrl-question-count')?.value || '10');
@@ -2552,7 +2517,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast(`Generated ${state.quizData.length} quiz questions!`, 'success');
         }
         else if (tool.uiType === TOOL_UI_TYPES.OCR_TRANSLATE) {
-          setOverlayProgress(40, 'Generating AI outputâ€¦');
+          setOverlayProgress(40, 'Generating AI output...');
           const summary  = generateAISummary(state.extractedText, tool.id);
           const aiArea   = document.getElementById('ai-result-area');
           const aiContent = document.getElementById('ai-result-content');
@@ -2562,7 +2527,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast('AI processing complete!', 'success');
         }
         else if (tool.id === 'bleed-crop-generator' && window.DesignPrepressEngine && state.files[0]) {
-          setOverlayProgress(30, 'Applying bleed & crop marksâ€¦');
+          setOverlayProgress(30, 'Applying bleed & crop marks...');
           const bytes = await DesignPrepressEngine.addBleedAndTrimMarks(await state.files[0].arrayBuffer());
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'print_ready_bleed.pdf';
@@ -2570,14 +2535,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         else if (tool.uiType === TOOL_UI_TYPES.CONVERTER_SIMPLE || isConversionTool(tool.id)) {
           if (!state.files[0] && tool.uiType !== TOOL_UI_TYPES.TEXT_INPUT) throw new Error('Please upload a file first.');
-          setOverlayProgress(30, 'Convertingâ€¦');
+          setOverlayProgress(30, 'Converting...');
           const res = await processFileConversion(tool, state.files[0]);
           resultBlob = res.blob;
           filename   = res.filename;
           showToast(`Converted ${filename} successfully!`, 'success');
         }
         else if (state.files[0]?.type?.includes('pdf') && state.pdfPageCards.length > 0) {
-          setOverlayProgress(40, 'Compiling organised PDFâ€¦');
+          setOverlayProgress(40, 'Compiling organised PDF...');
           const bytes = await PDFEngine.compileOrganizedPDF(await state.files[0].arrayBuffer(), state.pdfPageCards);
           resultBlob = new Blob([bytes], { type: 'application/pdf' });
           filename   = 'rearranged_organized.pdf';
@@ -2589,7 +2554,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast('File processed successfully!', 'success');
         }
 
-        setOverlayProgress(100, 'Done! Preparing downloadâ€¦');
+        setOverlayProgress(100, 'Done! Preparing download...');
         await new Promise(r => setTimeout(r, 400));
 
         if (resultBlob) {
@@ -3038,7 +3003,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!text) return '';
     let s = text;
     s = s.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '');
-    s = s.replace(/(?:Ã‚|Ãƒ|Ã¤|Ã¢|Ã¯|Â¿|Â½|Ã¢Â€Â”|Ã¢Â€|Ã¢Â€Â“)/g, ' ');
+    s = s.replace(/(?:Ã‚|Ãƒ|Ã¤|Ã¢|Ã¯|¿|½|Ã¢€”|Ã¢€|Ã¢€“)/g, ' ');
     s = s.replace(/(?<=^|\s)[b-hjk-zB-HJK-Z](?=\s|$)/g, ' ');
     s = s.replace(/\s+/g, ' ').trim();
     return s;
@@ -3222,8 +3187,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (/^(chapter|section|part|unit|lesson|module|appendix|annexure)\s*\d*[:.\-\s].*$/i.test(t)) return true;
     if (/^(index|toc|preface|foreword|acknowledgments?|table\s*of\s*contents)$/i.test(t)) return true;
     if (/^(https?:\/\/|www\.)/i.test(t)) return true;
-    if (/^[-_=*.â€¢Â·â—¦â–ªâ–ºâ—†â€£â€“â€”]{3,}$/.test(t)) return true;
-    if (/^(copyright|Â©|all rights reserved|confidential|draft|internal use only).*/i.test(t)) return true;
+    if (/^[-_=*.•·◦▪►◆"£"“"”]{3,}$/.test(t)) return true;
+    if (/^(copyright|©|all rights reserved|confidential|draft|internal use only).*/i.test(t)) return true;
     if (/^(printed|published|released|issued|revised|updated|compiled)\s*(on|by|date)/i.test(t)) return true;
     if (/^(figure|fig\.?|table|chart|graph|diagram|plate)\s*[#:]?\s*\d+/i.test(t)) return true;
     if (/^(source|credit|reference|references|bibliography|works cited)/i.test(t)) return true;
@@ -3237,7 +3202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (/^\d+\s+(page|chapter|section|unit|lesson|topic)\b/i.test(t)) return true;
     if (/^(contents|content|overview|summary|abstract|introduction|conclusion|appendix)\s*[:#-]?$/i.test(t)) return true;
     if (/^\.{3,}\s*\d+\s*$/.test(t)) return true;
-    if (/^\d+\s*[-:.â€“]\s*[A-Z].{0,80}\.{2,}\s*\d+$/.test(t)) return true;
+    if (/^\d+\s*[-:."“]\s*[A-Z].{0,80}\.{2,}\s*\d+$/.test(t)) return true;
     if (/^(heading|headline|subtitle|title)\s*\d*[:#]/i.test(t)) return true;
     if (/^[A-Z][A-Z\s\-,'()]{2,40}\s*\d*$/.test(t) && t.length <= 45 && !/[.?!]$/.test(t)) return true;
     return false;
@@ -3256,7 +3221,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const filtered = [];
     for (const rawLine of text.split('\n')) {
       let l = rawLine.trim();
-      l = l.replace(/^\s*\d{1,4}\s*[-:.|â€“\s]*/, '');
+      l = l.replace(/^\s*\d{1,4}\s*[-:.|"“\s]*/, '');
       l = l.replace(/\s*\d{1,4}\s*$/, '').trim();
       if (repeated.has(l) || repeated.has(rawLine.trim())) continue;
       if (shouldSkipContentLine(l)) continue;
@@ -3660,7 +3625,7 @@ document.addEventListener('DOMContentLoaded', () => {
               </a>
             </div>
             <a href="#quiz-dashboard/${quizId}" onclick="document.getElementById('${modalId}').remove()" class="block w-full text-center py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 text-white font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2">
-              <i class="fa-solid fa-gauge-high"></i> Open Quiz Dashboard â€” Edit Questions & See Full Analytics
+              <i class="fa-solid fa-gauge-high"></i> Open Quiz Dashboard "” Edit Questions & See Full Analytics
             </a>
           </div>
         </div>
@@ -3732,7 +3697,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="text-sm font-extrabold text-amber-400">${Math.min(...submissions.map(s => s.percentage||0))}%</div>
             </div>
             <div class="p-2.5 rounded-xl bg-white/10 text-center">
-              <div class="text-[10px] text-slate-400 uppercase font-bold">Passed (â‰¥70%)</div>
+              <div class="text-[10px] text-slate-400 uppercase font-bold">Passed (≥70%)</div>
               <div class="text-sm font-extrabold text-indigo-400">${submissions.filter(s => (s.percentage||0) >= 70).length} / ${submissions.length}</div>
             </div>
           </div>` : ''}
@@ -4101,7 +4066,7 @@ document.addEventListener('DOMContentLoaded', () => {
         answer = keyword;
         const distractors = pickLanguageDistractors(keyword, keywords, lang, 3);
         options = [answer, ...distractors].sort(() => Math.random() - 0.5);
-        explanation = `${sentence}  â†’  (${t.ans}: ${keyword})`;
+        explanation = `${sentence}  ->  (${t.ans}: ${keyword})`;
       } else if (type === 'true-false') {
         const flip = Math.random() > 0.5;
         const distractors = pickLanguageDistractors(keyword, keywords, lang, 1);
@@ -4219,7 +4184,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return quizData.map(q => {
       const lines = [`${t.q} ${q.id} [${q.type.toUpperCase()}] [${q.difficulty.toUpperCase()}]`, q.question];
       if (q.options?.length) lines.push(...q.options.map((o, i) => `  ${String.fromCharCode(65 + i)}. ${o}`));
-      lines.push('', `${t.ans}: ${q.answer}`, `${t.exp}: ${q.explanation}`, 'â”€'.repeat(60), '');
+      lines.push('', `${t.ans}: ${q.answer}`, `${t.exp}: ${q.explanation}`, '-'.repeat(60), '');
       return lines.join('\n');
     }).join('\n');
   }
@@ -4255,7 +4220,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (y + 200 > pageHeight) { doc.addPage(); y = margin; }
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(12);
-          const qLabel = `${t.q} ${q.id}  [${q.type.toUpperCase()} â€¢ ${q.difficulty.toUpperCase()}]`;
+          const qLabel = `${t.q} ${q.id}  [${q.type.toUpperCase()} • ${q.difficulty.toUpperCase()}]`;
           doc.text(qLabel, margin, y);
           y += 20;
           doc.setFont('helvetica', 'normal');
@@ -4374,11 +4339,11 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="p-6 space-y-2">
           <button onclick="document.getElementById('${modalId}').remove(); exportQuiz('pdf');" class="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-indigo-50 hover:border-indigo-300 transition flex items-center gap-4 group">
             <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl group-hover:scale-110 transition"><i class="fa-solid fa-file-pdf"></i></div>
-            <div><div class="font-extrabold text-sm text-slate-900">PDF â€” Questions + Answers</div><div class="text-[11px] text-slate-500">Formatted print-ready PDF with correct answers highlighted</div></div>
+            <div><div class="font-extrabold text-sm text-slate-900">PDF "” Questions + Answers</div><div class="text-[11px] text-slate-500">Formatted print-ready PDF with correct answers highlighted</div></div>
           </button>
           <button onclick="document.getElementById('${modalId}').remove(); exportQuiz('pdf-only-questions');" class="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-purple-50 hover:border-purple-300 transition flex items-center gap-4 group">
             <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl group-hover:scale-110 transition"><i class="fa-solid fa-file-contract"></i></div>
-            <div><div class="font-extrabold text-sm text-slate-900">PDF â€” Questions Only</div><div class="text-[11px] text-slate-500">Clean question paper without revealing answers</div></div>
+            <div><div class="font-extrabold text-sm text-slate-900">PDF "” Questions Only</div><div class="text-[11px] text-slate-500">Clean question paper without revealing answers</div></div>
           </button>
           <button onclick="document.getElementById('${modalId}').remove(); exportQuiz('txt');" class="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-4 group">
             <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-xl group-hover:scale-110 transition"><i class="fa-solid fa-file-lines"></i></div>
@@ -4408,7 +4373,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const scored = sentences.map(s => {
       let score = 0;
       kws.forEach(k => { if (s.toLowerCase().includes(k)) score += 2; });
-      if (/^\d/.test(s) || s.includes(':') || s.includes('â€”')) score += 1;
+      if (/^\d/.test(s) || s.includes(':') || s.includes('"”')) score += 1;
       if (s.length > 80) score += 1;
       return { s, score };
     }).sort((a, b) => b.score - a.score).slice(0, target).map(o => o.s);
@@ -4416,30 +4381,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const isChat = toolId === 'ai-doc-chat';
     if (isChat) {
       return `AI Document Q&A Assistant
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-----------------------------------
 ðŸ“‹ Top Questions You Can Ask:
 
 1. What is the main topic or thesis of this document?
-   â†’ ${ordered[0] || 'Summarize key finding.'}
+   -> ${ordered[0] || 'Summarize key finding.'}
 
 2. What are the key takeaways for the reader?
-   ${ordered.slice(1, 4).map((o, i) => `   ${i + 1}. ${o}`).join('\n') || '   â†’ Review bulleted list above.'}
+   ${ordered.slice(1, 4).map((o, i) => `   ${i + 1}. ${o}`).join('\n') || '   -> Review bulleted list above.'}
 
 3. What supporting evidence does the author provide?
-   â†’ Key terms highlighted: ${kws.slice(0, 5).join(', ')}.
+   -> Key terms highlighted: ${kws.slice(0, 5).join(', ')}.
 
 4. What conclusions or recommendations are made?
-   â†’ ${ordered[ordered.length - 1] || 'Concluding summary.'}
+   -> ${ordered[ordered.length - 1] || 'Concluding summary.'}
 
 5. Which sections should I read in detail?
-   â†’ Focus on sentences containing: ${kws.slice(0, 4).join(', ')}.
+   -> Focus on sentences containing: ${kws.slice(0, 4).join(', ')}.
 
 ðŸ’¡ Tip: Paste your own question into the extracted-text box above (toggle edit) and re-run for a targeted response.
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•`;
+-----------------------------------`;
     }
     const header = lenSel === 'executive' ? 'ðŸ¢ EXECUTIVE BRIEF\n\nTL;DR (30 sec): ' + (ordered[0] || '') + '\n\nðŸ“Œ KEY FINDINGS\n' : 'ðŸ“‹ SUMMARY OF DOCUMENT\n\n';
-    const bullets = ordered.map((s, i) => `${lenSel === 'detailed' ? 'â€¢' : 'â€¢'} ${s}`).join('\n\n');
-    const footer = `\n\nðŸ”‘ KEY TERMS: ${kws.slice(0, 8).join(' â€¢ ')}`;
+    const bullets = ordered.map((s, i) => `${lenSel === 'detailed' ? '•' : '•'} ${s}`).join('\n\n');
+    const footer = `\n\nðŸ”‘ KEY TERMS: ${kws.slice(0, 8).join(' • ')}`;
     return header + bullets + footer;
   }
 
@@ -4662,7 +4627,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="space-y-2">
                 <div class="flex items-center gap-2 text-indigo-300 text-[10px] font-extrabold uppercase tracking-wider">
                   <a href="#" class="hover:text-white flex items-center gap-1"><i class="fa-solid fa-arrow-left"></i> Back to Tools</a>
-                  <span class="text-slate-500">â€¢</span>
+                  <span class="text-slate-500">•</span>
                   <i class="fa-solid fa-gauge-high"></i> Quiz Creator Dashboard
                 </div>
                 <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">${quiz.title}</h1>
@@ -4698,7 +4663,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="text-[10px] text-emerald-600 font-semibold mt-0.5"><i class="fa-solid fa-chart-line"></i> Across all attempts</div>
             </div>
             <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
-              <div class="text-[10px] font-bold text-slate-500 uppercase">Pass Rate (â‰¥70%)</div>
+              <div class="text-[10px] font-bold text-slate-500 uppercase">Pass Rate (≥70%)</div>
               <div class="text-2xl font-extrabold text-indigo-600 mt-1">${passRate}%</div>
               <div class="text-[10px] text-indigo-600 font-semibold mt-0.5"><i class="fa-solid fa-check-circle"></i> ${passedCount} / ${submissions.length}</div>
             </div>
@@ -4724,7 +4689,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div id="dash-tab-content-questions" class="dash-tab-content bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div class="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3 bg-slate-50/80">
               <div>
-                <h3 class="font-extrabold text-slate-900 text-sm">Question Bank â€” Edit, Add or Remove Questions</h3>
+                <h3 class="font-extrabold text-slate-900 text-sm">Question Bank "” Edit, Add or Remove Questions</h3>
                 <p class="text-[11px] text-slate-500 mt-0.5">All changes auto-save to the shared quiz. Participants will see updates next attempt.</p>
               </div>
               <div class="flex gap-2">

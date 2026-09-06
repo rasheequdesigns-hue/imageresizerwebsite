@@ -123,8 +123,8 @@ class AuthSubscriptionEngine {
     this._setCurrentUser(null);
     this.renderHeaderAuthControls();
     if (window.showToast) window.showToast('Logged out successfully', 'info');
-    // Show gate screen after logout
-    this.checkAndShowGateScreen();
+    // Re-render tool grid so lock badges update
+    if (window.renderTools) window.renderTools();
   }
 
   // ── Subscription ──────────────────────────────────────────────────────────
@@ -168,10 +168,6 @@ class AuthSubscriptionEngine {
     const updated = await SupabaseEngine.getProfile(userId);
     const current = this.getCurrentUser();
     if (current && current.id === userId) this._setCurrentUser(updated);
-
-    if (window.location.hash === '#admin-page' && window.renderFullAdminPage) {
-      window.renderFullAdminPage();
-    }
     return updated;
   }
 
@@ -229,19 +225,21 @@ class AuthSubscriptionEngine {
   // ── Tool access control ───────────────────────────────────────────────────
 
   /**
-   * CRITICAL: only verified, active subscribers get tool access.
+   * CRITICAL: only verified, active subscribers or admins get tool access.
    * - Not logged in → false
    * - Free plan → false
-   * - Paid plan but NOT verified by admin → false (pending)
-   * - Paid plan + verified → true
+   * - Paid plan but NOT verified by admin/webhook → false (pending)
+   * - Paid plan + verified + not expired → true
+   * - Admin → true
    */
   static isToolAllowedForUser(toolId) {
     const user = this.getCurrentUser();
     if (!user) return false;
-    if (user.isAdmin) return true;
+    if (user.isAdmin || user.email === 'rasheequ.designs@gmail.com') return true;
     if (!user.planId || user.planId === 'free') return false;
     if (!user.subscriptionVerified) return false;
     if (user.status === 'expired') return false;
+    if (user.expiresAt && new Date(user.expiresAt) <= new Date()) return false;
     return true;
   }
 
@@ -284,12 +282,12 @@ class AuthSubscriptionEngine {
           </span>
           <h3 class="text-xl font-extrabold text-slate-900">Subscribe to Access</h3>
           <p class="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
-            <strong>${toolName}</strong> requires an active subscription. Pay via UPI, submit your UTR, and get admin verification to unlock all 50 tools.
+            <strong>${toolName}</strong> requires an active subscription. Pay via UPI, submit your UTR, and get instant automated or admin verification to unlock all 50 tools.
           </p>
         </div>
         <div class="flex flex-col gap-2 pt-2">
           <button onclick="document.getElementById('${modalId}').remove(); AuthSubscriptionEngine.openSubscriptionModal();" class="w-full btn-gradient py-3 text-xs font-extrabold rounded-xl shadow-md transition flex items-center justify-center gap-2">
-            <i class="fa-solid fa-qrcode"></i> Pay & Subscribe Now
+            <i class="fa-solid fa-qrcode"></i> Pay &amp; Subscribe Now
           </button>
           <button onclick="document.getElementById('${modalId}').remove()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
             Dismiss
@@ -302,11 +300,11 @@ class AuthSubscriptionEngine {
 
   static _showPendingVerificationToast() {
     if (window.showToast) {
-      window.showToast('⏳ Your payment is pending admin verification. You will receive access once verified.', 'info');
+      window.showToast('⏳ Your payment is pending verification. You will receive access automatically once verified.', 'info');
     }
   }
 
-  // ── Header Auth Controls ───────────────────────────────────────────────────
+  // ── Header Auth Controls & Expiry Banner ────────────────────────────────────
 
   static renderHeaderAuthControls() {
     const container = document.getElementById('header-auth-controls');
@@ -317,9 +315,13 @@ class AuthSubscriptionEngine {
     const currentPlan = user ? plans.find(p => p.id === user.planId) : null;
     const isSubscribed = user && user.planId !== 'free' && user.subscriptionVerified;
     const isPending = user && user.planId !== 'free' && !user.subscriptionVerified;
+    const isAdmin = user && (user.isAdmin || user.email === 'rasheequ.designs@gmail.com');
+
+    // Manage Expiry Warning Banner (<= 3 days)
+    this._renderExpiryAlertBanner(user, isSubscribed);
 
     const workHistoryNav = document.getElementById('nav-work-history');
-    if (workHistoryNav) workHistoryNav.classList.toggle('hidden', !isSubscribed);
+    if (workHistoryNav) workHistoryNav.classList.toggle('hidden', !isSubscribed && !isAdmin);
 
     if (user) {
       const planName = currentPlan ? currentPlan.name : (user.planId === 'free' ? 'Free Plan' : user.planId);
@@ -327,6 +329,13 @@ class AuthSubscriptionEngine {
 
       container.innerHTML = `
         <div class="flex items-center gap-2">
+          ${isAdmin ? `
+            <a href="#admin" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md hover:scale-105 transition">
+              <i class="fa-solid fa-gauge-high"></i>
+              <span class="hidden sm:inline">Admin Panel</span>
+            </a>
+          ` : ''}
+
           ${isPending ? `
             <button onclick="AuthSubscriptionEngine.openPendingStatusModal()" class="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 font-extrabold text-xs flex items-center gap-1.5 transition hover:scale-105 animate-pulse">
               <i class="fa-solid fa-clock"></i> Pending Verification
@@ -352,11 +361,17 @@ class AuthSubscriptionEngine {
                 <p class="font-extrabold text-slate-900 text-xs truncate">${user.name || 'User'}</p>
                 <p class="text-[11px] text-slate-500 truncate">${user.email}</p>
                 <div class="mt-1 flex items-center justify-between">
-                  <span class="text-[10px] px-2 py-0.5 rounded-full ${isPending ? 'bg-amber-100 text-amber-800' : isPro ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'} font-bold">
-                    ${isPending ? '⏳ Pending' : planName}
+                  <span class="text-[10px] px-2 py-0.5 rounded-full ${isAdmin ? 'bg-pink-100 text-pink-700 font-black' : isPending ? 'bg-amber-100 text-amber-800 font-bold' : isPro ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-slate-100 text-slate-600 font-bold'}">
+                    ${isAdmin ? '👑 Admin' : isPending ? '⏳ Pending' : planName}
                   </span>
                 </div>
               </div>
+
+              ${isAdmin ? `
+                <a href="#admin" class="block px-4 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50">
+                  <i class="fa-solid fa-gauge-high mr-2"></i> Admin Dashboard
+                </a>
+              ` : ''}
 
               <button onclick="AuthSubscriptionEngine.openProfileModal()" class="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <i class="fa-solid fa-user-circle mr-2 text-indigo-500"></i> Profile
@@ -368,7 +383,7 @@ class AuthSubscriptionEngine {
                 </button>
               ` : ''}
 
-              ${isSubscribed ? `
+              ${isSubscribed || isAdmin ? `
                 <a href="#history" class="block px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600">
                   <i class="fa-solid fa-clock-rotate-left mr-2 text-indigo-500"></i> Work History
                 </a>
@@ -376,7 +391,7 @@ class AuthSubscriptionEngine {
 
               ${!isPro ? `
                 <button onclick="AuthSubscriptionEngine.openSubscriptionModal()" class="w-full text-left px-4 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-50">
-                  <i class="fa-solid fa-crown mr-2 text-amber-500"></i> Subscribe & Unlock
+                  <i class="fa-solid fa-crown mr-2 text-amber-500"></i> Subscribe &amp; Unlock
                 </button>
               ` : ''}
 
@@ -403,32 +418,82 @@ class AuthSubscriptionEngine {
     }
   }
 
-  // ── Pending Status Modal ───────────────────────────────────────────────────
+  // ── Global Expiry Alert Banner (<= 3 Days Warning) ──────────────────────────
+  static _renderExpiryAlertBanner(user, isSubscribed) {
+    const bannerId = 'subscription-expiry-alert-banner';
+    let banner = document.getElementById(bannerId);
+
+    if (!user || !isSubscribed || !user.expiresAt) {
+      if (banner) banner.remove();
+      return;
+    }
+
+    const expiresAt = new Date(user.expiresAt);
+    const msLeft = expiresAt.getTime() - Date.now();
+    const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+
+    if (daysLeft > 3 || daysLeft < 0) {
+      if (banner) banner.remove();
+      return;
+    }
+
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = bannerId;
+      document.body.insertBefore(banner, document.body.firstChild);
+    }
+
+    banner.className = 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white px-4 py-2 text-xs font-bold flex items-center justify-between gap-3 shadow-md z-50 sticky top-0';
+    banner.innerHTML = `
+      <div class="max-w-7xl mx-auto w-full flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-amber-200 animate-pulse text-sm"></i>
+          <span>
+            ${daysLeft === 0 
+              ? 'Your subscription expires <strong>today</strong>!' 
+              : `Your subscription expires in <strong>${daysLeft} day${daysLeft > 1 ? 's' : ''}</strong> (${expiresAt.toLocaleDateString()}).`}
+          </span>
+        </div>
+        <button onclick="AuthSubscriptionEngine.openSubscriptionModal()" class="px-3 py-1 bg-white text-orange-700 hover:bg-amber-50 rounded-lg text-xs font-black shadow-sm transition shrink-0">
+          <i class="fa-solid fa-rotate mr-1"></i> Renew Now
+        </button>
+      </div>
+    `;
+  }
+
+  // ── Pending Status Modal with Realtime Auto-Unlock ─────────────────────────
+
+  static _pendingPollInterval = null;
 
   static openPendingStatusModal() {
     const modalId = 'pending-status-modal';
     document.getElementById(modalId)?.remove();
 
+    if (this._pendingPollInterval) {
+      clearInterval(this._pendingPollInterval);
+      this._pendingPollInterval = null;
+    }
+
     const modal = document.createElement('div');
     modal.id = modalId;
     modal.className = 'fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
     modal.innerHTML = `
-      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 text-center space-y-5 relative">
-        <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition">
+      <div id="pending-modal-card" class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 text-center space-y-5 relative">
+        <button onclick="document.getElementById('${modalId}').remove(); if(AuthSubscriptionEngine._pendingPollInterval) clearInterval(AuthSubscriptionEngine._pendingPollInterval);" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition">
           <i class="fa-solid fa-xmark"></i>
         </button>
 
-        <div class="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 border border-amber-200 flex items-center justify-center text-3xl mx-auto">
+        <div class="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 border border-amber-200 flex items-center justify-center text-3xl mx-auto shadow-inner animate-pulse">
           <i class="fa-solid fa-clock"></i>
         </div>
 
         <div class="space-y-2">
           <span class="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold uppercase tracking-wider inline-block">
-            Pending Verification
+            <i class="fa-solid fa-satellite-dish mr-1"></i> Listening for Verification
           </span>
           <h3 class="text-xl font-extrabold text-slate-900">Payment Under Review</h3>
           <p class="text-sm text-slate-500 leading-relaxed">
-            Your UTR payment reference has been received. The admin is reviewing your payment and will activate your subscription shortly.
+            Your 12-digit UTR has been submitted. Our automated webhook &amp; admin engine is verifying your payment.
           </p>
         </div>
 
@@ -439,25 +504,69 @@ class AuthSubscriptionEngine {
           </div>
           <div class="flex items-center gap-3">
             <div class="w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0 animate-pulse"><i class="fa-solid fa-clock"></i></div>
-            <div><p class="font-bold text-slate-900">Admin Verification</p><p class="text-slate-500">Usually within 1–4 hours</p></div>
+            <div><p class="font-bold text-slate-900">Verification Engine</p><p class="text-slate-500">Auto-detecting bank alert email or manual audit</p></div>
           </div>
           <div class="flex items-center gap-3 opacity-40">
             <div class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-unlock"></i></div>
-            <div><p class="font-bold text-slate-900">Full Access Granted</p><p class="text-slate-500">All 50 tools unlocked</p></div>
+            <div><p class="font-bold text-slate-900">Full Access Granted</p><p class="text-slate-500">Instant unlock once verified</p></div>
           </div>
         </div>
 
-        <p class="text-xs text-slate-400">
-          <i class="fa-solid fa-circle-info mr-1"></i>
-          Sign in again after verification to refresh your account status.
-        </p>
+        <div class="flex items-center justify-center gap-2 text-[11px] text-indigo-600 font-bold">
+          <i class="fa-solid fa-circle-notch fa-spin"></i>
+          <span>Live verification polling active (auto-unlocking)...</span>
+        </div>
 
-        <button onclick="document.getElementById('${modalId}').remove()" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
-          Got it
+        <button onclick="document.getElementById('${modalId}').remove(); if(AuthSubscriptionEngine._pendingPollInterval) clearInterval(AuthSubscriptionEngine._pendingPollInterval);" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+          Dismiss &amp; Wait in Background
         </button>
       </div>
     `;
     document.body.appendChild(modal);
+
+    // Live Polling & Realtime check
+    const user = this.getCurrentUser();
+    if (!user) return;
+
+    this._pendingPollInterval = setInterval(async () => {
+      try {
+        if (!window.SupabaseEngine) return;
+        const fresh = await SupabaseEngine.getProfile(user.id);
+        if (fresh && fresh.subscriptionVerified && fresh.planId !== 'free') {
+          clearInterval(AuthSubscriptionEngine._pendingPollInterval);
+          AuthSubscriptionEngine._pendingPollInterval = null;
+          AuthSubscriptionEngine._setCurrentUser(fresh);
+          AuthSubscriptionEngine.renderHeaderAuthControls();
+          AuthSubscriptionEngine.checkAndShowGateScreen();
+          if (window.renderTools) window.renderTools();
+
+          const card = document.getElementById('pending-modal-card');
+          if (card) {
+            card.innerHTML = `
+              <div class="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 border border-emerald-200 flex items-center justify-center text-3xl mx-auto shadow-inner animate-bounce">
+                <i class="fa-solid fa-check"></i>
+              </div>
+              <div class="space-y-2">
+                <span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold uppercase tracking-wider inline-block">
+                  <i class="fa-solid fa-sparkles mr-1"></i> Access Unlocked!
+                </span>
+                <h3 class="text-2xl font-black text-slate-900">Payment Verified!</h3>
+                <p class="text-xs text-slate-500 leading-relaxed">
+                  Congratulations! Your <strong>${fresh.planId}</strong> plan is now active. All 50 professional studio tools are unlocked.
+                </p>
+              </div>
+              <button onclick="document.getElementById('${modalId}').remove()" class="w-full btn-gradient py-3 text-xs font-extrabold rounded-xl shadow-lg">
+                <i class="fa-solid fa-arrow-right mr-1"></i> Start Creating Now
+              </button>
+            `;
+          }
+
+          if (window.showToast) window.showToast('🎉 Payment verified! All tools unlocked.', 'success');
+        }
+      } catch (err) {
+        console.warn('[PendingPoll] Error checking status:', err);
+      }
+    }, 3000);
   }
 
   // ── Profile Modal ──────────────────────────────────────────────────────────
@@ -800,14 +909,12 @@ class AuthSubscriptionEngine {
     const modalId = 'utr-submission-modal';
     document.getElementById(modalId)?.remove();
 
-    // Get admin UPI from settings cache
-    const adminUpi = (window.AdminPanelEngine && AdminPanelEngine.getAdminUpi())
-      || (SupabaseEngine._settingsCache?.admin_upi)
-      || 'merchant@upi';
+    // Get UPI ID from settings or fallback
+    const upiId = (SupabaseEngine._settingsCache?.admin_upi) || 'merchant@upi';
 
     const selectedPlan = planId ? plans.find(p => p.id === planId) : paidPlans[0];
     const planToShow = selectedPlan || paidPlans[0] || plans[1];
-    const rawUpiUri = `upi://pay?pa=${encodeURIComponent(adminUpi)}&pn=StudioSuitePRO&am=${planToShow?.priceINR || ''}&cu=INR`;
+    const rawUpiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=StudioSuitePRO&am=${planToShow?.priceINR || ''}&cu=INR`;
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(rawUpiUri)}`;
 
     const modal = document.createElement('div');
@@ -850,7 +957,7 @@ class AuthSubscriptionEngine {
             <div>
               <label class="text-[10px] font-bold text-slate-500 block mb-1">UPI ID:</label>
               <div class="flex gap-2">
-                <input id="utr-upi-id" class="custom-input w-full text-xs font-mono font-bold bg-white" value="${adminUpi}" readonly>
+                <input id="utr-upi-id" class="custom-input w-full text-xs font-mono font-bold bg-white" value="${upiId}" readonly>
                 <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('utr-upi-id').value); if(window.showToast) showToast('UPI ID copied!','success');" class="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold whitespace-nowrap">
                   <i class="fa-solid fa-copy"></i>
                 </button>
@@ -889,8 +996,8 @@ class AuthSubscriptionEngine {
     const plans = this.getPlans();
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
-    const adminUpi = (window.AdminPanelEngine && AdminPanelEngine.getAdminUpi()) || 'merchant@upi';
-    const rawUpiUri = `upi://pay?pa=${encodeURIComponent(adminUpi)}&pn=StudioSuitePRO&am=${plan.priceINR}&cu=INR`;
+    const upiId = (SupabaseEngine._settingsCache?.admin_upi) || 'merchant@upi';
+    const rawUpiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=StudioSuitePRO&am=${plan.priceINR}&cu=INR`;
     const qrImg = document.getElementById('utr-qr-img');
     if (qrImg) qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(rawUpiUri)}`;
   }
@@ -1026,44 +1133,12 @@ class AuthSubscriptionEngine {
     this.openUTRSubmissionModal(planId);
   }
 
-  // ── Gate Screen ────────────────────────────────────────────────────────────
-
-  static checkAndShowGateScreen() {
-    const gate = document.getElementById('subscription-gate-screen');
-    if (!gate) return;
-    const user         = this.getCurrentUser();
-    const isSubscribed = user && user.planId !== 'free' && user.subscriptionVerified;
-    const isAdmin      = window.AdminPanelEngine && AdminPanelEngine.isAdminLoggedIn();
-    const hash         = window.location.hash;
-
-    if (hash === '#admin-page' || hash === '#admin' || hash.startsWith('#quiz/') || hash.startsWith('#take-quiz/') || hash.startsWith('#quiz-dashboard/')) {
-      gate.classList.add('hidden');
-      return;
-    }
-
-    if (!user || (!isSubscribed && !isAdmin)) {
-      gate.classList.remove('hidden');
-      document.body.style.overflow = 'hidden';
-    } else {
-      gate.classList.add('hidden');
-      document.body.style.overflow = '';
-    }
-  }
+  // Gate screen removed — the paywall now triggers only on tool click.
+  // This stub keeps any callers from throwing errors.
+  static checkAndShowGateScreen() {}
 }
 
 window.AuthSubscriptionEngine = AuthSubscriptionEngine;
 
 // Boot
 AuthSubscriptionEngine.initDefaults().catch(e => { console.warn('[Auth] initDefaults error:', e); });
-
-window.addEventListener('DOMContentLoaded', function() {
-  setTimeout(function() {
-    AuthSubscriptionEngine.checkAndShowGateScreen();
-  }, 500);
-});
-
-window.addEventListener('hashchange', function() {
-  const h = window.location.hash;
-  if (h === '#admin-page' || h === '#admin' || h.startsWith('#quiz/') || h.startsWith('#take-quiz/') || h.startsWith('#quiz-dashboard/')) return;
-  AuthSubscriptionEngine.checkAndShowGateScreen();
-});

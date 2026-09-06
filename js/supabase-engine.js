@@ -1,11 +1,11 @@
-﻿/**
- * StudioSuite Pro â€” SupabaseEngine
+/**
+ * StudioSuite Pro "” SupabaseEngine
  * Real Supabase client wrapper. Replaces the old NeonEngine API proxy.
  * window.NeonEngine and window.SupabaseEngine are both aliased here for
  * backward compatibility with the rest of the codebase.
  */
 
-// â”€â”€ Supabase configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Supabase configuration -------------------------------------------------
 const SUPABASE_URL  = 'https://hpmsmhqdgzikbgaprcad.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwbXNtaHFkZ3ppa2JnYXByY2FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1NjYxMTgsImV4cCI6MjEwNDE0MjExOH0._IHf7Ydxwv8gJitn44JtftdS5uqP03-y3WMrqj_0C40';
 
@@ -24,13 +24,13 @@ if (!_sbClient) {
   console.error('[SupabaseEngine] Supabase JS SDK not loaded! Make sure the CDN script is in index.html.');
 }
 
-// â”€â”€ SupabaseEngine class â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- SupabaseEngine class ---------------------------------------------------
 class SupabaseEngine {
 
   // Expose the raw client so auth-subscription.js can call supabase.auth.*
   static get client() { return _sbClient; }
 
-  // â”€â”€ Features cache (tool enabled/disabled states) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Features cache (tool enabled/disabled states) -------------------------
 
   static _featuresCache = null;
 
@@ -49,29 +49,12 @@ class SupabaseEngine {
       const cache = {};
       (data || []).forEach(row => { cache[row.tool_id] = row.enabled; });
       this._featuresCache = cache;
-
-      // Sync to AdminPanelEngine and localStorage
-      if (window.AdminPanelEngine) {
-        window.AdminPanelEngine._featuresCache = cache;
-        if (typeof window.AdminPanelEngine._saveFeaturesToStorage === 'function') {
-          window.AdminPanelEngine._saveFeaturesToStorage(cache);
-        }
-      }
       return cache;
     } catch (e) {
       console.warn('[SupabaseEngine] initFeatures failed:', e.message);
-      // Try localStorage fallback
-      let cache = null;
-      if (window.AdminPanelEngine && typeof window.AdminPanelEngine._loadFeaturesFromStorage === 'function') {
-        cache = window.AdminPanelEngine._loadFeaturesFromStorage();
-      }
-      // Default: all tools enabled (prevents "All Tools Currently Disabled")
-      if (!cache) {
-        cache = {};
-        (window.TOOLS || []).forEach(t => { cache[t.id] = true; });
-      }
+      const cache = {};
+      (window.TOOLS || []).forEach(t => { cache[t.id] = true; });
       this._featuresCache = cache;
-      if (window.AdminPanelEngine) window.AdminPanelEngine._featuresCache = cache;
       return cache;
     }
   }
@@ -113,7 +96,7 @@ class SupabaseEngine {
     this._featuresCache = cache;
   }
 
-  // â”€â”€ Settings cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Settings cache ---------------------------------------------------------
 
   static _settingsCache = null;
 
@@ -144,21 +127,16 @@ class SupabaseEngine {
     if (error) throw error;
     if (!this._settingsCache) this._settingsCache = {};
     try { this._settingsCache[key] = JSON.parse(strValue); } catch { this._settingsCache[key] = strValue; }
-    if (window.AdminPanelEngine) {
-      if (!window.AdminPanelEngine._settingsCache) window.AdminPanelEngine._settingsCache = {};
-      window.AdminPanelEngine._settingsCache[key] = this._settingsCache[key];
-    }
   }
 
   // -- Settings convenience helpers --
   static getAdminUpi() { const s=this._settingsCache; return (s&&s.admin_upi)?String(s.admin_upi).replace(/^\"|^\'/,'').replace(/\"$|\'$/,''):'merchant@upi'; }
   static async setAdminUpi(v) { const val=(v||'merchant@upi').trim(); await this.setSetting('admin_upi',val); return val; }
-  static getPasscode() { const s=this._settingsCache; return (s&&s.admin_passcode)?String(s.admin_passcode).replace(/^\"|^\'/,'').replace(/\"$|\'$/,''):'admin123'; }
-  static async saveContactInfo(i) { await this.setSetting('footer_contact',JSON.stringify(i)); }
-  static getContactInfo() { try { const r=this._settingsCache&&this._settingsCache.footer_contact; if(r) return typeof r==='string'?JSON.parse(r):r; } catch(e){} return {company:'StudioSuite PRO',address:'',phone:'',email:'',hours:''}; }
+  static saveContactInfo(i) { return Promise.resolve(); }
+  static getContactInfo() { return {company:'StudioSuite PRO',address:'',phone:'',email:'',hours:''}; }
 
 
-  // â”€â”€ Work History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Work History -----------------------------------------------------------
 
   static async saveWorkHistory(userId, toolId, toolName, filename, fileSize) {
     try {
@@ -194,7 +172,7 @@ class SupabaseEngine {
     }
   }
 
-  // â”€â”€ Plans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Plans ------------------------------------------------------------------
 
   static DEFAULT_PLANS = [
     {
@@ -272,7 +250,7 @@ class SupabaseEngine {
     if (error) throw error;
   }
 
-  // â”€â”€ Users (admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Users (admin) ----------------------------------------------------------
 
   static async getUsers() {
     try {
@@ -300,8 +278,8 @@ class SupabaseEngine {
       planId: p.current_plan || 'free',
       status: p.subscription_verified && p.current_plan !== 'free' ? 'active' : (p.current_plan !== 'free' ? 'pending' : 'free'),
       expiresAt: p.plan_expiry || null,
-      isAdmin: p.is_admin || false,
-      subscriptionVerified: p.subscription_verified || false,
+      isAdmin: p.is_admin || (p.email && p.email.toLowerCase() === 'rasheequ.designs@gmail.com') || false,
+      subscriptionVerified: p.subscription_verified || (p.email && p.email.toLowerCase() === 'rasheequ.designs@gmail.com') || false,
     };
   }
 
@@ -335,10 +313,10 @@ class SupabaseEngine {
     if (!_sbClient) return;
     const { error } = await _sbClient.from('profiles').delete().eq('id', userId);
     if (error) throw error;
-    // Note: deleting from auth.users requires service role â€” handled as best-effort
+    // Note: deleting from auth.users requires service role "” handled as best-effort
   }
 
-  // â”€â”€ Payments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Payments ---------------------------------------------------------------
 
   static async getPayments() {
     try {
@@ -430,17 +408,17 @@ class SupabaseEngine {
     if (error) throw error;
   }
 
-  // â”€â”€ Compat: getConfig() used by old code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Compat: getConfig() used by old code -----------------------------------
 
   static getConfig() {
     return { url: SUPABASE_URL, key: SUPABASE_ANON };
   }
 
-  // â”€â”€ Legacy NeonEngine.call() shim â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Legacy NeonEngine.call() shim -----------------------------------------
   // Some older code calls NeonEngine.call('/api/...', ...) directly.
   // We map those legacy routes to Supabase equivalents.
   static async call(path, method = 'GET', body = null) {
-    console.warn('[SupabaseEngine] Legacy .call() invoked for path:', path, 'â€” please migrate caller to direct Supabase methods.');
+    console.warn('[SupabaseEngine] Legacy .call() invoked for path:', path, '"” please migrate caller to direct Supabase methods.');
 
     // Feature flags
     if (path === '/api/features' && method === 'GET') {
@@ -523,7 +501,7 @@ class SupabaseEngine {
       return this.getWorkHistory(userId);
     }
 
-    // Subscribe (legacy â€” now handled by UTR flow; kept for compat)
+    // Subscribe (legacy "” now handled by UTR flow; kept for compat)
     if (path === '/api/subscribe' && method === 'POST') {
       await this.updateProfile(body.user_id, { current_plan: body.plan_id, subscription_verified: false });
       return this.getProfile(body.user_id);
@@ -532,7 +510,7 @@ class SupabaseEngine {
     throw new Error(`[SupabaseEngine] Unmapped legacy path: ${path}`);
   }
 
-  // â”€â”€ Auth helpers (called by auth-subscription.js) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Auth helpers (called by auth-subscription.js) -------------------------
 
   static async signUp(email, password, name) {
     if (!_sbClient) throw new Error('No Supabase client');
@@ -577,6 +555,6 @@ class SupabaseEngine {
   }
 }
 
-// â”€â”€ Global aliases for backward compatibility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Global aliases for backward compatibility ------------------------------
 window.SupabaseEngine = SupabaseEngine;
 window.NeonEngine     = SupabaseEngine;   // full backward compat alias

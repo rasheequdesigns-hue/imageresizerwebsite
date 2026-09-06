@@ -1,890 +1,1098 @@
 ﻿/**
- * StudioSuite Pro â€” Admin Panel Engine & Dashboard UI
- * Data layer: Supabase via SupabaseEngine. Admin session in localStorage.
+ * StudioSuite 50 PRO - Full Admin Management Panel Engine
+ * Multi-tenant Paywall Admin Dashboard, Feature Toggles, Plan CRUD,
+ * User Overrides, Statement Uploader & Real-time Settings Engine.
  */
 
 class AdminPanelEngine {
-  static STORAGE_ADMIN_SESSION      = 'studiosuite_admin_session';
-  static STORAGE_FEATURES_FALLBACK  = 'studiosuite_features_cache';
-  static _featuresCache  = null;
-  static _settingsCache  = null;
+  static _activeTab = 'overview';
+  static _featuresCache = {};
+  static _settingsCache = {};
+  static _statsCache = null;
 
-  static _saveFeaturesToStorage(cache) {
-    try { localStorage.setItem(this.STORAGE_FEATURES_FALLBACK, JSON.stringify(cache)); } catch {}
-  }
-  static _loadFeaturesFromStorage() {
-    try { const raw = localStorage.getItem(this.STORAGE_FEATURES_FALLBACK); return raw ? JSON.parse(raw) : null; }
-    catch { return null; }
+  // ── Authentication & Gate ──────────────────────────────────────────────────
+  static isAdminLoggedIn() {
+    const user = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.getCurrentUser() : null;
+    if (!user) return false;
+    return user.isAdmin === true || user.email === 'rasheequ.designs@gmail.com';
   }
 
-  // â”€â”€ Session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  static isAdminLoggedIn() { return localStorage.getItem(this.STORAGE_ADMIN_SESSION) === 'true'; }
-  static async adminLogin(passcode) {
-    try {
-      const settings = await this._fetchFreshSettings();
-      const stored = settings['admin_passcode'] || 'admin123';
-      if (passcode === stored) { localStorage.setItem(this.STORAGE_ADMIN_SESSION, 'true'); return true; }
-      return false;
-    } catch {
-      if (passcode === 'admin123') { localStorage.setItem(this.STORAGE_ADMIN_SESSION, 'true'); return true; }
-      return false;
+  static getAdminUpi() {
+    if (this._settingsCache && this._settingsCache.admin_upi) {
+      return String(this._settingsCache.admin_upi).replace(/^"|^'|"$|'$/g, '');
     }
-  }
-  static adminLogout() { localStorage.removeItem(this.STORAGE_ADMIN_SESSION); }
-
-  // â”€â”€ Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  static async _fetchFreshSettings() {
-    try {
-      const settings = await SupabaseEngine.getSettings();
-      this._settingsCache = settings;
-      if (window.SupabaseEngine) SupabaseEngine._settingsCache = settings;
-      return settings;
-    } catch (e) {
-      console.warn('[Admin] _fetchFreshSettings failed:', e.message);
-      return this._settingsCache || {};
-    }
-  }
-  static async _loadSettings() { return this._fetchFreshSettings(); }
-
-  static async _saveSetting(key, value) {
-    await SupabaseEngine.setSetting(key, value);
-    if (!this._settingsCache) this._settingsCache = {};
-    this._settingsCache[key] = value;
+    return '9526569313@upi';
   }
 
-  static getAdminUpi()   { return this._settingsCache?.['admin_upi'] || 'merchant@upi'; }
-  static getPasscode()   { return this._settingsCache?.['admin_passcode'] || 'admin123'; }
   static getContactInfo() {
     try {
-      const raw = this._settingsCache?.['footer_contact'];
-      if (raw) return typeof raw === 'string' ? JSON.parse(raw) : raw;
-    } catch {}
-    return { company: 'StudioSuite PRO', address: '', phone: '', email: '', hours: '' };
-  }
-
-  static async setAdminUpi(v)     { await this._saveSetting('admin_upi', (v || '').trim()); }
-  static async setPasscode(v)     { await this._saveSetting('admin_passcode', v); }
-  static async saveContactInfo(i) { await this._saveSetting('footer_contact', JSON.stringify(i)); }
-
-  // â”€â”€ Features â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  static getAllToolIds() { return (window.TOOLS || []).map(t => t.id); }
-
-  static getEnabledFeatures() {
-    let cache = this._featuresCache || (window.SupabaseEngine ? SupabaseEngine._featuresCache : null);
-    if (!cache) cache = this._loadFeaturesFromStorage();
-    if (!cache) {
-      // Default: all tools enabled
-      cache = {};
-      (window.TOOLS || []).forEach(t => { cache[t.id] = true; });
-    }
-    this._featuresCache = cache;
-    if (window.SupabaseEngine && !SupabaseEngine._featuresCache) SupabaseEngine._featuresCache = cache;
-    const tools = this.getAllToolIds();
-    if (!tools.length) return [];
-    return tools.filter(id => cache[id] !== false); // enabled unless explicitly false
-  }
-
-  static isFeatureEnabled(toolId) {
-    let cache = this._featuresCache || (window.SupabaseEngine ? SupabaseEngine._featuresCache : null);
-    if (!cache) cache = this._loadFeaturesFromStorage();
-    if (!cache) return true; // Default: enabled
-    this._featuresCache = cache;
-    return cache[toolId] !== false; // enabled unless explicitly set to false
-  }
-
-  static async setFeatureEnabled(toolId, enabled) {
-    await SupabaseEngine.setFeatureEnabled(toolId, enabled);
-    const cache = this._featuresCache || SupabaseEngine._featuresCache || this._loadFeaturesFromStorage() || {};
-    cache[toolId] = !!enabled;
-    this._featuresCache = cache;
-    SupabaseEngine._featuresCache = cache;
-    this._saveFeaturesToStorage(cache);
-  }
-
-  static async enableAllFeatures() {
-    const all = this.getAllToolIds();
-    if (!all.length) return [];
-    await SupabaseEngine.enableAllFeatures(all);
-    const cache = {};
-    all.forEach(id => { cache[id] = true; });
-    this._featuresCache = cache;
-    SupabaseEngine._featuresCache = cache;
-    this._saveFeaturesToStorage(cache);
-    return all;
-  }
-
-  static async disableAllFeatures() {
-    const all = this.getAllToolIds();
-    if (!all.length) return [];
-    await SupabaseEngine.disableAllFeatures(all);
-    const cache = {};
-    all.forEach(id => { cache[id] = false; });
-    this._featuresCache = cache;
-    SupabaseEngine._featuresCache = cache;
-    this._saveFeaturesToStorage(cache);
-    return [];
-  }
-
-  // â”€â”€ Plans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  static async savePlan(planData) {
-    const payload = {
-      id: planData.id || ('plan_' + Date.now()),
-      name: planData.name,
-      priceINR: planData.priceINR ?? 0,
-      durationDays: planData.durationDays || 30,
-      maxFileSizeMB: planData.maxFileSizeMB || 25,
-      badge: planData.badge || '',
-      features: planData.features || [],
-      allowedToolIds: planData.allowedToolIds ?? 'all',
+      const c = this._settingsCache && this._settingsCache.footer_contact;
+      if (c) return typeof c === 'string' ? JSON.parse(c) : c;
+    } catch (e) { }
+    return {
+      company: 'StudioSuite PRO Platform Inc.',
+      address: '100 Innovation Parkway, Suite 400, Tech Park',
+      phone: '+91 98765 43210',
+      email: 'support@studiosuitepro.com',
+      hours: 'Mon - Fri: 9:00 AM - 6:00 PM IST'
     };
-    await SupabaseEngine.savePlan(payload);
-    const plans = AuthSubscriptionEngine._plansCache || [];
-    const idx = plans.findIndex(p => p.id === payload.id);
-    if (idx !== -1) plans[idx] = payload; else plans.push(payload);
-    AuthSubscriptionEngine._plansCache = [...plans].sort((a, b) => (a.priceINR || 0) - (b.priceINR || 0));
-    return payload;
   }
 
-  static async deletePlan(planId) {
-    if (planId === 'free') throw new Error('Cannot delete the default free plan');
-    await SupabaseEngine.deletePlan(planId);
-    if (AuthSubscriptionEngine._plansCache) {
-      AuthSubscriptionEngine._plansCache = AuthSubscriptionEngine._plansCache.filter(p => p.id !== planId);
+  static async init() {
+    try {
+      if (window.SupabaseEngine) {
+        this._settingsCache = await SupabaseEngine.getSettings();
+        this._featuresCache = await SupabaseEngine.initFeatures();
+      }
+    } catch (e) {
+      console.warn('[AdminPanel] Init settings/features error:', e);
     }
   }
 
-  // â”€â”€ Payments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  static async getPayments()        { return SupabaseEngine.getPayments(); }
-  static async deletePayment(id)    { return SupabaseEngine.deletePayment(id); }
-  static async clearAllPayments()   {
-    const payments = await this.getPayments();
-    await Promise.all(payments.map(p => SupabaseEngine.deletePayment(p.id)));
-  }
+  // ── Main Page Render ───────────────────────────────────────────────────────
+  static async renderAdminPage() {
+    const container = document.getElementById('admin-page-view');
+    if (!container) return;
 
-  /** Verify a UTR payment and activate the user's subscription */
-  static async verifyPayment(paymentId, userId, planType) {
-    return SupabaseEngine.verifyPayment(paymentId, userId, planType);
-  }
-}
+    const user = window.AuthSubscriptionEngine ? AuthSubscriptionEngine.getCurrentUser() : null;
+    const isAuthorized = this.isAdminLoggedIn();
 
-window.AdminPanelEngine = AdminPanelEngine;
-
-// â”€â”€ Feature toggle global helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-window.adminToggleFeature = async function(toolId, enabled) {
-  const cb = event && event.target;
-  if (cb) cb.disabled = true;
-  try {
-    await AdminPanelEngine.setFeatureEnabled(toolId, enabled);
-    if (window.renderTools) window.renderTools();
-    window.dispatchEvent(new CustomEvent('featuresUpdated'));
-    if (window.showToast) showToast((enabled ? 'Enabled: ' : 'Disabled: ') + toolId, 'success');
-  } catch (e) {
-    if (cb) { cb.checked = !enabled; cb.disabled = false; }
-    if (window.showToast) showToast('Failed: ' + e.message, 'error');
-  }
-  if (cb) cb.disabled = false;
-};
-
-window.adminEnableAllFeatures = async function() {
-  const btn = document.querySelector('[onclick="adminEnableAllFeatures()"]');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i>Enabling...'; }
-  try {
-    await AdminPanelEngine.enableAllFeatures();
-    const list = document.getElementById('admin-feature-list');
-    if (list) list.innerHTML = renderAdminFeatureList();
-    window.dispatchEvent(new CustomEvent('featuresUpdated'));
-    if (window.renderTools) window.renderTools();
-    if (window.showToast) showToast('All tools enabled!', 'success');
-  } catch (e) { if (window.showToast) showToast('Failed: ' + e.message, 'error'); }
-  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check-double mr-1"></i> Enable All'; }
-};
-
-window.adminDisableAllFeatures = async function() {
-  if (!confirm('Disable all tools? Users will see an empty tools page.')) return;
-  const btn = document.querySelector('[onclick="adminDisableAllFeatures()"]');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i>Disabling...'; }
-  try {
-    await AdminPanelEngine.disableAllFeatures();
-    const list = document.getElementById('admin-feature-list');
-    if (list) list.innerHTML = renderAdminFeatureList();
-    window.dispatchEvent(new CustomEvent('featuresUpdated'));
-    if (window.renderTools) window.renderTools();
-    if (window.showToast) showToast('All tools disabled.', 'info');
-  } catch (e) { if (window.showToast) showToast('Failed: ' + e.message, 'error'); }
-  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-ban mr-1"></i> Disable All'; }
-};
-
-// â”€â”€ Full Admin Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-async function renderFullAdminPage() {
-  const container = document.getElementById('admin-page-view');
-  if (!container) return;
-
-  if (!AdminPanelEngine.isAdminLoggedIn()) {
-    container.innerHTML = `
-      <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-indigo-50 px-4 py-12">
-        <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
-          <div class="bg-gradient-to-br from-indigo-900 to-indigo-700 p-8 text-center">
-            <div class="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-white text-3xl mx-auto mb-4">
-              <i class="fa-solid fa-shield-halved"></i>
+    if (!user) {
+      container.innerHTML = `
+        <div class="min-h-[80vh] flex items-center justify-center p-4">
+          <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl p-8 max-w-md w-full text-center space-y-5">
+            <div class="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-3xl mx-auto shadow-inner">
+              <i class="fa-solid fa-lock"></i>
             </div>
-            <h2 class="text-2xl font-extrabold text-white">Admin Portal</h2>
-            <p class="text-xs text-indigo-200 mt-1">Enter your passcode to access the control dashboard</p>
-          </div>
-          <div class="p-8 space-y-5">
-            <form onsubmit="handleFullAdminLogin(event)" class="space-y-4">
-              <div class="space-y-1.5">
-                <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                  <i class="fa-solid fa-key text-indigo-500 mr-1"></i> Admin Passcode
-                </label>
-                <div class="relative">
-                  <input type="password" id="admin-page-passcode" class="custom-input w-full text-sm pr-10 tracking-widest font-mono" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required autofocus>
-                  <button type="button" onclick="const i=document.getElementById('admin-page-passcode');i.type=i.type==='password'?'text':'password'" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition">
-                    <i class="fa-solid fa-eye text-xs"></i>
-                  </button>
-                </div>
-                <p class="text-[10px] text-slate-400">Default: <code class="font-mono bg-slate-100 px-1 rounded">admin123</code></p>
-              </div>
-              <button type="submit" class="w-full btn-gradient py-3.5 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg">
-                <i class="fa-solid fa-unlock"></i> Unlock Dashboard
+            <div class="space-y-2">
+              <h2 class="text-2xl font-black text-slate-900">Admin Portal Restricted</h2>
+              <p class="text-xs text-slate-500 leading-relaxed">
+                You must be authenticated as an administrator to access the StudioSuite PRO Admin Portal.
+              </p>
+            </div>
+            <div class="flex gap-3">
+              <button onclick="window.location.hash='#'; AuthSubscriptionEngine.openAuthModal('login');" class="btn-gradient flex-1 py-3 text-xs font-extrabold rounded-xl shadow-md">
+                <i class="fa-solid fa-right-to-bracket mr-1"></i> Admin Sign In
               </button>
-            </form>
+              <a href="#" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition flex items-center justify-center">
+                Back Home
+              </a>
+            </div>
           </div>
         </div>
-      </div>`;
-    return;
-  }
+      `;
+      return;
+    }
 
-  // Load data
-  let users = [], plans = AuthSubscriptionEngine.getPlans() || [], payments = [], settings = AdminPanelEngine._settingsCache || {};
-
-  if (!plans || plans.length === 0) plans = SupabaseEngine.DEFAULT_PLANS;
-
-  const results = await Promise.allSettled([
-    AdminPanelEngine._fetchFreshSettings(),
-    AuthSubscriptionEngine.getUsers(),
-    AuthSubscriptionEngine.fetchPlans(),
-    AdminPanelEngine.getPayments(),
-  ]);
-  settings = results[0].status === 'fulfilled' ? results[0].value : {};
-  users    = results[1].status === 'fulfilled' ? results[1].value : [];
-  plans    = results[2].status === 'fulfilled' ? results[2].value : plans;
-  payments = results[3].status === 'fulfilled' ? results[3].value : [];
-
-  const pendingPayments = payments.filter(p => !p.isVerified);
-  const verifiedPayments = payments.filter(p => p.isVerified);
-  const contactInfo = AdminPanelEngine.getContactInfo();
-  const adminUpi    = AdminPanelEngine.getAdminUpi();
-  const totalRevenue = verifiedPayments.reduce((a, p) => a + (parseFloat(p.amountINR) || 0), 0);
-  const proUsers     = users.filter(u => u.planId !== 'free' && u.subscriptionVerified).length;
-  const enabledCount = (AdminPanelEngine.getEnabledFeatures() || (window.TOOLS || []).map(t => t.id)).length;
-
-  container.innerHTML = `
-    <div class="min-h-screen bg-slate-50">
-      <header class="sticky top-16 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
-          <div class="flex items-center gap-2.5">
-            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-white text-xs shadow">
-              <i class="fa-solid fa-crown"></i>
+    if (!isAuthorized) {
+      container.innerHTML = `
+        <div class="min-h-[80vh] flex items-center justify-center p-4">
+          <div class="bg-white rounded-3xl border border-red-200 shadow-2xl p-8 max-w-md w-full text-center space-y-5">
+            <div class="w-16 h-16 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-3xl mx-auto shadow-inner">
+              <i class="fa-solid fa-shield-xmark"></i>
             </div>
-            <span class="font-extrabold text-slate-900 text-sm hidden sm:inline">Admin Dashboard</span>
+            <div class="space-y-2">
+              <h2 class="text-2xl font-black text-slate-900">Access Denied</h2>
+              <p class="text-xs text-slate-500 leading-relaxed">
+                Signed in as <strong>${user.email}</strong>. This account does not possess administrator privileges.
+              </p>
+            </div>
+            <a href="#" class="btn-gradient inline-flex items-center justify-center px-6 py-3 text-xs font-extrabold rounded-xl shadow-md">
+              Return to Studio Tools
+            </a>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // Render Full Admin Shell
+    container.innerHTML = `
+      <div class="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        
+        <!-- Top Admin Header -->
+        <header class="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-xl sticky top-0 z-40 px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white text-lg font-bold shadow-md shadow-indigo-500/20">
+              <i class="fa-solid fa-gauge-high"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h1 class="text-sm sm:text-base font-black tracking-tight text-white">StudioSuite Admin</h1>
+                <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <i class="fa-solid fa-circle-check mr-1"></i>PRO Active
+                </span>
+              </div>
+              <p class="text-[10px] text-slate-400">Master Paywall &amp; Subscription Controller</p>
+            </div>
           </div>
 
-          <nav id="admin-tab-nav" class="flex items-center gap-0.5 ml-2 overflow-x-auto flex-1">
-            ${[
-              { id: 'overview',  icon: 'fa-gauge-high',  label: 'Overview'  },
-              { id: 'payments',  icon: 'fa-receipt',      label: 'Payments', badge: pendingPayments.length > 0 ? pendingPayments.length : null },
-              { id: 'users',     icon: 'fa-users',        label: 'Users'     },
-              { id: 'plans',     icon: 'fa-crown',        label: 'Plans'     },
-              { id: 'tools',     icon: 'fa-toggle-on',    label: 'Tools'     },
-              { id: 'settings',  icon: 'fa-sliders',      label: 'Settings'  },
-            ].map((t, i) => `
-              <button onclick="adminSwitchTab('${t.id}')" id="admin-tab-btn-${t.id}"
-                class="admin-tab-btn relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all
-                  ${i === 0 ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'}">
-                <i class="fa-solid ${t.icon} text-[10px]"></i>
-                <span class="hidden sm:inline">${t.label}</span>
-                ${t.badge ? `<span class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-extrabold rounded-full flex items-center justify-center">${t.badge}</span>` : ''}
-              </button>`).join('')}
-          </nav>
-
-          <div class="flex items-center gap-2 ml-auto flex-shrink-0">
-            <a href="#" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition hidden sm:flex items-center gap-1">
-              <i class="fa-solid fa-eye"></i> View Site
+          <div class="flex items-center gap-2 sm:gap-3">
+            <a href="#" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700/80 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-arrow-left"></i>
+              <span class="hidden sm:inline">Exit to Portal</span>
             </a>
-            <button onclick="handleFullAdminLogout()" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold border border-red-200 transition flex items-center gap-1">
-              <i class="fa-solid fa-right-from-bracket"></i><span class="hidden sm:inline">Logout</span>
+            <button onclick="AdminPanelEngine.refreshCurrentTab()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700/80 transition" title="Refresh Data">
+              <i class="fa-solid fa-rotate text-xs"></i>
+            </button>
+          </div>
+        </header>
+
+        <!-- Admin Navigation Tabs -->
+        <nav class="border-b border-slate-800/80 bg-slate-900/50 px-4 sm:px-6 overflow-x-auto">
+          <div class="flex gap-1 sm:gap-2 max-w-7xl mx-auto py-2">
+            ${[
+        { id: 'overview', icon: 'fa-chart-pie', label: 'Overview' },
+        { id: 'payments', icon: 'fa-receipt', label: 'Pending Payments' },
+        { id: 'users', icon: 'fa-users', label: 'Users & Subscriptions' },
+        { id: 'plans', icon: 'fa-crown', label: 'Subscription Plans' },
+        { id: 'features', icon: 'fa-toggle-on', label: 'Tool Toggles (50)' },
+        { id: 'statement', icon: 'fa-file-invoice-dollar', label: 'CSV Statement Uploader' },
+        { id: 'settings', icon: 'fa-sliders', label: 'Site Settings' },
+      ].map(tab => `
+              <button onclick="AdminPanelEngine.switchTab('${tab.id}')" id="admin-tab-btn-${tab.id}" class="px-3.5 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition flex items-center gap-2 ${this._activeTab === tab.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'}">
+                <i class="fa-solid ${tab.icon}"></i>
+                <span>${tab.label}</span>
+              </button>
+            `).join('')}
+          </div>
+        </nav>
+
+        <!-- Tab Body Container -->
+        <main id="admin-tab-body" class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 md:p-8 space-y-6">
+          <div class="flex items-center justify-center py-20 text-slate-500">
+            <i class="fa-solid fa-circle-notch fa-spin text-3xl text-indigo-500 mr-3"></i>
+            <span>Loading admin module...</span>
+          </div>
+        </main>
+      </div>
+    `;
+
+    await this.renderTabContent(this._activeTab);
+  }
+
+  static async switchTab(tabId) {
+    this._activeTab = tabId;
+    document.querySelectorAll('[id^="admin-tab-btn-"]').forEach(btn => {
+      btn.className = 'px-3.5 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60';
+    });
+    const activeBtn = document.getElementById(`admin-tab-btn-${tabId}`);
+    if (activeBtn) activeBtn.className = 'px-3.5 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition flex items-center gap-2 bg-indigo-600 text-white shadow-lg shadow-indigo-600/30';
+    await this.renderTabContent(tabId);
+  }
+
+  static async refreshCurrentTab() {
+    await this.renderTabContent(this._activeTab);
+    if (window.showToast) window.showToast('Admin data refreshed!', 'success');
+  }
+
+  // ── Tab Router & Renderers ─────────────────────────────────────────────────
+  static async renderTabContent(tabId) {
+    const main = document.getElementById('admin-tab-body');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div class="flex items-center justify-center py-16 text-slate-400">
+        <i class="fa-solid fa-circle-notch fa-spin text-2xl text-indigo-500 mr-2"></i>
+        <span>Loading...</span>
+      </div>
+    `;
+
+    try {
+      if (tabId === 'overview') await this._renderOverviewTab(main);
+      else if (tabId === 'payments') await this._renderPaymentsTab(main);
+      else if (tabId === 'users') await this._renderUsersTab(main);
+      else if (tabId === 'plans') await this._renderPlansTab(main);
+      else if (tabId === 'features') await this._renderFeaturesTab(main);
+      else if (tabId === 'statement') await this._renderStatementTab(main);
+      else if (tabId === 'settings') await this._renderSettingsTab(main);
+    } catch (e) {
+      main.innerHTML = `
+        <div class="p-6 rounded-2xl bg-red-950/40 border border-red-800 text-red-300 text-xs">
+          <p class="font-bold mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Failed to render ${tabId}:</p>
+          <p class="font-mono">${e.message}</p>
+        </div>
+      `;
+    }
+  }
+
+  // ── 1. Overview Tab ────────────────────────────────────────────────────────
+  static async _renderOverviewTab(container) {
+    let stats = { totalUsers: 0, activeSubs: 0, pendingPayments: 0, totalRevenueINR: 0, totalFeatures: 50, enabledFeatures: 50 };
+    try {
+      const res = await fetch('/api/v1/admin/stats');
+      const data = await res.json();
+      if (data.ok && data.stats) stats = data.stats;
+    } catch (e) {
+      console.warn('[Admin Overview] Stats API fetch error:', e);
+    }
+
+    container.innerHTML = `
+      <div class="space-y-6 animate-fade-in">
+        
+        <!-- Welcome Hero -->
+        <div class="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-indigo-900/60 via-purple-900/40 to-slate-900 border border-indigo-500/20 relative overflow-hidden">
+          <div class="relative z-10 space-y-2">
+            <span class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 inline-flex items-center gap-1.5">
+              <i class="fa-solid fa-bolt"></i> Live Realtime Telemetry
+            </span>
+            <h2 class="text-2xl sm:text-3xl font-black text-white">System &amp; Subscription Command Center</h2>
+            <p class="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+              Real-time monitoring of UPI payments, automated email-to-UTR verification webhooks, 50 site-wide tool toggles, and subscriber management.
+            </p>
+          </div>
+        </div>
+
+        <!-- Metric KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <div class="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+            <div class="flex items-center justify-between text-slate-400 text-xs font-bold">
+              <span>Total Revenue (INR)</span>
+              <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-sm"><i class="fa-solid fa-indian-rupee-sign"></i></div>
+            </div>
+            <div class="text-2xl font-black text-white">₹${stats.totalRevenueINR.toLocaleString('en-IN')}</div>
+            <p class="text-[11px] text-emerald-400 font-semibold flex items-center gap-1"><i class="fa-solid fa-circle-check"></i> Verified via UPI</p>
+          </div>
+
+          <div class="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+            <div class="flex items-center justify-between text-slate-400 text-xs font-bold">
+              <span>Active Subscriptions</span>
+              <div class="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-sm"><i class="fa-solid fa-crown"></i></div>
+            </div>
+            <div class="text-2xl font-black text-white">${stats.activeSubs} <span class="text-xs text-slate-500 font-normal">/ ${stats.totalUsers} users</span></div>
+            <p class="text-[11px] text-indigo-400 font-semibold flex items-center gap-1"><i class="fa-solid fa-shield-check"></i> Active Paywall Pass</p>
+          </div>
+
+          <div class="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 ${stats.pendingPayments > 0 ? 'ring-2 ring-amber-500/40 bg-amber-950/10' : ''}">
+            <div class="flex items-center justify-between text-slate-400 text-xs font-bold">
+              <span>Pending Verifications</span>
+              <div class="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-sm"><i class="fa-solid fa-clock"></i></div>
+            </div>
+            <div class="text-2xl font-black ${stats.pendingPayments > 0 ? 'text-amber-400' : 'text-white'}">${stats.pendingPayments}</div>
+            <p class="text-[11px] text-amber-400 font-semibold flex items-center gap-1"><i class="fa-solid fa-hourglass-half"></i> UTRs awaiting review</p>
+          </div>
+
+          <div class="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+            <div class="flex items-center justify-between text-slate-400 text-xs font-bold">
+              <span>Active Tools</span>
+              <div class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-sm"><i class="fa-solid fa-layer-group"></i></div>
+            </div>
+            <div class="text-2xl font-black text-white">${stats.enabledFeatures} <span class="text-xs text-slate-500 font-normal">/ 50 Tools</span></div>
+            <p class="text-[11px] text-purple-400 font-semibold flex items-center gap-1"><i class="fa-solid fa-toggle-on"></i> Site-wide feature engine</p>
+          </div>
+
+        </div>
+
+        <!-- Quick Action Shortcuts -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button onclick="AdminPanelEngine.switchTab('payments')" class="p-5 rounded-2xl bg-slate-900/80 hover:bg-slate-800/80 border border-slate-800 text-left transition space-y-2 group">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg group-hover:scale-110 transition-transform"><i class="fa-solid fa-receipt"></i></div>
+              <div>
+                <h4 class="font-extrabold text-sm text-white">Review Pending Payments</h4>
+                <p class="text-[11px] text-slate-400">1-click approve or reject submitted UTR references</p>
+              </div>
+            </div>
+          </button>
+
+          <button onclick="AdminPanelEngine.switchTab('statement')" class="p-5 rounded-2xl bg-slate-900/80 hover:bg-slate-800/80 border border-slate-800 text-left transition space-y-2 group">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg group-hover:scale-110 transition-transform"><i class="fa-solid fa-file-csv"></i></div>
+              <div>
+                <h4 class="font-extrabold text-sm text-white">Upload Bank Statement</h4>
+                <p class="text-[11px] text-slate-400">Batch match 12-digit UTRs from CSV/Excel</p>
+              </div>
+            </div>
+          </button>
+
+          <button onclick="AdminPanelEngine.switchTab('features')" class="p-5 rounded-2xl bg-slate-900/80 hover:bg-slate-800/80 border border-slate-800 text-left transition space-y-2 group">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-lg group-hover:scale-110 transition-transform"><i class="fa-solid fa-toggle-on"></i></div>
+              <div>
+                <h4 class="font-extrabold text-sm text-white">Toggle Studio Tools</h4>
+                <p class="text-[11px] text-slate-400">Instantly enable/disable any tool site-wide</p>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <!-- Webhook Integration Card -->
+        <div class="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <h3 class="text-sm font-extrabold text-white flex items-center gap-2">
+              <i class="fa-solid fa-satellite-dish text-indigo-400"></i> Automated Email Verification Webhook Endpoint
+            </h3>
+            <span class="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-md font-bold">Ready</span>
+          </div>
+          <p class="text-xs text-slate-400">
+            Forward your bank credit alert emails (via Zapier, Make, or Mailgun) to this webhook URL for instant, automated UTR extraction and subscription activation:
+          </p>
+          <div class="flex gap-2">
+            <input class="custom-input flex-1 text-xs font-mono bg-slate-950 text-indigo-300 border-slate-700" value="${window.location.origin}/api/v1/payments/verify-email" readonly id="webhook-url-input">
+            <button onclick="navigator.clipboard.writeText(document.getElementById('webhook-url-input').value); if(window.showToast) showToast('Webhook URL copied!','success');" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition">
+              <i class="fa-solid fa-copy mr-1"></i> Copy
             </button>
           </div>
         </div>
-      </header>
 
-      <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      </div>
+    `;
+  }
 
-        <!-- â•â• OVERVIEW â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
-        <div id="admin-tab-overview" class="admin-tab-content space-y-6">
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            ${[
-              { label: 'Verified Revenue', value: 'â‚¹' + totalRevenue.toLocaleString(), icon: 'fa-indian-rupee-sign', grad: 'from-emerald-500 to-teal-600', txt: 'text-emerald-700' },
-              { label: 'Registered Users', value: users.length, icon: 'fa-users', grad: 'from-indigo-500 to-violet-600', txt: 'text-indigo-700' },
-              { label: 'Active Subscribers', value: proUsers, icon: 'fa-crown', grad: 'from-amber-500 to-orange-500', txt: 'text-amber-700' },
-              { label: 'Pending UTRs', value: pendingPayments.length, icon: 'fa-clock', grad: 'from-red-500 to-rose-600', txt: 'text-red-700' },
-            ].map(s => `
-              <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
-                <div class="w-11 h-11 rounded-xl bg-gradient-to-br ${s.grad} text-white flex items-center justify-center text-lg shadow-md flex-shrink-0"><i class="fa-solid ${s.icon}"></i></div>
-                <div><p class="text-[10px] font-extrabold text-slate-400 uppercase">${s.label}</p><p class="text-2xl font-black ${s.txt}">${s.value}</p></div>
-              </div>`).join('')}
+  // ── 2. Pending Payments Tab ────────────────────────────────────────────────
+  static async _renderPaymentsTab(container) {
+    const payments = window.SupabaseEngine ? await SupabaseEngine.getPayments() : [];
+
+    container.innerHTML = `
+      <div class="space-y-5 animate-fade-in">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-extrabold text-white">Payment Audit &amp; Verification</h2>
+            <p class="text-xs text-slate-400">Review submitted UTR reference numbers and activate subscriptions.</p>
           </div>
-
-          ${pendingPayments.length > 0 ? `
-          <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="font-extrabold text-sm text-amber-900 flex items-center gap-2"><i class="fa-solid fa-clock text-amber-600"></i> ${pendingPayments.length} Pending UTR Verification${pendingPayments.length > 1 ? 's' : ''}</h3>
-              <button onclick="adminSwitchTab('payments')" class="text-xs text-amber-800 font-bold hover:underline">View All â†’</button>
-            </div>
-            ${pendingPayments.slice(0, 3).map(p => `
-              <div class="flex items-center gap-3 p-3 bg-white rounded-xl border border-amber-200 mb-2 last:mb-0">
-                <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 text-xs font-extrabold flex items-center justify-center flex-shrink-0">â‚¹</div>
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs font-bold text-slate-900 truncate">${p.userEmail || p.userName || 'Unknown'}</p>
-                  <p class="text-[10px] text-slate-500">UTR: <span class="font-mono font-bold">${p.utrNumber}</span> Â· ${p.planType} Â· â‚¹${p.amountINR}</p>
-                </div>
-                <button onclick="adminVerifyPayment('${p.id}','${p.userId}','${p.planType}')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-extrabold rounded-lg transition shadow-sm whitespace-nowrap">
-                  <i class="fa-solid fa-check mr-1"></i> Verify
-                </button>
-              </div>`).join('')}
-          </div>` : `
-          <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center"><i class="fa-solid fa-check-circle"></i></div>
-            <div><p class="text-xs font-extrabold text-emerald-900">All UTR payments verified</p><p class="text-[11px] text-emerald-700">No pending payment verifications at this time.</p></div>
-          </div>`}
-
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
-              <div class="flex justify-between items-center">
-                <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-2"><i class="fa-solid fa-users text-indigo-600"></i> Recent Users</h3>
-                <button onclick="adminSwitchTab('users')" class="text-xs text-indigo-600 font-bold hover:underline">All â†’</button>
-              </div>
-              ${users.slice(0, 5).map(u => `
-                <div class="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                  <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-extrabold text-xs flex items-center justify-center">${(u.name || u.email || 'U')[0].toUpperCase()}</div>
-                  <div class="flex-1 min-w-0"><p class="text-xs font-bold text-slate-900 truncate">${u.name || u.email}</p><p class="text-[10px] text-slate-400 truncate">${u.email}</p></div>
-                  <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${u.subscriptionVerified ? 'bg-emerald-100 text-emerald-800' : u.planId !== 'free' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}">${u.subscriptionVerified ? 'âœ“ Active' : u.planId !== 'free' ? 'â³ Pending' : 'Free'}</span>
-                </div>`).join('') || '<p class="text-xs text-slate-400 italic text-center py-4">No users yet</p>'}
-            </div>
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
-              <div class="flex justify-between items-center">
-                <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-2"><i class="fa-solid fa-database text-indigo-600"></i> Supabase Status</h3>
-                <button onclick="adminSwitchTab('settings')" class="text-xs text-indigo-600 font-bold hover:underline">Settings â†’</button>
-              </div>
-              <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-                <div class="flex items-center gap-2">
-                  <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                  <p class="text-xs font-extrabold text-emerald-900">Supabase Connected</p>
-                </div>
-                <p class="text-[11px] text-emerald-700 mt-1">Auth, database, and storage connected to hpmsmhqdgzikbgaprcad.supabase.co</p>
-              </div>
-              <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600">
-                <p class="font-bold text-slate-800 mb-1">Quick Stats</p>
-                <div class="grid grid-cols-2 gap-1.5">
-                  <div>ðŸ‘¥ ${users.length} users</div>
-                  <div>ðŸ’° ${payments.length} payments</div>
-                  <div>âœ… ${verifiedPayments.length} verified</div>
-                  <div>â³ ${pendingPayments.length} pending</div>
-                </div>
-              </div>
-            </div>
+          <div class="flex items-center gap-2">
+            <input type="text" id="payments-search" placeholder="Search UTR, email, plan..." class="custom-input text-xs bg-slate-900 text-white border-slate-700 rounded-xl px-3 py-2 w-full sm:w-64" oninput="AdminPanelEngine._filterPaymentsTable(this.value)">
           </div>
         </div>
 
-        <!-- â•â• PAYMENTS (UTR VERIFICATION QUEUE) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
-        <div id="admin-tab-payments" class="admin-tab-content hidden space-y-5">
-          <!-- Pending UTRs -->
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="flex flex-wrap justify-between items-center p-5 border-b border-slate-100 gap-3">
-              <h3 class="font-extrabold text-base text-slate-900 flex items-center gap-2">
-                <i class="fa-solid fa-clock text-amber-600"></i> Pending UTR Verifications
-                <span class="text-xs font-bold px-2.5 py-0.5 rounded-full ${pendingPayments.length > 0 ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-slate-100 text-slate-600'}">${pendingPayments.length} pending</span>
-              </h3>
-              <button onclick="renderFullAdminPage().then(() => adminSwitchTab('payments'))" class="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 transition flex items-center gap-1">
-                <i class="fa-solid fa-rotate-right"></i> Refresh
-              </button>
-            </div>
-            <div class="overflow-x-auto">
-              <table class="w-full text-xs text-left">
-                <thead class="bg-slate-50 border-b border-slate-200">
-                  <tr class="text-slate-500 font-bold uppercase text-[10px] tracking-wider">
-                    <th class="p-4">User</th><th class="p-4">UTR Number</th><th class="p-4">Plan</th><th class="p-4">Amount</th><th class="p-4">Submitted</th><th class="p-4 text-right">Action</th>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-950/80 text-slate-400 uppercase text-[10px] font-extrabold border-b border-slate-800">
+                <tr>
+                  <th class="p-3.5">User / Email</th>
+                  <th class="p-3.5">12-Digit UTR / Reference</th>
+                  <th class="p-3.5">Plan Type</th>
+                  <th class="p-3.5">Amount</th>
+                  <th class="p-3.5">Submitted At</th>
+                  <th class="p-3.5">Status</th>
+                  <th class="p-3.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="payments-table-body" class="divide-y divide-slate-800/60">
+                ${payments.length === 0 ? `
+                  <tr>
+                    <td colspan="7" class="text-center py-12 text-slate-500">
+                      <i class="fa-solid fa-inbox text-3xl mb-2 block"></i>
+                      No payment submissions found in database.
+                    </td>
                   </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  ${pendingPayments.length ? pendingPayments.map(p => `
-                    <tr class="hover:bg-amber-50/40 transition-colors">
-                      <td class="p-4"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 font-extrabold text-xs flex items-center justify-center">${(p.userEmail || 'U')[0].toUpperCase()}</div><div><p class="font-bold text-slate-900 truncate max-w-[140px]">${p.userName || 'â€”'}</p><p class="text-[10px] text-slate-400 truncate max-w-[140px]">${p.userEmail}</p></div></div></td>
-                      <td class="p-4"><span class="font-mono font-extrabold text-slate-900 bg-slate-100 px-2 py-1 rounded-lg text-[11px]">${p.utrNumber}</span></td>
-                      <td class="p-4"><span class="px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 font-bold border border-indigo-100">${p.planType}</span></td>
-                      <td class="p-4 font-extrabold text-emerald-700">â‚¹${p.amountINR}</td>
-                      <td class="p-4 text-slate-500">${new Date(p.timestamp).toLocaleString()}</td>
-                      <td class="p-4 text-right">
-                        <button onclick="adminVerifyPayment('${p.id}','${p.userId}','${p.planType}')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-xl transition shadow-sm flex items-center gap-1.5 ml-auto">
-                          <i class="fa-solid fa-check"></i> Verify & Activate
+                ` : payments.map(p => `
+                  <tr class="hover:bg-slate-800/40 transition payment-row" data-search="${(p.userEmail + ' ' + p.utrNumber + ' ' + p.planType).toLowerCase()}">
+                    <td class="p-3.5">
+                      <div class="font-bold text-white">${p.userName || 'User'}</div>
+                      <div class="text-[11px] text-slate-400 font-mono">${p.userEmail || p.userId}</div>
+                    </td>
+                    <td class="p-3.5">
+                      <span class="font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-1 rounded-lg border border-amber-400/20 select-all">
+                        ${p.utrNumber}
+                      </span>
+                    </td>
+                    <td class="p-3.5 capitalize font-bold text-slate-200">${p.planType || 'pro-monthly'}</td>
+                    <td class="p-3.5 font-black text-white">₹${p.amountINR || 0}</td>
+                    <td class="p-3.5 text-slate-400 text-[11px] whitespace-nowrap">${p.timestamp ? new Date(p.timestamp).toLocaleString() : 'N/A'}</td>
+                    <td class="p-3.5">
+                      ${p.isVerified ? `
+                        <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1">
+                          <i class="fa-solid fa-check"></i> Verified
+                        </span>
+                      ` : `
+                        <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1 animate-pulse">
+                          <i class="fa-solid fa-clock"></i> Pending
+                        </span>
+                      `}
+                    </td>
+                    <td class="p-3.5 text-right whitespace-nowrap">
+                      ${!p.isVerified ? `
+                        <button onclick="AdminPanelEngine.approvePayment('${p.id}', '${p.userId}', '${p.planType}')" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md transition mr-1.5">
+                          <i class="fa-solid fa-check mr-1"></i> Approve
                         </button>
-                      </td>
-                    </tr>`).join('')
-                  : `<tr><td colspan="6" class="p-10 text-center text-slate-400 italic text-xs"><i class="fa-solid fa-check-circle text-emerald-300 text-4xl mb-3 block"></i>No pending UTR verifications. All payments are up to date.</td></tr>`}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Verified payments -->
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="flex flex-wrap justify-between items-center p-5 border-b border-slate-100 gap-3">
-              <div class="flex items-center gap-3 flex-wrap">
-                <h3 class="font-extrabold text-base text-slate-900 flex items-center gap-2"><i class="fa-solid fa-receipt text-emerald-600"></i> Verified Transactions (â‚¹ INR)</h3>
-                <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">${verifiedPayments.length} records</span>
-                <span class="text-xs font-extrabold px-2.5 py-1 rounded-full bg-white text-slate-900 border border-slate-200">â‚¹${totalRevenue.toLocaleString()} total</span>
-              </div>
-              ${verifiedPayments.length ? `<button onclick="if(confirm('Clear ALL verified payment records?')){ AdminPanelEngine.clearAllPayments().then(()=>{renderFullAdminPage().then(()=>adminSwitchTab('payments'))}); }" class="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold hover:bg-red-100 transition flex items-center gap-1.5"><i class="fa-solid fa-trash-can"></i> Clear All</button>` : ''}
-            </div>
-            <div class="overflow-x-auto">
-              <table class="w-full text-xs text-left">
-                <thead class="bg-slate-50 border-b border-slate-200">
-                  <tr class="text-slate-500 font-bold uppercase text-[10px] tracking-wider">
-                    <th class="p-4">UTR</th><th class="p-4">User</th><th class="p-4">Plan</th><th class="p-4">Amount</th><th class="p-4">Verified At</th><th class="p-4 text-right">Action</th>
+                      ` : ''}
+                      <button onclick="AdminPanelEngine.deletePaymentRecord('${p.id}')" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-red-900/60 text-slate-400 hover:text-red-300 border border-slate-700 transition" title="Delete record">
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  ${verifiedPayments.length ? verifiedPayments.map(p => `
-                    <tr class="hover:bg-slate-50/50 transition-colors">
-                      <td class="p-4 font-mono text-[10px] text-slate-600 max-w-[110px] truncate">${p.utrNumber}</td>
-                      <td class="p-4 font-semibold text-slate-900">${p.userEmail || ''}</td>
-                      <td class="p-4"><span class="px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 font-bold border border-indigo-100">${p.planType}</span></td>
-                      <td class="p-4 font-extrabold text-emerald-700">â‚¹${p.amountINR}</td>
-                      <td class="p-4 text-slate-500">${p.verifiedAt ? new Date(p.verifiedAt).toLocaleString() : 'â€”'}</td>
-                      <td class="p-4 text-right">${p.isVerified ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Verified</span>` : `<button onclick="adminVerifyPayment('${p.id}','${p.userId}','${p.planType||p.planId}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 font-bold border border-amber-300 text-[10px] hover:bg-amber-100 transition"><i class="fa-solid fa-check-circle"></i> Verify Now</button>`}
-                    </tr>`).join('')
-                  : `<tr><td colspan="6" class="p-10 text-center text-slate-400 italic text-xs"><i class="fa-solid fa-receipt text-slate-300 text-4xl mb-3 block"></i>No verified payment records yet.</td></tr>`}
-                </tbody>
-              </table>
-            </div>
+                `).join('')}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <!-- â•â• USERS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
-        <div id="admin-tab-users" class="admin-tab-content hidden space-y-5">
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="flex flex-wrap justify-between items-center p-5 border-b border-slate-100 gap-3">
-              <h3 class="font-extrabold text-base text-slate-900 flex items-center gap-2">
-                <i class="fa-solid fa-users text-indigo-600"></i> User Accounts
-                <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">${users.length} total</span>
-              </h3>
-            </div>
-            <div class="overflow-x-auto">
-              <table class="w-full text-xs text-left">
-                <thead class="bg-slate-50 border-b border-slate-200">
-                  <tr class="text-slate-500 font-bold uppercase text-[10px] tracking-wider">
-                    <th class="p-4">User</th><th class="p-4">Plan</th><th class="p-4">Status</th><th class="p-4">Expires</th><th class="p-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  ${users.length ? users.map(u => `
-                    <tr class="hover:bg-slate-50/50 transition-colors">
-                      <td class="p-4"><div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-extrabold text-sm flex items-center justify-center shadow-sm">${(u.name || u.email || 'U')[0].toUpperCase()}</div>
-                        <div><p class="font-extrabold text-slate-900">${u.name || 'â€”'}</p><p class="text-[10px] text-slate-400">${u.email}</p></div>
-                      </div></td>
-                      <td class="p-4"><span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-[11px] ${u.planId !== 'free' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-600 border border-slate-200'}">
-                        ${u.planId !== 'free' ? '<i class="fa-solid fa-crown text-amber-500"></i>' : '<i class="fa-solid fa-user"></i>'} ${u.planId}
-                      </span></td>
-                      <td class="p-4"><span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-[11px] ${u.subscriptionVerified ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : u.planId !== 'free' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-600 border border-slate-200'}">
-                        <span class="w-1.5 h-1.5 rounded-full ${u.subscriptionVerified ? 'bg-emerald-500' : u.planId !== 'free' ? 'bg-amber-500' : 'bg-slate-400'}"></span>
-                        ${u.subscriptionVerified ? 'Active' : u.planId !== 'free' ? 'Pending' : 'Free'}
-                      </span></td>
-                      <td class="p-4 text-slate-500">${u.expiresAt ? new Date(u.expiresAt).toLocaleDateString() : 'â€”'}</td>
-                      <td class="p-4 text-right"><div class="flex items-center justify-end gap-2">
-                        <button onclick="changeAdminUserPlan('${u.id}')" class="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-bold hover:bg-indigo-100 transition"><i class="fa-solid fa-pen mr-1"></i>Plan</button>
-                        <button onclick="deleteAdminUser('${u.id}')" class="px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-[11px] font-bold hover:bg-red-100 transition"><i class="fa-solid fa-trash-can mr-1"></i>Delete</button>
-                      </div></td>
-                    </tr>`).join('')
-                  : `<tr><td colspan="5" class="p-10 text-center text-slate-400 italic text-xs"><i class="fa-solid fa-users text-slate-300 text-4xl mb-3 block"></i>No users registered yet.</td></tr>`}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <!-- â•â• PLANS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
-        <div id="admin-tab-plans" class="admin-tab-content hidden space-y-5">
-          <div class="flex justify-between items-center">
-            <div><h3 class="font-extrabold text-base text-slate-900">Subscription Plans (â‚¹ INR)</h3><p class="text-xs text-slate-500 mt-0.5">Create, edit, delete plans. Saved to Supabase.</p></div>
-            <button onclick="openAddPlanModal()" class="btn-gradient px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-md"><i class="fa-solid fa-plus"></i> New Plan</button>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            ${plans.length ? plans.map(p => `
-              <div class="bg-white rounded-2xl border ${p.id === 'pro-monthly' ? 'border-indigo-300 ring-2 ring-indigo-200 shadow-lg' : 'border-slate-200 shadow-sm'} p-5 space-y-4 hover:shadow-md transition-shadow flex flex-col">
-                <div class="flex items-start justify-between">
-                  <div>
-                    <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${p.id !== 'free' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-600 border border-slate-200'}">${p.badge || p.id}</span>
-                    <h4 class="font-extrabold text-slate-900 text-sm mt-1.5">${p.name}</h4>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-2xl font-black text-slate-900">â‚¹${p.priceINR}</p>
-                    <p class="text-[10px] text-slate-400">${p.durationDays >= 365 ? '/ year' : p.durationDays > 1 ? '/ month' : 'one-time'}</p>
-                  </div>
-                </div>
-                <div class="text-xs text-slate-500 space-y-1 border-t border-slate-100 pt-3">
-                  <div class="flex items-center gap-2"><i class="fa-solid fa-calendar text-indigo-400 w-4"></i>${p.durationDays} days</div>
-                  <div class="flex items-center gap-2"><i class="fa-solid fa-upload text-indigo-400 w-4"></i>${p.maxFileSizeMB} MB max upload</div>
-                  <div class="flex items-center gap-2"><i class="fa-solid fa-toolbox text-indigo-400 w-4"></i>${(!p.allowedToolIds || p.allowedToolIds === 'all') ? 'All tools' : 'Custom tool set'}</div>
-                </div>
-                ${Array.isArray(p.features) && p.features.length ? `<ul class="text-[11px] text-slate-600 space-y-1 border-t border-slate-100 pt-3">
-                  ${p.features.slice(0, 3).map(f => `<li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-500 flex-shrink-0"></i>${f}</li>`).join('')}
-                  ${p.features.length > 3 ? `<li class="text-slate-400 text-[10px]">+${p.features.length - 3} moreâ€¦</li>` : ''}
-                </ul>` : ''}
-                <div class="flex gap-2 pt-2 border-t border-slate-100 mt-auto">
-                  <button onclick="openAddPlanModal('${p.id}')" class="flex-1 px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 transition flex items-center justify-center gap-1.5"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
-                  ${p.id !== 'free' ? `<button onclick="adminDeletePlanConfirm('${p.id}','${p.name}')" class="px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold hover:bg-red-100 transition flex items-center justify-center gap-1.5"><i class="fa-solid fa-trash-can"></i></button>` : ''}
-                </div>
-              </div>`).join('')
-            : `<div class="col-span-3 text-center py-12 text-slate-400"><i class="fa-solid fa-crown text-slate-300 text-4xl mb-3 block"></i>No plans found. Click "New Plan" to create one.</div>`}
-          </div>
-        </div>
-
-        <!-- â•â• TOOLS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
-        <div id="admin-tab-tools" class="admin-tab-content hidden space-y-5">
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-            <div class="flex flex-wrap justify-between items-center gap-3">
-              <div>
-                <h3 class="font-extrabold text-base text-slate-900 flex items-center gap-2"><i class="fa-solid fa-toggle-on text-indigo-600"></i> Tool Visibility</h3>
-                <p class="text-[11px] text-slate-500 mt-0.5">Toggle which tools appear on the main website. Saved to Supabase instantly.</p>
-              </div>
-              <div class="flex gap-2">
-                <button onclick="adminEnableAllFeatures()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-check-double"></i> Enable All</button>
-                <button onclick="adminDisableAllFeatures()" class="px-4 py-2 bg-red-100 text-red-700 border border-red-200 hover:bg-red-200 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5"><i class="fa-solid fa-ban"></i> Disable All</button>
-              </div>
-            </div>
-            <div id="admin-feature-list" class="max-h-[540px] overflow-y-auto pr-1">${renderAdminFeatureList()}</div>
-          </div>
-        </div>
-
-        <!-- â•â• SETTINGS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
-        <div id="admin-tab-settings" class="admin-tab-content hidden">
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-              <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3"><i class="fa-solid fa-qrcode text-emerald-600"></i> Payment UPI ID</h3>
-              <form onsubmit="handleSaveAdminUpi(event)" class="space-y-3">
-                <div>
-                  <label class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">Receiving UPI ID (VPA)</label>
-                  <input type="text" id="admin-upi-input" class="custom-input w-full text-sm font-mono font-bold" value="${adminUpi}" placeholder="merchant@upi" required>
-                  <p class="text-[10px] text-slate-400 mt-1">Subscribers pay to this UPI ID. Shown as QR code on landing page.</p>
-                </div>
-                <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm"><i class="fa-solid fa-floppy-disk"></i> Save UPI ID</button>
-              </form>
-            </div>
-
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-              <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3"><i class="fa-solid fa-lock text-indigo-600"></i> Admin Passcode</h3>
-              <form onsubmit="handleChangeAdminPasscode(event)" class="space-y-3">
-                <div>
-                  <label class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">New Passcode</label>
-                  <input type="password" id="admin-new-passcode" class="custom-input w-full text-sm font-mono" placeholder="Enter new passcode" required minlength="4">
-                </div>
-                <div>
-                  <label class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1.5">Confirm Passcode</label>
-                  <input type="password" id="admin-confirm-passcode" class="custom-input w-full text-sm font-mono" placeholder="Confirm new passcode" required minlength="4">
-                </div>
-                <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm"><i class="fa-solid fa-key"></i> Update Passcode</button>
-              </form>
-            </div>
-
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4 lg:col-span-2">
-              <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3"><i class="fa-solid fa-location-dot text-indigo-600"></i> Footer & Contact Details</h3>
-              <form onsubmit="handleSaveContactInfo(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><label class="text-[10px] font-extrabold text-slate-500 uppercase block mb-1.5">Company Name</label><input type="text" id="contact-company" class="custom-input w-full text-xs" value="${contactInfo.company || ''}" required></div>
-                <div><label class="text-[10px] font-extrabold text-slate-500 uppercase block mb-1.5">Support Email</label><input type="email" id="contact-email" class="custom-input w-full text-xs" value="${contactInfo.email || ''}" required></div>
-                <div><label class="text-[10px] font-extrabold text-slate-500 uppercase block mb-1.5">Phone Number</label><input type="text" id="contact-phone" class="custom-input w-full text-xs" value="${contactInfo.phone || ''}" required></div>
-                <div><label class="text-[10px] font-extrabold text-slate-500 uppercase block mb-1.5">Operating Hours</label><input type="text" id="contact-hours" class="custom-input w-full text-xs" value="${contactInfo.hours || ''}" required></div>
-                <div class="sm:col-span-2"><label class="text-[10px] font-extrabold text-slate-500 uppercase block mb-1.5">Physical Address</label><input type="text" id="contact-address" class="custom-input w-full text-xs" value="${contactInfo.address || ''}" required></div>
-                <div class="sm:col-span-2"><button type="submit" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl transition shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-floppy-disk"></i> Save to Supabase</button></div>
-              </form>
-            </div>
-          </div>
-        </div>
-
-      </main>
-    </div>`;
-
-  // Tab switcher
-  window.adminSwitchTab = function(tabId) {
-    document.querySelectorAll('.admin-tab-content').forEach(el => el.classList.add('hidden'));
-    document.querySelectorAll('.admin-tab-btn').forEach(btn => { btn.classList.remove('bg-indigo-600', 'text-white', 'shadow-md'); btn.classList.add('text-slate-500'); });
-    const content = document.getElementById('admin-tab-' + tabId);
-    const btn = document.getElementById('admin-tab-btn-' + tabId);
-    if (content) content.classList.remove('hidden');
-    if (btn) { btn.classList.add('bg-indigo-600', 'text-white', 'shadow-md'); btn.classList.remove('text-slate-500'); }
-  };
-  window.adminSwitchTab('overview');
-}
-
-window.renderFullAdminPage = renderFullAdminPage;
-
-// â”€â”€ UTR Verify handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-window.adminVerifyPayment = async function(paymentId, userId, planType) {
-  if (!confirm(`Verify this UTR payment and activate "${planType}" for this user?`)) return;
-  const btn = event && event.target;
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i>Verifying...'; }
-  try {
-    await AdminPanelEngine.verifyPayment(paymentId, userId, planType);
-    if (window.showToast) showToast('âœ… Payment verified! User subscription activated.', 'success');
-    renderFullAdminPage().then(() => adminSwitchTab('payments'));
-  } catch (err) {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> Verify & Activate'; }
-    if (window.showToast) showToast('Failed: ' + err.message, 'error');
-    else alert('Verify failed: ' + err.message);
-  }
-};
-
-// â”€â”€ Event handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-window.handleFullAdminLogin = async function(e) {
-  e.preventDefault();
-  const code = document.getElementById('admin-page-passcode')?.value;
-  const btn = e.target.querySelector('button[type="submit"]');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Verifyingâ€¦'; }
-  const ok = await AdminPanelEngine.adminLogin(code);
-  if (ok) { renderFullAdminPage(); }
-  else {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-unlock"></i> Unlock Dashboard'; }
-    const inp = document.getElementById('admin-page-passcode');
-    if (inp) { inp.value = ''; inp.classList.add('border-red-400', 'bg-red-50'); setTimeout(() => inp.classList.remove('border-red-400', 'bg-red-50'), 1500); }
-    if (window.showToast) showToast('Incorrect passcode.', 'error'); else alert('Incorrect passcode');
-  }
-};
-
-window.handleFullAdminLogout = function() { AdminPanelEngine.adminLogout(); renderFullAdminPage(); };
-
-window.handleSaveAdminUpi = async function(e) {
-  e.preventDefault();
-  const upi = document.getElementById('admin-upi-input')?.value?.trim();
-  if (!upi) return;
-  const btn = e.target.querySelector('button[type="submit"]');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Savingâ€¦'; }
-  try { await AdminPanelEngine.setAdminUpi(upi); if (window.showToast) showToast('UPI ID saved!', 'success'); }
-  catch(err) { alert('Failed: ' + err.message); }
-  finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save UPI ID'; } }
-};
-
-window.handleChangeAdminPasscode = async function(e) {
-  e.preventDefault();
-  const newPc  = document.getElementById('admin-new-passcode')?.value?.trim();
-  const confPc = document.getElementById('admin-confirm-passcode')?.value?.trim();
-  if (!newPc || newPc.length < 4) { alert('Passcode must be at least 4 characters.'); return; }
-  if (newPc !== confPc) { alert('Passcodes do not match.'); return; }
-  const btn = e.target.querySelector('button[type="submit"]');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Savingâ€¦'; }
-  try {
-    await AdminPanelEngine.setPasscode(newPc);
-    document.getElementById('admin-new-passcode').value = '';
-    document.getElementById('admin-confirm-passcode').value = '';
-    if (window.showToast) showToast('Passcode updated!', 'success');
-  } catch(err) { alert('Failed: ' + err.message); }
-  finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-key"></i> Update Passcode'; } }
-};
-
-window.handleSaveContactInfo = async function(e) {
-  e.preventDefault();
-  const btn = e.target.querySelector('button[type="submit"]');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Savingâ€¦'; }
-  try {
-    await AdminPanelEngine.saveContactInfo({
-      company: document.getElementById('contact-company')?.value?.trim() || '',
-      email:   document.getElementById('contact-email')?.value?.trim() || '',
-      phone:   document.getElementById('contact-phone')?.value?.trim() || '',
-      hours:   document.getElementById('contact-hours')?.value?.trim() || '',
-      address: document.getElementById('contact-address')?.value?.trim() || '',
-    });
-    if (window.renderFooterContact) renderFooterContact();
-    if (window.showToast) showToast('Contact info saved!', 'success');
-  } catch(err) { alert('Failed: ' + err.message); }
-  finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save to Supabase'; } }
-};
-
-window.deleteAdminUser = async function(userId) {
-  if (!confirm('Permanently delete this user? This cannot be undone.')) return;
-  try {
-    await AuthSubscriptionEngine.deleteUser(userId);
-    const cur = AuthSubscriptionEngine.getCurrentUser();
-    if (cur && cur.id === userId) { AuthSubscriptionEngine._setCurrentUser(null); AuthSubscriptionEngine.renderHeaderAuthControls(); }
-    renderFullAdminPage();
-    if (window.showToast) showToast('User deleted.', 'success');
-  } catch(err) { alert(err.message || 'Delete failed'); }
-};
-
-window.changeAdminUserPlan = async function(userId) {
-  const plans = AuthSubscriptionEngine.getPlans();
-  const opts = plans.map(p => `${p.id} â€” ${p.name} (â‚¹${p.priceINR})`).join('\n');
-  const sel = prompt('Change user plan.\n\nPlans:\n' + opts + '\n\nEnter plan ID:');
-  if (!sel) return;
-  try {
-    await AuthSubscriptionEngine.subscribeUser(userId, sel, 'ADMIN_MANUAL_ASSIGN');
-    renderFullAdminPage();
-    if (AuthSubscriptionEngine.renderHeaderAuthControls) AuthSubscriptionEngine.renderHeaderAuthControls();
-    if (window.showToast) showToast('Plan updated to ' + sel + '!', 'success');
-  } catch(err) { alert(err.message || 'Failed'); }
-};
-
-// â”€â”€ Feature list renderer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function renderAdminFeatureList() {
-  const tools = window.TOOLS || [];
-  if (!tools.length) return `<p class="text-xs text-slate-400 italic text-center py-6">Loading tools listâ€¦</p>`;
-
-  const catLabels = {
-    'pdf-core': 'Core PDF', 'pdf-convert': 'Conversions', 'image-tools': 'Image & Raster',
-    'design-prepress': 'Vector & Design', 'print-packaging': 'Prepress & Packaging',
-    'video-motion': 'Video & Motion', 'fonts-typography': 'Typography & Fonts',
-    'developer-tools': 'Web & Developer', 'cad-blueprints': 'CAD & Architectural',
-    'legal-medical': 'Legal & Medical', 'publishing-ebooks': 'E-Books & Publishing',
-    'threed-motion': '3D & Motion', 'security-ai-data': 'Security & AI',
-  };
-  const cats = {};
-  tools.forEach(t => { if (!cats[t.category]) cats[t.category] = []; cats[t.category].push(t); });
-
-  const enabledIds = AdminPanelEngine.getEnabledFeatures() || [];
-  let html = `<div class="text-[11px] font-bold text-slate-500 mb-3 px-1 flex items-center justify-between">
-    <span><i class="fa-solid fa-sliders text-indigo-500 mr-1"></i> ${enabledIds.length} / ${tools.length} tools enabled</span>
-    <span class="text-[10px] text-slate-400">Toggles save to Supabase instantly</span>
-  </div>`;
-
-  Object.keys(cats).forEach(cat => {
-    html += `<div class="mb-3">
-      <div class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1 px-1 flex items-center justify-between">
-        <span>${catLabels[cat] || cat}</span>
-        <span class="text-[9px] text-slate-400 font-normal">${cats[cat].filter(t => AdminPanelEngine.isFeatureEnabled(t.id)).length}/${cats[cat].length}</span>
-      </div>`;
-    cats[cat].forEach(tool => {
-      const on = AdminPanelEngine.isFeatureEnabled(tool.id);
-      html += `<label class="flex items-center justify-between gap-2 p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition border border-transparent hover:border-slate-200 group">
-        <div class="flex items-center gap-2.5 min-w-0">
-          <div class="w-7 h-7 rounded-lg bg-gradient-to-r ${tool.color} text-white flex items-center justify-center text-[10px] shadow-sm flex-shrink-0">
-            <i class="fa-solid ${tool.icon}"></i>
-          </div>
-          <div class="min-w-0"><div class="text-[11px] font-semibold text-slate-800 truncate">${tool.name}</div></div>
-        </div>
-        <div class="relative inline-flex items-center cursor-pointer flex-shrink-0">
-          <input type="checkbox" ${on ? 'checked' : ''} onchange="adminToggleFeature('${tool.id}', this.checked)" class="sr-only peer">
-          <div class="w-10 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
-        </div>
-      </label>`;
-    });
-    html += `</div>`;
-  });
-  return html;
-}
-window.renderAdminFeatureList = renderAdminFeatureList;
-
-// â”€â”€ Plan CRUD modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-window.openAddPlanModal = function(planIdToEdit) {
-  planIdToEdit = planIdToEdit || null;
-  const mid = 'admin-plan-crud-modal';
-  document.getElementById(mid)?.remove();
-  const plans = AuthSubscriptionEngine.getPlans();
-  const ep = planIdToEdit ? plans.find(p => p.id === planIdToEdit) : null;
-  const tools = window.TOOLS || [];
-  const feats = ep && Array.isArray(ep.features) ? ep.features.join('\n') : '';
-  const raw = ep ? ep.allowedToolIds : 'all';
-  const isAll = (!raw || raw === 'all' || raw === '"all"');
-  const aSet = Array.isArray(raw) ? new Set(raw) : new Set();
-  const catL = { 'pdf-core': 'Core PDF', 'pdf-convert': 'Conversions', 'image-tools': 'Image & Raster', 'design-prepress': 'Vector & Design', 'print-packaging': 'Prepress', 'video-motion': 'Video', 'fonts-typography': 'Typography', 'developer-tools': 'Developer', 'cad-blueprints': 'CAD', 'legal-medical': 'Legal', 'publishing-ebooks': 'E-Books', 'threed-motion': '3D', 'security-ai-data': 'Security & AI' };
-  const cats = {};
-  tools.forEach(t => { if (!cats[t.category]) cats[t.category] = []; cats[t.category].push(t); });
-  const toolHtml = Object.keys(cats).map(cat => {
-    const rows = cats[cat].map(t => `<label class="flex items-center gap-1.5 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-[11px] text-slate-700"><input type="checkbox" name="plan-tool-ids" value="${t.id}" ${(isAll || aSet.has(t.id)) ? 'checked' : ''} class="accent-indigo-600 w-3.5 h-3.5 flex-shrink-0 ptchk-${cat}"><span class="truncate">${t.name}</span></label>`).join('');
-    return `<div class="mb-3"><div class="flex items-center justify-between mb-1"><span class="text-[10px] font-extrabold text-slate-500 uppercase">${catL[cat] || cat}</span><span class="text-[9px] flex gap-1"><button type="button" onclick="ptSelCat('${cat}',true)" class="text-indigo-600 font-bold hover:underline">All</button>&nbsp;/&nbsp;<button type="button" onclick="ptSelCat('${cat}',false)" class="text-slate-400 font-bold hover:underline">None</button></span></div><div class="grid grid-cols-2 gap-0.5">${rows}</div></div>`;
-  }).join('');
-
-  const m = document.createElement('div');
-  m.id = mid;
-  m.className = 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fade-in';
-  m.innerHTML = `<div class="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-3xl max-h-[95vh] flex flex-col overflow-hidden relative">
-    <button onclick="document.getElementById('${mid}').remove()" class="absolute top-4 right-4 z-10 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100"><i class="fa-solid fa-xmark"></i></button>
-    <div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white px-6 py-5 flex-shrink-0"><h3 class="text-base font-extrabold flex items-center gap-2"><i class="fa-solid fa-crown text-amber-400"></i>${ep ? 'Edit Plan â€” ' + ep.name : 'Create New Plan'}</h3></div>
-    <form id="plan-edit-form" onsubmit="handleSavePlanSubmit(event,'${ep ? ep.id : ''}');" class="flex flex-col flex-1 overflow-hidden">
-      <div class="flex-1 overflow-y-auto"><div class="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
-        <div class="p-5 space-y-4">
-          <h4 class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Plan Details</h4>
-          <div class="grid grid-cols-2 gap-3">
-            <div class="col-span-2"><label class="text-[10px] font-bold text-slate-500 uppercase">Plan Name *</label><input type="text" id="plan-input-name" required value="${ep ? ep.name || '' : ''}" placeholder="e.g. Pro Monthly" class="custom-input w-full text-sm font-bold mt-1"></div>
-            <div><label class="text-[10px] font-bold text-slate-500 uppercase">Price (â‚¹) *</label><div class="relative mt-1"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">â‚¹</span><input type="number" id="plan-input-price" required min="0" step="1" value="${ep ? ep.priceINR || 0 : '499'}" class="custom-input w-full pl-7 text-sm font-extrabold"></div></div>
-            <div><label class="text-[10px] font-bold text-slate-500 uppercase">Duration (days) *</label><input type="number" id="plan-input-duration" required min="1" value="${ep ? ep.durationDays || 30 : '30'}" class="custom-input w-full text-sm font-bold mt-1"></div>
-            <div><label class="text-[10px] font-bold text-slate-500 uppercase">Max File (MB)</label><input type="number" id="plan-input-maxsize" required min="1" value="${ep ? ep.maxFileSizeMB || 25 : '250'}" class="custom-input w-full text-sm font-bold mt-1"></div>
-            <div><label class="text-[10px] font-bold text-slate-500 uppercase">Badge</label><input type="text" id="plan-input-badge" value="${ep ? ep.badge || '' : 'Popular'}" placeholder="Popular" class="custom-input w-full text-sm mt-1"></div>
-          </div>
-          <div><label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">Marketing Features <span class="font-normal text-slate-400 normal-case">(one per line)</span></label><textarea id="plan-input-features" rows="5" placeholder="All 50 Tools Unlocked&#10;250MB File Limit" class="custom-input w-full text-xs font-mono resize-y">${feats}</textarea></div>
-        </div>
-        <div class="p-5">
-          <div class="flex items-center justify-between mb-2">
-            <h4 class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Tool Access</h4>
-            <div class="flex gap-1.5"><button type="button" onclick="ptSelAll(true)" class="text-[10px] font-extrabold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">All</button><button type="button" onclick="ptSelAll(false)" class="text-[10px] font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200">None</button></div>
-          </div>
-          <div id="plan-tool-checkboxes" class="max-h-[380px] overflow-y-auto pr-1">${toolHtml}</div>
-        </div>
-      </div></div>
-      <div class="flex-shrink-0 border-t border-slate-200 px-6 py-4 flex items-center justify-between gap-3 bg-slate-50/80">
-        ${ep && ep.id !== 'free' ? `<button type="button" onclick="if(confirm('Delete plan ${ep.name}?')){ adminDeletePlan('${ep.id}'); document.getElementById('${mid}').remove(); }" class="text-xs font-bold text-red-500 hover:text-red-700 underline flex items-center gap-1"><i class="fa-solid fa-trash-can"></i> Delete</button>` : '<div></div>'}
-        <div class="flex gap-3 items-center">
-          <button type="button" onclick="document.getElementById('${mid}').remove()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200">Cancel</button>
-          <button type="submit" id="plan-save-btn" class="btn-gradient px-6 py-2.5 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-2"><i class="fa-solid fa-floppy-disk"></i>${ep ? 'Save Changes' : 'Create Plan'}</button>
         </div>
       </div>
-    </form>
-  </div>`;
-  document.body.appendChild(m);
-  window.ptSelAll = v => m.querySelectorAll('input[name="plan-tool-ids"]').forEach(cb => { cb.checked = v; });
-  window.ptSelCat = (cat, v) => m.querySelectorAll(`input.ptchk-${cat}`).forEach(cb => { cb.checked = v; });
-};
-
-window.handleSavePlanSubmit = async function(e, editId) {
-  e.preventDefault();
-  const btn = document.getElementById('plan-save-btn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Savingâ€¦'; }
-  const name    = document.getElementById('plan-input-name')?.value?.trim() || '';
-  const price   = parseFloat(document.getElementById('plan-input-price')?.value || 0);
-  const dur     = parseInt(document.getElementById('plan-input-duration')?.value || 30);
-  const size    = parseInt(document.getElementById('plan-input-maxsize')?.value || 25);
-  const badge   = document.getElementById('plan-input-badge')?.value?.trim() || '';
-  const ftext   = document.getElementById('plan-input-features')?.value || '';
-  const features = ftext.split('\n').map(f => f.trim()).filter(Boolean);
-  const cbs = Array.from(document.querySelectorAll('input[name="plan-tool-ids"]:checked'));
-  const all = Array.from(document.querySelectorAll('input[name="plan-tool-ids"]'));
-  const allowedToolIds = cbs.length === all.length ? 'all' : cbs.map(cb => cb.value);
-  try {
-    await AdminPanelEngine.savePlan({ id: editId || ('plan_' + Date.now()), name, priceINR: price, durationDays: dur, maxFileSizeMB: size, badge, features, allowedToolIds });
-    document.getElementById('admin-plan-crud-modal')?.remove();
-    if (window.showToast) showToast('Plan "' + name + '" saved!', 'success');
-    renderFullAdminPage().then(() => { if (window.adminSwitchTab) adminSwitchTab('plans'); });
-  } catch(err) {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1.5"></i>Save Changes'; }
-    if (window.showToast) showToast('Save failed: ' + (err.message || err), 'error');
-    else alert('Save failed: ' + (err.message || err));
+    `;
   }
-};
 
-window.adminDeletePlanConfirm = async function(planId, planName) {
-  if (!confirm('Delete plan "' + planName + '"? This is permanent.')) return;
-  await adminDeletePlan(planId);
-};
-
-window.adminDeletePlan = async function(planId) {
-  try {
-    await AdminPanelEngine.deletePlan(planId);
-    if (window.showToast) showToast('Plan deleted.', 'success');
-    renderFullAdminPage().then(() => { if (window.adminSwitchTab) adminSwitchTab('plans'); });
-  } catch(err) {
-    if (window.showToast) showToast('Delete failed: ' + (err.message || err), 'error');
-    else alert('Delete failed: ' + (err.message || err));
+  static _filterPaymentsTable(query) {
+    const q = (query || '').toLowerCase().trim();
+    document.querySelectorAll('.payment-row').forEach(row => {
+      const search = row.dataset.search || '';
+      row.style.display = search.includes(q) ? '' : 'none';
+    });
   }
-};
+
+  static async approvePayment(paymentId, userId, planType) {
+    try {
+      if (window.SupabaseEngine) {
+        await SupabaseEngine.verifyPayment(paymentId, userId, planType);
+        if (window.showToast) window.showToast('Payment verified & subscription activated!', 'success');
+        await this.renderTabContent('payments');
+      }
+    } catch (e) {
+      if (window.showToast) window.showToast('Verification failed: ' + e.message, 'error');
+    }
+  }
+
+  static async deletePaymentRecord(paymentId) {
+    if (!confirm('Delete this payment record?')) return;
+    try {
+      if (window.SupabaseEngine) {
+        await SupabaseEngine.deletePayment(paymentId);
+        if (window.showToast) window.showToast('Payment record deleted.', 'info');
+        await this.renderTabContent('payments');
+      }
+    } catch (e) {
+      if (window.showToast) window.showToast(e.message, 'error');
+    }
+  }
+
+  // ── 3. Users & Subscriptions Tab ───────────────────────────────────────────
+  static async _renderUsersTab(container) {
+    const users = window.SupabaseEngine ? await SupabaseEngine.getUsers() : [];
+
+    container.innerHTML = `
+      <div class="space-y-5 animate-fade-in">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-extrabold text-white">User Accounts &amp; Subscription Override</h2>
+            <p class="text-xs text-slate-400">View registered users, manually grant/extend subscriptions, or assign admin rights.</p>
+          </div>
+          <input type="text" placeholder="Search user name or email..." class="custom-input text-xs bg-slate-900 text-white border-slate-700 rounded-xl px-3 py-2 w-full sm:w-64" oninput="AdminPanelEngine._filterUsersTable(this.value)">
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-950/80 text-slate-400 uppercase text-[10px] font-extrabold border-b border-slate-800">
+                <tr>
+                  <th class="p-3.5">User</th>
+                  <th class="p-3.5">Current Plan</th>
+                  <th class="p-3.5">Status</th>
+                  <th class="p-3.5">Plan Expiry</th>
+                  <th class="p-3.5">Role</th>
+                  <th class="p-3.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body" class="divide-y divide-slate-800/60">
+                ${users.length === 0 ? `
+                  <tr><td colspan="6" class="text-center py-12 text-slate-500">No user accounts found in profiles table.</td></tr>
+                ` : users.map(u => {
+      const isPro = u.planId !== 'free';
+      const isExpired = u.expiresAt && new Date(u.expiresAt) <= new Date();
+      return `
+                    <tr class="hover:bg-slate-800/40 transition user-row" data-search="${(u.name + ' ' + u.email).toLowerCase()}">
+                      <td class="p-3.5">
+                        <div class="font-bold text-white flex items-center gap-2">
+                          <div class="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-extrabold uppercase">
+                            ${(u.name || u.email || 'U')[0]}
+                          </div>
+                          <span>${u.name || 'User'}</span>
+                        </div>
+                        <div class="text-[11px] text-slate-400 font-mono mt-0.5">${u.email}</div>
+                      </td>
+                      <td class="p-3.5 font-bold capitalize text-slate-200">
+                        <span class="px-2 py-0.5 rounded-md ${isPro ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-slate-800 text-slate-400'}">
+                          ${u.planId}
+                        </span>
+                      </td>
+                      <td class="p-3.5">
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${u.subscriptionVerified && !isExpired ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'}">
+                          ${u.subscriptionVerified && !isExpired ? 'Active' : isExpired ? 'Expired' : 'Free / Pending'}
+                        </span>
+                      </td>
+                      <td class="p-3.5 text-slate-300 whitespace-nowrap text-[11px]">
+                        ${u.expiresAt ? new Date(u.expiresAt).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td class="p-3.5">
+                        ${u.isAdmin ? `
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-pink-500/20 text-pink-400 border border-pink-500/30">
+                            Admin
+                          </span>
+                        ` : `
+                          <span class="text-slate-500 text-[10px]">User</span>
+                        `}
+                      </td>
+                      <td class="p-3.5 text-right whitespace-nowrap">
+                        <button onclick="AdminPanelEngine.openUserOverrideModal('${u.id}', '${(u.name || '').replace(/'/g, "\\'")}', '${u.email}', '${u.planId}', ${u.isAdmin})" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md transition mr-1">
+                          <i class="fa-solid fa-pen-to-square mr-1"></i> Override
+                        </button>
+                      </td>
+                    </tr>
+                  `;
+    }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  static _filterUsersTable(query) {
+    const q = (query || '').toLowerCase().trim();
+    document.querySelectorAll('.user-row').forEach(row => {
+      const search = row.dataset.search || '';
+      row.style.display = search.includes(q) ? '' : 'none';
+    });
+  }
+
+  static openUserOverrideModal(userId, name, email, currentPlan, isAdmin) {
+    const modalId = 'user-override-modal';
+    document.getElementById(modalId)?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+    modal.innerHTML = `
+      <div class="bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl max-w-md w-full p-6 text-slate-100 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="font-extrabold text-base text-white">Override User Subscription</h3>
+          <button onclick="document.getElementById('${modalId}').remove()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="space-y-1 text-xs">
+          <p class="font-bold text-slate-300">${name} (${email})</p>
+          <p class="text-slate-500 font-mono text-[10px]">${userId}</p>
+        </div>
+
+        <form onsubmit="AdminPanelEngine.handleUserOverrideSave(event, '${userId}')" class="space-y-3 text-xs">
+          <div class="space-y-1">
+            <label class="font-bold text-slate-400 uppercase text-[10px]">Assign Plan</label>
+            <select id="override-plan-id" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl">
+              <option value="free" ${currentPlan === 'free' ? 'selected' : ''}>Free Tier</option>
+              <option value="pro-monthly" ${currentPlan === 'pro-monthly' ? 'selected' : ''}>Pro Monthly (30 Days)</option>
+              <option value="pro-yearly" ${currentPlan === 'pro-yearly' ? 'selected' : ''}>Pro Annual (365 Days)</option>
+            </select>
+          </div>
+
+          <div class="space-y-1">
+            <label class="font-bold text-slate-400 uppercase text-[10px]">Extend Days</label>
+            <input type="number" id="override-days" value="30" min="1" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl">
+          </div>
+
+          <div class="flex items-center gap-2 pt-1">
+            <input type="checkbox" id="override-is-admin" ${isAdmin ? 'checked' : ''} class="w-4 h-4 rounded text-indigo-600 bg-slate-950 border-slate-700">
+            <label for="override-is-admin" class="font-bold text-slate-300">Grant Administrator Role</label>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="override-verify-sub" checked class="w-4 h-4 rounded text-emerald-600 bg-slate-950 border-slate-700">
+            <label for="override-verify-sub" class="font-bold text-emerald-400">Set Subscription Verified = True</label>
+          </div>
+
+          <div class="pt-3 flex gap-2">
+            <button type="submit" class="btn-gradient flex-1 py-2.5 text-xs font-extrabold rounded-xl shadow-md">
+              <i class="fa-solid fa-floppy-disk mr-1"></i> Save Changes
+            </button>
+            <button type="button" onclick="document.getElementById('${modalId}').remove()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  static async handleUserOverrideSave(e, userId) {
+    e.preventDefault();
+    const planId = document.getElementById('override-plan-id')?.value;
+    const days = parseInt(document.getElementById('override-days')?.value || '30', 10);
+    const isAdmin = document.getElementById('override-is-admin')?.checked || false;
+    const isVerified = document.getElementById('override-verify-sub')?.checked || false;
+
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + days);
+
+    try {
+      if (window.SupabaseEngine) {
+        await SupabaseEngine.updateProfile(userId, {
+          current_plan: planId,
+          plan_expiry: expiry.toISOString(),
+          subscription_verified: isVerified,
+          is_admin: isAdmin
+        });
+        document.getElementById('user-override-modal')?.remove();
+        if (window.showToast) window.showToast('User subscription updated!', 'success');
+        await this.renderTabContent('users');
+      }
+    } catch (ex) {
+      if (window.showToast) window.showToast(ex.message, 'error');
+    }
+  }
+
+  // ── 4. Subscription Plans Tab ──────────────────────────────────────────────
+  static async _renderPlansTab(container) {
+    const plans = window.SupabaseEngine ? await SupabaseEngine.getPlans() : SupabaseEngine.DEFAULT_PLANS;
+
+    container.innerHTML = `
+      <div class="space-y-5 animate-fade-in">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-extrabold text-white">Subscription Plans CRUD</h2>
+            <p class="text-xs text-slate-400">Manage pricing, durations, max file sizes, and tool allowances for plans.</p>
+          </div>
+          <button onclick="AdminPanelEngine.openPlanEditModal()" class="btn-gradient px-4 py-2.5 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1.5 self-start sm:self-auto">
+            <i class="fa-solid fa-plus"></i> Add New Plan
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          ${plans.map(plan => `
+            <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 flex flex-col justify-between hover:border-slate-700 transition">
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-lg font-black text-white">${plan.name}</h3>
+                  ${plan.badge ? `<span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">${plan.badge}</span>` : ''}
+                </div>
+                <div class="text-2xl font-black text-white">₹${plan.priceINR} <span class="text-xs text-slate-400 font-normal">/ ${plan.durationDays} days</span></div>
+                <div class="text-[11px] text-slate-400">Upload Limit: <strong class="text-slate-200">${plan.maxFileSizeMB} MB</strong></div>
+                <ul class="text-xs text-slate-400 space-y-1 pt-2 border-t border-slate-800">
+                  ${(Array.isArray(plan.features) ? plan.features : []).map(f => `<li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i><span>${f}</span></li>`).join('')}
+                </ul>
+              </div>
+              <div class="pt-3 border-t border-slate-800 flex gap-2">
+                <button onclick="AdminPanelEngine.openPlanEditModal('${plan.id}')" class="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold text-xs transition">
+                  <i class="fa-solid fa-pen mr-1"></i> Edit Plan
+                </button>
+                ${plan.id !== 'free' ? `
+                  <button onclick="AdminPanelEngine.deletePlan('${plan.id}')" class="p-2 rounded-xl bg-slate-800 hover:bg-red-900/60 text-slate-400 hover:text-red-300 transition">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  static async openPlanEditModal(planId = null) {
+    const plans = window.SupabaseEngine ? await SupabaseEngine.getPlans() : [];
+    const plan = planId ? plans.find(p => p.id === planId) : {
+      id: 'pro-custom',
+      name: 'Custom Plan',
+      priceINR: 299,
+      durationDays: 30,
+      maxFileSizeMB: 100,
+      badge: '',
+      features: ['All 50 Tools Unlocked', 'Priority Speed'],
+      allowedToolIds: 'all'
+    };
+
+    const modalId = 'plan-edit-modal';
+    document.getElementById(modalId)?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+    modal.innerHTML = `
+      <div class="bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl max-w-lg w-full p-6 text-slate-100 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="font-extrabold text-base text-white">${planId ? 'Edit Plan' : 'Create New Plan'}</h3>
+          <button onclick="document.getElementById('${modalId}').remove()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <form onsubmit="AdminPanelEngine.handlePlanSave(event, '${planId || ''}')" class="space-y-3 text-xs">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Plan Identifier</label>
+              <input type="text" id="plan-id" value="${plan.id}" ${planId ? 'readonly' : ''} class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required>
+            </div>
+            <div class="space-y-1">
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Display Name</label>
+              <input type="text" id="plan-name" value="${plan.name}" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div class="space-y-1">
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Price (₹ INR)</label>
+              <input type="number" id="plan-price" value="${plan.priceINR}" min="0" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required>
+            </div>
+            <div class="space-y-1">
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Duration (Days)</label>
+              <input type="number" id="plan-days" value="${plan.durationDays}" min="1" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required>
+            </div>
+            <div class="space-y-1">
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Max File (MB)</label>
+              <input type="number" id="plan-filesize" value="${plan.maxFileSizeMB}" min="1" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required>
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <label class="font-bold text-slate-400 uppercase text-[10px]">Badge (Optional)</label>
+            <input type="text" id="plan-badge" value="${plan.badge || ''}" placeholder="e.g. Popular, Best Value" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl">
+          </div>
+
+          <div class="space-y-1">
+            <label class="font-bold text-slate-400 uppercase text-[10px]">Features (comma separated)</label>
+            <textarea id="plan-features" rows="3" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl">${(Array.isArray(plan.features) ? plan.features : []).join(', ')}</textarea>
+          </div>
+
+          <div class="pt-3 flex gap-2">
+            <button type="submit" class="btn-gradient flex-1 py-2.5 text-xs font-extrabold rounded-xl shadow-md">
+              <i class="fa-solid fa-floppy-disk mr-1"></i> Save Plan
+            </button>
+            <button type="button" onclick="document.getElementById('${modalId}').remove()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  static async handlePlanSave(e, isEdit) {
+    e.preventDefault();
+    const id = document.getElementById('plan-id')?.value?.trim();
+    const name = document.getElementById('plan-name')?.value?.trim();
+    const priceINR = parseFloat(document.getElementById('plan-price')?.value || '0');
+    const durationDays = parseInt(document.getElementById('plan-days')?.value || '30', 10);
+    const maxFileSizeMB = parseInt(document.getElementById('plan-filesize')?.value || '25', 10);
+    const badge = document.getElementById('plan-badge')?.value?.trim() || '';
+    const featuresRaw = document.getElementById('plan-features')?.value || '';
+    const features = featuresRaw.split(',').map(s => s.trim()).filter(Boolean);
+
+    try {
+      if (window.SupabaseEngine) {
+        await SupabaseEngine.savePlan({
+          id,
+          name,
+          priceINR,
+          durationDays,
+          maxFileSizeMB,
+          badge,
+          features,
+          allowedToolIds: 'all'
+        });
+        document.getElementById('plan-edit-modal')?.remove();
+        if (window.showToast) window.showToast('Plan saved successfully!', 'success');
+        await this.renderTabContent('plans');
+      }
+    } catch (ex) {
+      if (window.showToast) window.showToast(ex.message, 'error');
+    }
+  }
+
+  static async deletePlan(planId) {
+    if (!confirm(`Are you sure you want to delete plan "${planId}"?`)) return;
+    try {
+      if (window.SupabaseEngine) {
+        await SupabaseEngine.deletePlan(planId);
+        if (window.showToast) window.showToast('Plan deleted.', 'info');
+        await this.renderTabContent('plans');
+      }
+    } catch (e) {
+      if (window.showToast) window.showToast(e.message, 'error');
+    }
+  }
+
+  // ── 5. Tool Feature Toggles Tab (50 Tools) ─────────────────────────────────
+  static async _renderFeaturesTab(container) {
+    const tools = window.TOOLS || [];
+    const features = this._featuresCache || {};
+
+    container.innerHTML = `
+      <div class="space-y-5 animate-fade-in">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-extrabold text-white">50 Tool Feature Toggles</h2>
+            <p class="text-xs text-slate-400">Dynamically enable or disable any studio tool site-wide in real-time.</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="AdminPanelEngine.toggleAllFeatures(true)" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold transition shadow-md">
+              <i class="fa-solid fa-check-double mr-1"></i> Enable All
+            </button>
+            <button onclick="AdminPanelEngine.toggleAllFeatures(false)" class="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-extrabold transition shadow-md">
+              <i class="fa-solid fa-ban mr-1"></i> Disable All
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          ${tools.map(tool => {
+      const isEnabled = features[tool.id] !== false;
+      return `
+              <div class="p-4 rounded-2xl bg-slate-900 border ${isEnabled ? 'border-slate-800' : 'border-red-900/40 bg-red-950/10'} flex items-center justify-between gap-3 transition">
+                <div class="flex items-center gap-3 overflow-hidden">
+                  <div class="w-8 h-8 rounded-xl bg-gradient-to-tr ${tool.color} text-white flex items-center justify-center text-sm shrink-0">
+                    <i class="fa-solid ${tool.icon}"></i>
+                  </div>
+                  <div class="overflow-hidden">
+                    <h4 class="font-bold text-xs text-white truncate">${tool.name}</h4>
+                    <span class="text-[10px] text-slate-500 uppercase">${tool.category}</span>
+                  </div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="AdminPanelEngine.toggleSingleFeature('${tool.id}', this.checked)" class="sr-only peer">
+                  <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+            `;
+    }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  static async toggleSingleFeature(toolId, enabled) {
+    this._featuresCache[toolId] = enabled;
+    try {
+      if (window.SupabaseEngine) {
+        await SupabaseEngine.setFeatureEnabled(toolId, enabled);
+        if (window.showToast) window.showToast(`Tool "${toolId}" ${enabled ? 'enabled' : 'disabled'} site-wide.`, 'info');
+      }
+    } catch (e) {
+      if (window.showToast) window.showToast(e.message, 'error');
+    }
+  }
+
+  static async toggleAllFeatures(enabled) {
+    const tools = window.TOOLS || [];
+    const toolIds = tools.map(t => t.id);
+    toolIds.forEach(id => { this._featuresCache[id] = enabled; });
+    try {
+      if (window.SupabaseEngine) {
+        if (enabled) await SupabaseEngine.enableAllFeatures(toolIds);
+        else await SupabaseEngine.disableAllFeatures(toolIds);
+        if (window.showToast) window.showToast(`All 50 tools ${enabled ? 'enabled' : 'disabled'}!`, 'success');
+        await this.renderTabContent('features');
+      }
+    } catch (e) {
+      if (window.showToast) window.showToast(e.message, 'error');
+    }
+  }
+
+  // ── 6. Bank Statement CSV / Text Uploader Tab ──────────────────────────────
+  static async _renderStatementTab(container) {
+    container.innerHTML = `
+      <div class="space-y-6 animate-fade-in max-w-3xl">
+        <div>
+          <h2 class="text-xl font-extrabold text-white">Bank Statement Batch Uploader</h2>
+          <p class="text-xs text-slate-400">Upload bank statement CSV / Excel or paste raw transaction text to automatically extract 12-digit UTR references and batch-activate matching subscriber accounts.</p>
+        </div>
+
+        <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+          
+          <!-- Dropzone file input -->
+          <div class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-6 text-center space-y-2 cursor-pointer transition bg-slate-950/40" onclick="document.getElementById('statement-file-input').click()">
+            <input type="file" id="statement-file-input" accept=".csv,.txt,.xlsx,.xls" class="hidden" onchange="AdminPanelEngine.handleStatementFileSelect(this)">
+            <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xl mx-auto">
+              <i class="fa-solid fa-file-csv"></i>
+            </div>
+            <h4 class="font-extrabold text-sm text-white">Select Bank Statement CSV / TXT File</h4>
+            <p class="text-xs text-slate-400">Supports HDFC, ICICI, SBI, Axis, Paytm Bank Statements</p>
+          </div>
+
+          <div class="text-center text-[10px] text-slate-500 uppercase font-extrabold">OR PASTE RAW STATEMENT TEXT</div>
+
+          <!-- Raw text input -->
+          <div class="space-y-1">
+            <textarea id="statement-raw-text" rows="5" placeholder="Paste bank transaction lines or email dump here... (e.g. UPI/424589012345/CR/499.00)" class="custom-input w-full bg-slate-950 text-white font-mono text-xs border-slate-700 rounded-xl p-3"></textarea>
+          </div>
+
+          <button onclick="AdminPanelEngine.processStatementUpload()" id="process-statement-btn" class="btn-gradient w-full py-3.5 rounded-xl text-xs font-extrabold shadow-lg flex items-center justify-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Scan Statement &amp; Batch Activate Subscriptions
+          </button>
+
+        </div>
+
+        <!-- Result Box -->
+        <div id="statement-results-box" class="hidden p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3"></div>
+
+      </div>
+    `;
+  }
+
+  static handleStatementFileSelect(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      const textArea = document.getElementById('statement-raw-text');
+      if (textArea) textArea.value = text;
+      if (window.showToast) window.showToast(`Loaded ${file.name} (${text.length} bytes)`, 'info');
+    };
+    reader.readAsText(file);
+  }
+
+  static async processStatementUpload() {
+    const rawText = document.getElementById('statement-raw-text')?.value?.trim();
+    const btn = document.getElementById('process-statement-btn');
+    const resBox = document.getElementById('statement-results-box');
+
+    if (!rawText) {
+      if (window.showToast) window.showToast('Please select a statement file or paste text first.', 'error');
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Processing Statement...';
+    }
+
+    try {
+      const res = await fetch('/api/v1/admin/upload-statement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statement: rawText })
+      });
+      const data = await res.json();
+
+      if (resBox) {
+        resBox.classList.remove('hidden');
+        resBox.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl ${data.activatedCount > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400'} flex items-center justify-center text-xl">
+              <i class="fa-solid ${data.activatedCount > 0 ? 'fa-circle-check' : 'fa-info-circle'}"></i>
+            </div>
+            <div>
+              <h4 class="font-extrabold text-sm text-white">${data.message || 'Statement Processed'}</h4>
+              <p class="text-xs text-slate-400">Scanned ${data.scannedUtrCount || 0} UTR reference numbers.</p>
+            </div>
+          </div>
+          ${data.matchedUtrs && data.matchedUtrs.length > 0 ? `
+            <div class="pt-3 border-t border-slate-800 space-y-1 text-xs">
+              <p class="font-bold text-slate-300">Activated Accounts:</p>
+              ${data.matchedUtrs.map(m => `
+                <div class="p-2 rounded-lg bg-slate-950 flex items-center justify-between font-mono text-[11px]">
+                  <span class="text-amber-400">UTR: ${m.utr}</span>
+                  <span class="text-emerald-400 font-bold capitalize">Plan: ${m.plan}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+        `;
+      }
+
+      if (window.showToast) window.showToast(`Activated ${data.activatedCount || 0} subscriptions!`, 'success');
+    } catch (err) {
+      if (window.showToast) window.showToast('Upload failed: ' + err.message, 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Scan Statement &amp; Batch Activate Subscriptions';
+      }
+    }
+  }
+
+  // ── 7. Site Settings Tab ───────────────────────────────────────────────────
+  static async _renderSettingsTab(container) {
+    const settings = this._settingsCache || {};
+    const adminUpi = settings.admin_upi || 'merchant@upi';
+    const contact = this.getContactInfo();
+
+    container.innerHTML = `
+      <div class="space-y-6 animate-fade-in max-w-2xl">
+        <div>
+          <h2 class="text-xl font-extrabold text-white">Platform Configuration &amp; UPI Settings</h2>
+          <p class="text-xs text-slate-400">Configure receiving UPI address, passcode, and company footer contact details.</p>
+        </div>
+
+        <form onsubmit="AdminPanelEngine.handleSettingsSave(event)" class="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-5 text-xs">
+          
+          <!-- UPI ID -->
+          <div class="space-y-1.5">
+            <label class="font-bold text-white uppercase text-[10px] flex items-center gap-1.5">
+              <i class="fa-solid fa-qrcode text-emerald-400"></i> Admin UPI ID (for QR Generation) <span class="text-red-400">*</span>
+            </label>
+            <input type="text" id="setting-admin-upi" value="${adminUpi}" placeholder="e.g. merchant@okhdfcbank" class="custom-input w-full bg-slate-950 text-white font-mono font-bold border-slate-700 rounded-xl" required>
+            <p class="text-[11px] text-slate-400">All checkout QR codes across the site dynamically route payments to this UPI address.</p>
+          </div>
+
+          <!-- Passcode -->
+          <div class="space-y-1.5">
+            <label class="font-bold text-white uppercase text-[10px] flex items-center gap-1.5">
+              <i class="fa-solid fa-key text-amber-400"></i> Emergency Admin Passcode
+            </label>
+            <input type="text" id="setting-admin-passcode" value="${settings.admin_passcode || 'admin123'}" class="custom-input w-full bg-slate-950 text-white font-mono border-slate-700 rounded-xl">
+          </div>
+
+          <!-- Contact info JSON -->
+          <div class="pt-4 border-t border-slate-800 space-y-3">
+            <h4 class="font-bold text-sm text-white">Company Footer Information</h4>
+            
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label class="font-bold text-slate-400 uppercase text-[10px]">Company Name</label>
+                <input type="text" id="setting-contact-company" value="${contact.company || ''}" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl">
+              </div>
+              <div class="space-y-1">
+                <label class="font-bold text-slate-400 uppercase text-[10px]">Support Email</label>
+                <input type="email" id="setting-contact-email" value="${contact.email || ''}" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label class="font-bold text-slate-400 uppercase text-[10px]">Phone Number</label>
+                <input type="text" id="setting-contact-phone" value="${contact.phone || ''}" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl">
+              </div>
+              <div class="space-y-1">
+                <label class="font-bold text-slate-400 uppercase text-[10px]">Office Address</label>
+                <input type="text" id="setting-contact-address" value="${contact.address || ''}" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl">
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-gradient w-full py-3 rounded-xl text-xs font-extrabold shadow-lg">
+            <i class="fa-solid fa-floppy-disk mr-1.5"></i> Save Settings &amp; Sync Site-Wide
+          </button>
+
+        </form>
+      </div>
+    `;
+  }
+
+  static async handleSettingsSave(e) {
+    e.preventDefault();
+    const upi = document.getElementById('setting-admin-upi')?.value?.trim();
+    const passcode = document.getElementById('setting-admin-passcode')?.value?.trim();
+    const company = document.getElementById('setting-contact-company')?.value?.trim();
+    const email = document.getElementById('setting-contact-email')?.value?.trim();
+    const phone = document.getElementById('setting-contact-phone')?.value?.trim();
+    const address = document.getElementById('setting-contact-address')?.value?.trim();
+
+    try {
+      if (window.SupabaseEngine) {
+        if (upi) {
+          await SupabaseEngine.setSetting('admin_upi', upi);
+          this._settingsCache.admin_upi = upi;
+        }
+        if (passcode) {
+          await SupabaseEngine.setSetting('admin_passcode', passcode);
+          this._settingsCache.admin_passcode = passcode;
+        }
+        const contact = { company, email, phone, address, hours: 'Mon - Fri: 9:00 AM - 6:00 PM IST' };
+        await SupabaseEngine.setSetting('footer_contact', JSON.stringify(contact));
+        this._settingsCache.footer_contact = contact;
+
+        if (window.renderFooterContact) window.renderFooterContact();
+        if (window.showToast) window.showToast('Settings saved and synchronized!', 'success');
+      }
+    } catch (ex) {
+      if (window.showToast) window.showToast(ex.message, 'error');
+    }
+  }
+}
+
+// Global Exports
+window.AdminPanelEngine = AdminPanelEngine;
+window.renderFullAdminPage = () => AdminPanelEngine.renderAdminPage();
+
+// Boot Settings
+AdminPanelEngine.init().catch(e => console.warn('[AdminPanel] Boot init error:', e));

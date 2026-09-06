@@ -445,28 +445,6 @@ body {
   animation: progressPulse 1.4s ease-in-out infinite;
 }
 
-/* Admin panel tab system */
-.admin-tab-content { animation: fadeIn 0.18s ease-out; }
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.admin-tab-btn {
-  position: relative;
-  transition: all 0.15s ease;
-}
-.admin-tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 70%;
-  height: 2px;
-  background: currentColor;
-  border-radius: 2px;
-}
-
 /* Process button loading state */
 #studio-btn-process:disabled {
   position: relative;
