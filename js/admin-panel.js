@@ -631,175 +631,423 @@ class AdminPanelEngine {
     }
   }
 
-  // ── 4. Subscription Plans Tab ──────────────────────────────────────────────
+  // ── 4. Subscription Plans CRUD ────────────────────────────────────────────
+
+  // Plan tier hierarchy — used for feature inheritance
+  static _TIER_ORDER = ['basic', 'starter', 'standard', 'pro', 'premium', 'enterprise', 'unlimited'];
+
+  // Core selectable features — admin picks from these per plan
+  static _FEATURE_CATALOG = [
+    { id: 'tools_all',        label: 'All 50 Master Tools Unlocked',        group: 'Tools' },
+    { id: 'tools_pdf',        label: 'All PDF Tools (Core + Convert)',        group: 'Tools' },
+    { id: 'tools_design',     label: 'Design & Prepress Tools',              group: 'Tools' },
+    { id: 'tools_ocr',        label: 'AI OCR & Document Chat',               group: 'Tools' },
+    { id: 'tools_cad',        label: 'CAD & Architectural Tools',            group: 'Tools' },
+    { id: 'tools_video',      label: 'Video & Motion Tools',                 group: 'Tools' },
+    { id: 'tools_fonts',      label: 'Typography & Font Converters',         group: 'Tools' },
+    { id: 'tools_dev',        label: 'Web & Developer Tools',                group: 'Tools' },
+    { id: 'tools_security',   label: 'Security & AI Tools',                  group: 'Tools' },
+    { id: 'upload_25mb',      label: '25 MB Max File Upload',                group: 'Upload' },
+    { id: 'upload_100mb',     label: '100 MB Max File Upload',               group: 'Upload' },
+    { id: 'upload_250mb',     label: '250 MB Max File Upload',               group: 'Upload' },
+    { id: 'upload_500mb',     label: '500 MB Max File Upload',               group: 'Upload' },
+    { id: 'upload_1gb',       label: '1 GB Max File Upload',                 group: 'Upload' },
+    { id: 'speed_standard',   label: 'Standard Processing Speed',            group: 'Performance' },
+    { id: 'speed_priority',   label: 'Priority Processing Speed',            group: 'Performance' },
+    { id: 'speed_dedicated',  label: 'Dedicated Processing Engine',          group: 'Performance' },
+    { id: 'support_email',    label: 'Email Support',                        group: 'Support' },
+    { id: 'support_priority', label: 'Priority Email Support',               group: 'Support' },
+    { id: 'support_dedicated',label: 'Dedicated Account Manager',            group: 'Support' },
+    { id: 'history_7d',       label: '7-Day Work History & Autosave',        group: 'History' },
+    { id: 'history_30d',      label: '30-Day Work History & Autosave',       group: 'History' },
+    { id: 'history_365d',     label: '1-Year Work History & Autosave',       group: 'History' },
+    { id: 'utr_auto',         label: 'Automated UPI Screenshot Verification',group: 'Billing' },
+    { id: 'utr_instant',      label: 'Instant UTR Payment Activation',       group: 'Billing' },
+    { id: 'api_access',       label: 'API Access & Webhooks',                group: 'Developer' },
+    { id: 'watermark_off',    label: 'No Watermark on Exports',              group: 'Output' },
+    { id: 'batch_process',    label: 'Batch File Processing',                group: 'Output' },
+    { id: 'pdf_sign',         label: 'Digital Signature & PDF Signing',      group: 'Output' },
+    { id: 'custom_branding',  label: 'Custom Branding & White Label',        group: 'Output' },
+  ];
+
+  // Auto-generate feature text from selected feature IDs + plan details
+  static _autoGenerateFeatures(selectedIds, planName, priceINR, durationDays, maxFileSizeMB, inheritedIds = []) {
+    const allIds = [...new Set([...inheritedIds, ...selectedIds])];
+    const catalog = this._FEATURE_CATALOG;
+    const picked = allIds.map(id => catalog.find(f => f.id === id)).filter(Boolean);
+
+    // Always add plan-specific generated lines
+    const generated = [];
+    // Price/duration summary
+    if (priceINR === 0) generated.push('Free Forever — No Credit Card Required');
+    else if (durationDays >= 365) generated.push(`₹${priceINR}/year — Save ${Math.round(100 - (priceINR / ((priceINR/durationDays)*365))*100) || 0}% vs Monthly`);
+    else generated.push(`₹${priceINR} for ${durationDays} Days`);
+
+    // File size
+    const mbLabel = maxFileSizeMB >= 1024 ? `${(maxFileSizeMB/1024).toFixed(0)} GB` : `${maxFileSizeMB} MB`;
+    generated.push(`${mbLabel} Max File Size Per Upload`);
+
+    // Add catalog feature labels
+    picked.forEach(f => generated.push(f.label));
+
+    return [...new Set(generated)];
+  }
+
+  // Get the lowest-tier plan to inherit features from (for standard+ tiers)
+  static _getBasePlanFeatureIds(plans) {
+    if (!plans || plans.length === 0) return [];
+    // Find the cheapest non-free paid plan (basic/starter)
+    const paid = plans.filter(p => (p.priceINR || 0) > 0).sort((a,b) => (a.priceINR||0)-(b.priceINR||0));
+    if (paid.length === 0) return [];
+    const base = paid[0];
+    // Extract feature IDs stored in allowedToolIds field (we store selected IDs there as JSON)
+    try {
+      const ids = JSON.parse(base.allowedToolIds || '[]');
+      if (Array.isArray(ids)) return ids;
+    } catch(e) {}
+    return [];
+  }
+
   static async _renderPlansTab(container) {
-    const plans = window.SupabaseEngine ? await SupabaseEngine.getPlans() : SupabaseEngine.DEFAULT_PLANS;
+    const plans = window.SupabaseEngine ? await SupabaseEngine.getPlans() : [];
+
+    const emptyState = plans.length === 0 ? `
+      <div class="col-span-full flex flex-col items-center justify-center py-20 gap-4 text-center">
+        <div class="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center text-3xl text-slate-600">
+          <i class="fa-solid fa-layer-group"></i>
+        </div>
+        <div>
+          <p class="text-slate-300 font-extrabold text-base">No Plans Yet</p>
+          <p class="text-slate-500 text-xs mt-1">Click "Add New Plan" to create your first subscription plan.</p>
+        </div>
+      </div>` : plans.map(plan => `
+        <div class="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 flex flex-col hover:border-indigo-700/50 transition group">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <h3 class="text-base font-black text-white leading-tight">${plan.name}</h3>
+              <span class="text-[10px] font-mono text-slate-500">${plan.id}</span>
+            </div>
+            ${plan.badge ? `<span class="shrink-0 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">${plan.badge}</span>` : ''}
+          </div>
+          <div class="text-2xl font-black text-white">₹${plan.priceINR ?? plan.price_inr ?? 0}
+            <span class="text-xs text-slate-400 font-normal">/ ${plan.durationDays ?? plan.duration_days ?? 30} days</span>
+          </div>
+          <div class="text-[11px] text-slate-400">
+            <i class="fa-solid fa-arrow-up-from-bracket mr-1 text-indigo-400"></i> Max ${plan.maxFileSizeMB ?? plan.max_file_size_mb ?? 25} MB upload
+          </div>
+          <ul class="text-xs text-slate-400 space-y-1 pt-2 border-t border-slate-800 flex-1">
+            ${(Array.isArray(plan.features) ? plan.features : []).slice(0,6).map(f =>
+              `<li class="flex items-start gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px] mt-0.5 shrink-0"></i><span>${f}</span></li>`
+            ).join('')}
+            ${(Array.isArray(plan.features) ? plan.features : []).length > 6 ?
+              `<li class="text-slate-500 text-[10px] pl-4">+${plan.features.length - 6} more features</li>` : ''}
+          </ul>
+          <div class="pt-3 border-t border-slate-800 flex gap-2">
+            <button onclick="AdminPanelEngine.openPlanModal('${plan.id}')"
+              class="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-indigo-700 text-slate-200 hover:text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-pen-to-square"></i> Edit
+            </button>
+            <button onclick="AdminPanelEngine.deletePlan('${plan.id}')"
+              class="p-2 rounded-xl bg-slate-800 hover:bg-red-900/60 text-slate-400 hover:text-red-300 transition">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+        </div>`
+      ).join('');
 
     container.innerHTML = `
       <div class="space-y-5 animate-fade-in">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 class="text-xl font-extrabold text-white">Subscription Plans CRUD</h2>
-            <p class="text-xs text-slate-400">Manage pricing, durations, max file sizes, and tool allowances for plans.</p>
+            <h2 class="text-xl font-extrabold text-white">Subscription Plans</h2>
+            <p class="text-xs text-slate-400">Full CRUD — add, edit, delete plans. Features auto-generated from your selections.</p>
           </div>
-          <button onclick="AdminPanelEngine.openPlanEditModal()" class="btn-gradient px-4 py-2.5 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1.5 self-start sm:self-auto">
+          <button onclick="AdminPanelEngine.openPlanModal()"
+            class="btn-gradient px-4 py-2.5 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1.5 self-start sm:self-auto">
             <i class="fa-solid fa-plus"></i> Add New Plan
           </button>
         </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-          ${plans.map(plan => `
-            <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 flex flex-col justify-between hover:border-slate-700 transition">
-              <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                  <h3 class="text-lg font-black text-white">${plan.name}</h3>
-                  ${plan.badge ? `<span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">${plan.badge}</span>` : ''}
-                </div>
-                <div class="text-2xl font-black text-white">₹${plan.priceINR} <span class="text-xs text-slate-400 font-normal">/ ${plan.durationDays} days</span></div>
-                <div class="text-[11px] text-slate-400">Upload Limit: <strong class="text-slate-200">${plan.maxFileSizeMB} MB</strong></div>
-                <ul class="text-xs text-slate-400 space-y-1 pt-2 border-t border-slate-800">
-                  ${(Array.isArray(plan.features) ? plan.features : []).map(f => `<li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i><span>${f}</span></li>`).join('')}
-                </ul>
-              </div>
-              <div class="pt-3 border-t border-slate-800 flex gap-2">
-                <button onclick="AdminPanelEngine.openPlanEditModal('${plan.id}')" class="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold text-xs transition">
-                  <i class="fa-solid fa-pen mr-1"></i> Edit Plan
-                </button>
-                ${plan.id !== 'free' ? `
-                  <button onclick="AdminPanelEngine.deletePlan('${plan.id}')" class="p-2 rounded-xl bg-slate-800 hover:bg-red-900/60 text-slate-400 hover:text-red-300 transition">
-                    <i class="fa-solid fa-trash-can"></i>
-                  </button>
-                ` : ''}
-              </div>
-            </div>
-          `).join('')}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          ${emptyState}
         </div>
-      </div>
-    `;
+      </div>`;
   }
 
-  static async openPlanEditModal(planId = null) {
+  static async openPlanModal(editId = null) {
     const plans = window.SupabaseEngine ? await SupabaseEngine.getPlans() : [];
-    const plan = planId ? plans.find(p => p.id === planId) : {
-      id: 'pro-custom',
-      name: 'Custom Plan',
-      priceINR: 299,
-      durationDays: 30,
-      maxFileSizeMB: 100,
-      badge: '',
-      features: ['All 50 Tools Unlocked', 'Priority Speed'],
-      allowedToolIds: 'all'
-    };
+    const basePlanFeatureIds = this._getBasePlanFeatureIds(plans);
 
-    const modalId = 'plan-edit-modal';
-    document.getElementById(modalId)?.remove();
+    const isEdit = !!editId;
+    let plan = null;
+    let savedFeatureIds = [];
 
+    if (isEdit) {
+      plan = plans.find(p => p.id === editId);
+      if (!plan) { if (window.showToast) window.showToast('Plan not found.', 'error'); return; }
+      try { savedFeatureIds = JSON.parse(plan.allowedToolIds || plan.allowed_tool_ids || '[]'); }
+      catch(e) { savedFeatureIds = []; }
+    }
+
+    const catalog = this._FEATURE_CATALOG;
+    const groups = [...new Set(catalog.map(f => f.group))];
+
+    // Build grouped feature checkboxes
+    const featureCheckboxesHTML = groups.map(group => `
+      <div class="mb-3">
+        <p class="text-[10px] font-black uppercase text-indigo-400 tracking-wider mb-1.5">${group}</p>
+        <div class="grid grid-cols-1 gap-1">
+          ${catalog.filter(f => f.group === group).map(f => {
+            const isInherited = basePlanFeatureIds.includes(f.id) && !isEdit;
+            const isChecked = isEdit ? savedFeatureIds.includes(f.id) : isInherited;
+            return `
+            <label class="flex items-center gap-2.5 cursor-pointer group/feat p-1.5 rounded-lg hover:bg-slate-800 transition">
+              <input type="checkbox" name="plan-feature-check" value="${f.id}"
+                ${isChecked ? 'checked' : ''}
+                ${isInherited ? 'data-inherited="true"' : ''}
+                onchange="AdminPanelEngine._onPlanFeatureChange()"
+                class="w-3.5 h-3.5 rounded accent-indigo-500 cursor-pointer">
+              <span class="text-xs text-slate-300 group-hover/feat:text-white transition flex-1">${f.label}</span>
+              ${isInherited ? '<span class="text-[9px] text-slate-600 font-bold">BASE</span>' : ''}
+            </label>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
+
+    document.getElementById('plan-modal')?.remove();
     const modal = document.createElement('div');
-    modal.id = modalId;
-    modal.className = 'fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+    modal.id = 'plan-modal';
+    modal.className = 'fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-start justify-center p-4 overflow-y-auto animate-fade-in';
     modal.innerHTML = `
-      <div class="bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl max-w-lg w-full p-6 text-slate-100 space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-          <h3 class="font-extrabold text-base text-white">${planId ? 'Edit Plan' : 'Create New Plan'}</h3>
-          <button onclick="document.getElementById('${modalId}').remove()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      <div class="bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl w-full max-w-2xl my-6 text-slate-100">
+        <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+          <div>
+            <h3 class="font-extrabold text-base text-white">${isEdit ? 'Edit Plan' : 'Create New Plan'}</h3>
+            <p class="text-[11px] text-slate-500 mt-0.5">Features are auto-generated from your selections below.</p>
+          </div>
+          <button onclick="document.getElementById('plan-modal').remove()" class="text-slate-400 hover:text-white w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
         </div>
 
-        <form onsubmit="AdminPanelEngine.handlePlanSave(event, '${planId || ''}')" class="space-y-3 text-xs">
+        <form id="plan-modal-form" class="p-6 space-y-5">
+          <!-- Basic Info -->
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1">
-              <label class="font-bold text-slate-400 uppercase text-[10px]">Plan Identifier</label>
-              <input type="text" id="plan-id" value="${plan.id}" ${planId ? 'readonly' : ''} class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required>
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Plan ID <span class="text-red-400">*</span></label>
+              <input type="text" id="pm-id" value="${isEdit ? plan.id : ''}"
+                placeholder="e.g. pro-monthly"
+                ${isEdit ? 'readonly class="custom-input w-full bg-slate-950/60 text-slate-400 border-slate-700 rounded-xl cursor-not-allowed"' : 'class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl"'}
+                required oninput="AdminPanelEngine._syncPlanIdSlug(this)">
+              <p class="text-[10px] text-slate-600">Lowercase, hyphens only. Cannot change after save.</p>
             </div>
             <div class="space-y-1">
-              <label class="font-bold text-slate-400 uppercase text-[10px]">Display Name</label>
-              <input type="text" id="plan-name" value="${plan.name}" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required>
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Plan Name <span class="text-red-400">*</span></label>
+              <input type="text" id="pm-name" value="${isEdit ? plan.name : ''}"
+                placeholder="e.g. Pro Monthly"
+                class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required
+                oninput="AdminPanelEngine._onPlanFieldChange()">
             </div>
           </div>
 
           <div class="grid grid-cols-3 gap-3">
             <div class="space-y-1">
-              <label class="font-bold text-slate-400 uppercase text-[10px]">Price (₹ INR)</label>
-              <input type="number" id="plan-price" value="${plan.priceINR}" min="0" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required>
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Price ₹ INR <span class="text-red-400">*</span></label>
+              <input type="number" id="pm-price" value="${isEdit ? (plan.priceINR ?? plan.price_inr ?? 0) : ''}"
+                placeholder="499" min="0"
+                class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required
+                oninput="AdminPanelEngine._onPlanFieldChange()">
             </div>
             <div class="space-y-1">
-              <label class="font-bold text-slate-400 uppercase text-[10px]">Duration (Days)</label>
-              <input type="number" id="plan-days" value="${plan.durationDays}" min="1" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required>
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Duration (Days) <span class="text-red-400">*</span></label>
+              <input type="number" id="pm-days" value="${isEdit ? (plan.durationDays ?? plan.duration_days ?? 30) : ''}"
+                placeholder="30" min="1"
+                class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required
+                oninput="AdminPanelEngine._onPlanFieldChange()">
             </div>
             <div class="space-y-1">
-              <label class="font-bold text-slate-400 uppercase text-[10px]">Max File (MB)</label>
-              <input type="number" id="plan-filesize" value="${plan.maxFileSizeMB}" min="1" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required>
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Max Upload MB <span class="text-red-400">*</span></label>
+              <input type="number" id="pm-mb" value="${isEdit ? (plan.maxFileSizeMB ?? plan.max_file_size_mb ?? 25) : ''}"
+                placeholder="250" min="1"
+                class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl" required
+                oninput="AdminPanelEngine._onPlanFieldChange()">
             </div>
           </div>
 
-          <div class="space-y-1">
-            <label class="font-bold text-slate-400 uppercase text-[10px]">Badge (Optional)</label>
-            <input type="text" id="plan-badge" value="${plan.badge || ''}" placeholder="e.g. Popular, Best Value" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Badge <span class="text-slate-600">(optional)</span></label>
+              <input type="text" id="pm-badge" value="${isEdit ? (plan.badge || '') : ''}"
+                placeholder="e.g. Popular, Best Value"
+                class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl">
+            </div>
+            <div class="space-y-1">
+              <label class="font-bold text-slate-400 uppercase text-[10px]">Inherit Base Plan Features</label>
+              <select id="pm-inherit" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl"
+                onchange="AdminPanelEngine._applyInheritance()">
+                <option value="">None — start fresh</option>
+                ${plans.map(p => `<option value="${p.id}" ${isEdit && plan.id === p.id ? 'disabled' : ''}>${p.name} (₹${p.priceINR ?? p.price_inr ?? 0})</option>`).join('')}
+              </select>
+            </div>
           </div>
 
-          <div class="space-y-1">
-            <label class="font-bold text-slate-400 uppercase text-[10px]">Features (comma separated)</label>
-            <textarea id="plan-features" rows="3" class="custom-input w-full bg-slate-950 text-white border-slate-700 rounded-xl">${(Array.isArray(plan.features) ? plan.features : []).join(', ')}</textarea>
+          <!-- Feature Selector -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="font-bold text-slate-300 uppercase text-[10px] tracking-wider">
+                <i class="fa-solid fa-list-check text-indigo-400 mr-1"></i> Select Plan Features
+              </label>
+              <div class="flex gap-2">
+                <button type="button" onclick="AdminPanelEngine._checkAllFeatures(true)"
+                  class="text-[10px] px-2.5 py-1 rounded-lg bg-emerald-700/30 text-emerald-400 font-bold hover:bg-emerald-700/50 transition">
+                  Check All
+                </button>
+                <button type="button" onclick="AdminPanelEngine._checkAllFeatures(false)"
+                  class="text-[10px] px-2.5 py-1 rounded-lg bg-red-700/30 text-red-400 font-bold hover:bg-red-700/50 transition">
+                  Clear All
+                </button>
+              </div>
+            </div>
+            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 max-h-56 overflow-y-auto">
+              ${featureCheckboxesHTML}
+            </div>
           </div>
 
-          <div class="pt-3 flex gap-2">
-            <button type="submit" class="btn-gradient flex-1 py-2.5 text-xs font-extrabold rounded-xl shadow-md">
-              <i class="fa-solid fa-floppy-disk mr-1"></i> Save Plan
+          <!-- Auto-generated Features Preview -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="font-bold text-slate-400 uppercase text-[10px]">
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-400 mr-1"></i> Auto-Generated Feature List
+              </label>
+              <button type="button" onclick="AdminPanelEngine._refreshFeaturePreview()"
+                class="text-[10px] px-2.5 py-1 rounded-lg bg-amber-700/20 text-amber-400 font-bold hover:bg-amber-700/40 transition">
+                <i class="fa-solid fa-rotate"></i> Regenerate
+              </button>
+            </div>
+            <textarea id="pm-features-preview" rows="4"
+              class="custom-input w-full bg-slate-950 text-emerald-300 border-slate-700 rounded-xl font-mono text-[11px] leading-relaxed"
+              placeholder="Select features above — preview will appear here..."></textarea>
+            <p class="text-[10px] text-slate-600">You can manually edit the text above. This is saved as the plan's feature list.</p>
+          </div>
+
+          <!-- Save / Cancel -->
+          <div class="flex gap-3 pt-2 border-t border-slate-800">
+            <button type="button" onclick="AdminPanelEngine.savePlanFromModal('${editId || ''}')"
+              class="btn-gradient flex-1 py-3 text-xs font-extrabold rounded-xl shadow-lg flex items-center justify-center gap-2">
+              <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Save Changes' : 'Create Plan'}
             </button>
-            <button type="button" onclick="document.getElementById('${modalId}').remove()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl">
+            <button type="button" onclick="document.getElementById('plan-modal').remove()"
+              class="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition">
               Cancel
             </button>
           </div>
         </form>
-      </div>
-    `;
+      </div>`;
     document.body.appendChild(modal);
-  }
 
-  static async handlePlanSave(e, isEdit) {
-    e.preventDefault();
-    const id = document.getElementById('plan-id')?.value?.trim();
-    const name = document.getElementById('plan-name')?.value?.trim();
-    const priceINR = parseFloat(document.getElementById('plan-price')?.value || '0');
-    const durationDays = parseInt(document.getElementById('plan-days')?.value || '30', 10);
-    const maxFileSizeMB = parseInt(document.getElementById('plan-filesize')?.value || '25', 10);
-    const badge = document.getElementById('plan-badge')?.value?.trim() || '';
-    const featuresRaw = document.getElementById('plan-features')?.value || '';
-    const features = featuresRaw.split(',').map(s => s.trim()).filter(Boolean);
-
-    try {
-      if (window.SupabaseEngine) {
-        await SupabaseEngine.savePlan({
-          id,
-          name,
-          priceINR,
-          durationDays,
-          maxFileSizeMB,
-          badge,
-          features,
-          allowedToolIds: 'all'
-        });
-        document.getElementById('plan-edit-modal')?.remove();
-        if (window.showToast) window.showToast('Plan saved successfully!', 'success');
-        await this.renderTabContent('plans');
-      }
-    } catch (ex) {
-      if (window.showToast) window.showToast(ex.message, 'error');
+    // Trigger initial preview if editing
+    if (isEdit) {
+      setTimeout(() => AdminPanelEngine._refreshFeaturePreview(), 100);
     }
   }
 
-  static async deletePlan(planId) {
-    if (!confirm(`Are you sure you want to delete plan "${planId}"?`)) return;
+  static _syncPlanIdSlug(input) {
+    input.value = input.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+  }
+
+  static _onPlanFieldChange() {
+    this._refreshFeaturePreview();
+  }
+
+  static _onPlanFeatureChange() {
+    this._refreshFeaturePreview();
+  }
+
+  static _checkAllFeatures(checked) {
+    document.querySelectorAll('input[name="plan-feature-check"]').forEach(cb => { cb.checked = checked; });
+    this._refreshFeaturePreview();
+  }
+
+  static _applyInheritance() {
+    const inheritId = document.getElementById('pm-inherit')?.value;
+    if (!inheritId) return;
+    // We'll fetch plans and check the selected base plan's allowedToolIds
+    if (!window.SupabaseEngine) return;
+    SupabaseEngine.getPlans().then(plans => {
+      const basePlan = plans.find(p => p.id === inheritId);
+      if (!basePlan) return;
+      let baseIds = [];
+      try { baseIds = JSON.parse(basePlan.allowedToolIds || basePlan.allowed_tool_ids || '[]'); } catch(e) {}
+      // Check all base plan features
+      document.querySelectorAll('input[name="plan-feature-check"]').forEach(cb => {
+        if (baseIds.includes(cb.value)) cb.checked = true;
+      });
+      this._refreshFeaturePreview();
+      if (window.showToast) window.showToast(`Inherited ${baseIds.length} features from "${basePlan.name}"`, 'info');
+    });
+  }
+
+  static _refreshFeaturePreview() {
+    const name   = document.getElementById('pm-name')?.value?.trim() || 'Plan';
+    const price  = parseFloat(document.getElementById('pm-price')?.value || '0');
+    const days   = parseInt(document.getElementById('pm-days')?.value || '30', 10);
+    const mb     = parseInt(document.getElementById('pm-mb')?.value || '25', 10);
+    const checked = [...document.querySelectorAll('input[name="plan-feature-check"]:checked')].map(cb => cb.value);
+    const features = this._autoGenerateFeatures(checked, name, price, days, mb);
+    const preview = document.getElementById('pm-features-preview');
+    if (preview) preview.value = features.join(', ');
+  }
+
+  static async savePlanFromModal(editId) {
+    const id    = document.getElementById('pm-id')?.value?.trim();
+    const name  = document.getElementById('pm-name')?.value?.trim();
+    const price = parseFloat(document.getElementById('pm-price')?.value || '0');
+    const days  = parseInt(document.getElementById('pm-days')?.value || '30', 10);
+    const mb    = parseInt(document.getElementById('pm-mb')?.value || '25', 10);
+    const badge = document.getElementById('pm-badge')?.value?.trim() || '';
+    const featPreview = document.getElementById('pm-features-preview')?.value || '';
+    const features = featPreview.split(',').map(s => s.trim()).filter(Boolean);
+    const selectedIds = [...document.querySelectorAll('input[name="plan-feature-check"]:checked')].map(cb => cb.value);
+
+    if (!id || !name) {
+      if (window.showToast) window.showToast('Plan ID and Name are required.', 'error'); return;
+    }
+    if (isNaN(price) || price < 0) {
+      if (window.showToast) window.showToast('Enter a valid price.', 'error'); return;
+    }
+
+    const saveBtn = document.querySelector('#plan-modal .btn-gradient');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Saving...'; }
+
     try {
-      if (window.SupabaseEngine) {
-        await SupabaseEngine.deletePlan(planId);
-        if (window.showToast) window.showToast('Plan deleted.', 'info');
-        await this.renderTabContent('plans');
-      }
-    } catch (e) {
+      await SupabaseEngine.savePlan({
+        id, name, priceINR: price, durationDays: days,
+        maxFileSizeMB: mb, badge, features,
+        allowedToolIds: JSON.stringify(selectedIds)
+      });
+      document.getElementById('plan-modal')?.remove();
+      if (window.showToast) window.showToast(`Plan "${name}" ${editId ? 'updated' : 'created'} successfully!`, 'success');
+
+      await this.renderTabContent('plans');
+    } catch(ex) {
+      if (window.showToast) window.showToast('Save failed: ' + ex.message, 'error');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i>Save Plan'; }
+    }
+  }
+
+  // Keep old name as alias for backward compat
+  static async openPlanEditModal(planId = null) { return this.openPlanModal(planId); }
+  static async handlePlanSave(e, isEdit) { e?.preventDefault(); return this.savePlanFromModal(isEdit); }
+
+  static async deletePlan(planId) {
+    if (!confirm(`Delete plan "${planId}"? This cannot be undone.`)) return;
+    try {
+      await SupabaseEngine.deletePlan(planId);
+      if (window.showToast) window.showToast('Plan deleted.', 'info');
+      await this.renderTabContent('plans');
+    } catch(e) {
       if (window.showToast) window.showToast(e.message, 'error');
     }
   }
-
   // ── 5. Tool Feature Toggles Tab (50 Tools) ─────────────────────────────────
   static async _renderFeaturesTab(container) {
     const tools = window.TOOLS || [];
