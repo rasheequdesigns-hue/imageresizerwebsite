@@ -1,4 +1,4 @@
-/**
+﻿/**
  * StudioSuite Pro — Authentication, Subscription & UTR Payment Engine
  * Data layer: Supabase Auth + Postgres via SupabaseEngine.
  * Session is kept in localStorage + Supabase's own session storage.
@@ -111,8 +111,42 @@ class AuthSubscriptionEngine {
     const { user } = await SupabaseEngine.signIn(email, password);
     if (!user) throw new Error('Login failed. Check your email and password.');
 
-    const profile = await SupabaseEngine.getProfile(user.id);
-    if (!profile) throw new Error('Account not found. Please register first.');
+    // Try to get profile — if missing, auto-create it (handles manually-created auth users)
+    let profile = await SupabaseEngine.getProfile(user.id);
+    if (!profile) {
+      // Auto-create missing profile row
+      try {
+        const isAdmin = email.toLowerCase() === 'rasheequ.designs@gmail.com';
+        await SupabaseEngine.client.from('profiles').upsert({
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.name || user.email.split('@')[0],
+          current_plan: isAdmin ? 'admin' : 'free',
+          subscription_verified: isAdmin,
+          is_admin: isAdmin,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+        // Retry fetch
+        profile = await SupabaseEngine.getProfile(user.id);
+      } catch(e) {
+        console.warn('[AuthEngine] profile auto-create failed:', e.message);
+      }
+    }
+    // Final fallback — build profile from auth user object
+    if (!profile) {
+      const isAdmin = (user.email || '').toLowerCase() === 'rasheequ.designs@gmail.com';
+      profile = {
+        id: user.id,
+        email: user.email,
+        name: user.user_metadata?.name || user.email.split('@')[0],
+        planId: isAdmin ? 'admin' : 'free',
+        status: isAdmin ? 'active' : 'free',
+        isAdmin: isAdmin,
+        subscriptionVerified: isAdmin,
+        expiresAt: null
+      };
+    }
 
     this._setCurrentUser(profile);
     return profile;
