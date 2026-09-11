@@ -174,42 +174,11 @@ class SupabaseEngine {
 
   // -- Plans ------------------------------------------------------------------
 
-  static DEFAULT_PLANS = [
-    {
-      id: 'free',
-      name: 'Free Tier',
-      priceINR: 0,
-      durationDays: 3650,
-      maxFileSizeMB: 25,
-      badge: 'Basic',
-      features: ['Access to 50 Tools', '25MB File Upload Limit', 'Standard Processing Speed'],
-      allowedToolIds: 'all',
-    },
-    {
-      id: 'pro-monthly',
-      name: 'Pro Monthly',
-      priceINR: 499,
-      durationDays: 30,
-      maxFileSizeMB: 250,
-      badge: 'Popular',
-      features: ['All 50 Master Tools Unlocked', '250MB File Upload Limit', 'Priority Email Support'],
-      allowedToolIds: 'all',
-    },
-    {
-      id: 'pro-yearly',
-      name: 'Pro Annual',
-      priceINR: 4999,
-      durationDays: 365,
-      maxFileSizeMB: 1000,
-      badge: 'Best Value',
-      features: ['All Pro Features Included', '1GB Max File Upload Size', '2 Months Free Savings'],
-      allowedToolIds: 'all',
-    },
-  ];
+  static DEFAULT_PLANS = []; // Plans are admin-managed in Supabase, no hardcoded defaults
 
   static async getPlans() {
     try {
-      if (!_sbClient) return this.DEFAULT_PLANS;
+      if (!_sbClient) return [];
       const { data, error } = await _sbClient.from('plans').select('*').order('price_inr');
       if (error) throw error;
       if (!data) return [];  // return empty array; admin must create plans
@@ -225,7 +194,7 @@ class SupabaseEngine {
       }));
     } catch (e) {
       console.warn('[SupabaseEngine] getPlans failed:', e.message);
-      return this.DEFAULT_PLANS;
+      return [];
     }
   }
 

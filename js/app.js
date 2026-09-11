@@ -3,18 +3,26 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  window.renderFooterContact = function() {
-    const info = window.AdminPanelEngine ? AdminPanelEngine.getContactInfo() : {};
-    const nameEl = document.getElementById('footer-company-name');
-    const addrEl = document.getElementById('footer-company-address');
-    const phoneEl = document.getElementById('footer-company-phone');
-    const emailEl = document.getElementById('footer-company-email');
-    const hoursEl = document.getElementById('footer-company-hours');
-    if (nameEl) nameEl.textContent = info.company || 'StudioSuite PRO Platform Inc.';
-    if (addrEl) addrEl.textContent = info.address || '100 Innovation Parkway, Suite 400, Tech Park';
-    if (phoneEl) phoneEl.innerHTML = `<i class="fa-solid fa-phone text-indigo-600 mr-2"></i> ${info.phone || '+91 98765 43210'}`;
-    if (emailEl) emailEl.innerHTML = `<i class="fa-solid fa-envelope text-indigo-600 mr-2"></i> ${info.email || 'support@studiosuitepro.com'}`;
-    if (hoursEl) hoursEl.innerHTML = `<i class="fa-solid fa-clock text-indigo-600 mr-2"></i> ${info.hours || 'Mon - Fri: 9:00 AM - 6:00 PM IST'}`;
+  window.renderFooterContact = async function() {
+    // Always load fresh from Supabase — no hardcoded fallbacks
+    var info = {};
+    try {
+      if (window.SupabaseEngine) {
+        var settings = await SupabaseEngine.getSettings(true);
+        var fc = settings && settings.footer_contact;
+        if (fc) info = typeof fc === 'string' ? JSON.parse(fc) : fc;
+      }
+    } catch(e) { console.warn('[Footer] load failed:', e.message); }
+    var nameEl = document.getElementById('footer-company-name');
+    var addrEl = document.getElementById('footer-company-address');
+    var phoneEl = document.getElementById('footer-company-phone');
+    var emailEl = document.getElementById('footer-company-email');
+    var hoursEl = document.getElementById('footer-company-hours');
+    if (nameEl) nameEl.textContent = info.company || '';
+    if (addrEl) addrEl.textContent = info.address || '';
+    if (phoneEl) phoneEl.innerHTML = info.phone ? '<i class="fa-solid fa-phone text-indigo-600 mr-2"></i> ' + info.phone : '';
+    if (emailEl) emailEl.innerHTML = info.email ? '<i class="fa-solid fa-envelope text-indigo-600 mr-2"></i> ' + info.email : '';
+    if (hoursEl) hoursEl.innerHTML = info.hours ? '<i class="fa-solid fa-clock text-indigo-600 mr-2"></i> ' + info.hours : '';
   };
   renderFooterContact();
 

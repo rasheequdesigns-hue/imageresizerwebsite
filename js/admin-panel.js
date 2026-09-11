@@ -29,13 +29,8 @@ class AdminPanelEngine {
       const c = this._settingsCache && this._settingsCache.footer_contact;
       if (c) return typeof c === 'string' ? JSON.parse(c) : c;
     } catch (e) { }
-    return {
-      company: 'StudioSuite PRO Platform Inc.',
-      address: '100 Innovation Parkway, Suite 400, Tech Park',
-      phone: '+91 98765 43210',
-      email: 'support@studiosuitepro.com',
-      hours: 'Mon - Fri: 9:00 AM - 6:00 PM IST'
-    };
+    // No hardcoded fallback — return empty so footer shows blank until admin saves settings
+    return { company: '', address: '', phone: '', email: '', hours: '' };
   }
 
   static async init() {
