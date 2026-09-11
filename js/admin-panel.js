@@ -633,74 +633,114 @@ class AdminPanelEngine {
 
   // Core selectable features — admin picks from these per plan
   static _FEATURE_CATALOG = [
-    { id: 'tools_all',        label: 'All 50 Master Tools Unlocked',        group: 'Tools' },
-    { id: 'tools_pdf',        label: 'All PDF Tools (Core + Convert)',        group: 'Tools' },
-    { id: 'tools_design',     label: 'Design & Prepress Tools',              group: 'Tools' },
-    { id: 'tools_ocr',        label: 'AI OCR & Document Chat',               group: 'Tools' },
-    { id: 'tools_cad',        label: 'CAD & Architectural Tools',            group: 'Tools' },
-    { id: 'tools_video',      label: 'Video & Motion Tools',                 group: 'Tools' },
-    { id: 'tools_fonts',      label: 'Typography & Font Converters',         group: 'Tools' },
-    { id: 'tools_dev',        label: 'Web & Developer Tools',                group: 'Tools' },
-    { id: 'tools_security',   label: 'Security & AI Tools',                  group: 'Tools' },
-    { id: 'upload_25mb',      label: '25 MB Max File Upload',                group: 'Upload' },
-    { id: 'upload_100mb',     label: '100 MB Max File Upload',               group: 'Upload' },
-    { id: 'upload_250mb',     label: '250 MB Max File Upload',               group: 'Upload' },
-    { id: 'upload_500mb',     label: '500 MB Max File Upload',               group: 'Upload' },
-    { id: 'upload_1gb',       label: '1 GB Max File Upload',                 group: 'Upload' },
-    { id: 'speed_standard',   label: 'Standard Processing Speed',            group: 'Performance' },
-    { id: 'speed_priority',   label: 'Priority Processing Speed',            group: 'Performance' },
-    { id: 'speed_dedicated',  label: 'Dedicated Processing Engine',          group: 'Performance' },
-    { id: 'support_email',    label: 'Email Support',                        group: 'Support' },
-    { id: 'support_priority', label: 'Priority Email Support',               group: 'Support' },
-    { id: 'support_dedicated',label: 'Dedicated Account Manager',            group: 'Support' },
-    { id: 'history_7d',       label: '7-Day Work History & Autosave',        group: 'History' },
-    { id: 'history_30d',      label: '30-Day Work History & Autosave',       group: 'History' },
-    { id: 'history_365d',     label: '1-Year Work History & Autosave',       group: 'History' },
-    { id: 'utr_auto',         label: 'Automated UPI Screenshot Verification',group: 'Billing' },
-    { id: 'utr_instant',      label: 'Instant UTR Payment Activation',       group: 'Billing' },
-    { id: 'api_access',       label: 'API Access & Webhooks',                group: 'Developer' },
-    { id: 'watermark_off',    label: 'No Watermark on Exports',              group: 'Output' },
-    { id: 'batch_process',    label: 'Batch File Processing',                group: 'Output' },
-    { id: 'pdf_sign',         label: 'Digital Signature & PDF Signing',      group: 'Output' },
-    { id: 'custom_branding',  label: 'Custom Branding & White Label',        group: 'Output' },
+    // ── PDF Core ──────────────────────────────────────────────────────────────
+    { id: 'pdf-merger',           label: 'PDF Merger',                     group: 'PDF Core' },
+    { id: 'pdf-splitter',         label: 'PDF Splitter',                   group: 'PDF Core' },
+    { id: 'pdf-unmerger',         label: 'PDF Un-merger',                  group: 'PDF Core' },
+    { id: 'pdf-page-reorder',     label: 'PDF Page Re-orderer',            group: 'PDF Core' },
+    { id: 'pdf-page-rotator',     label: 'PDF Page Rotator',               group: 'PDF Core' },
+    { id: 'pdf-page-deleter',     label: 'PDF Page Deleter',               group: 'PDF Core' },
+    { id: 'pdf-crop-tool',        label: 'PDF Crop Tool',                  group: 'PDF Core' },
+    { id: 'pdf-compressor-smart', label: 'PDF Compressor (Smart)',         group: 'PDF Core' },
+    { id: 'lossless-pdf-shrinker',label: 'Lossless PDF Shrinker',          group: 'PDF Core' },
+    { id: 'pdf-target-shrinker',  label: 'PDF Target Size Shrinker',       group: 'PDF Core' },
+    // ── PDF Conversions ───────────────────────────────────────────────────────
+    { id: 'pdf-to-docx',          label: 'PDF to Word (DOCX)',             group: 'PDF Conversions' },
+    { id: 'docx-to-pdf',          label: 'Word (DOCX) to PDF',             group: 'PDF Conversions' },
+    { id: 'pdf-to-xlsx',          label: 'PDF to Excel (XLSX)',            group: 'PDF Conversions' },
+    { id: 'xlsx-to-pdf',          label: 'Excel (XLSX) to PDF',            group: 'PDF Conversions' },
+    { id: 'pdf-to-pptx',          label: 'PDF to PowerPoint (PPTX)',       group: 'PDF Conversions' },
+    { id: 'pptx-to-pdf',          label: 'PowerPoint (PPTX) to PDF',       group: 'PDF Conversions' },
+    { id: 'pdf-to-jpg',           label: 'PDF to JPG Converter',           group: 'PDF Conversions' },
+    { id: 'jpg-to-pdf',           label: 'JPG to PDF Converter',           group: 'PDF Conversions' },
+    // ── Image & Raster ────────────────────────────────────────────────────────
+    { id: 'batch-img-resizer',    label: 'Batch Image Resizer',            group: 'Image & Raster' },
+    { id: 'ai-img-upscaler',      label: 'AI Image Upscaler',              group: 'Image & Raster' },
+    { id: 'png-compressor',       label: 'Lossless PNG Compressor',        group: 'Image & Raster' },
+    { id: 'webp-converter',       label: 'WEBP Image Converter',           group: 'Image & Raster' },
+    { id: 'exif-cleaner',         label: 'EXIF Metadata Cleaner',          group: 'Image & Raster' },
+    // ── Vector & Design ───────────────────────────────────────────────────────
+    { id: 'svg-to-vector',        label: 'SVG to Vector (EPS/DXF)',        group: 'Vector & Design' },
+    { id: 'color-space-cmyk',     label: 'Color Space Converter (CMYK)',   group: 'Vector & Design' },
+    { id: 'bleed-crop-generator', label: 'Bleed & Crop Mark Generator',    group: 'Vector & Design' },
+    { id: 'fonts-to-outlines',    label: 'Fonts to Outlines',              group: 'Vector & Design' },
+    // ── Prepress & Packaging ─────────────────────────────────────────────────
+    { id: 'pdf-imposition',       label: 'PDF Imposition Engine',          group: 'Prepress & Packaging' },
+    { id: 'rich-black-converter', label: 'Rich Black Converter',           group: 'Prepress & Packaging' },
+    { id: 'total-ink-analyzer',   label: 'Total Ink Limit (TAC) Analyzer', group: 'Prepress & Packaging' },
+    // ── Video & Motion ────────────────────────────────────────────────────────
+    { id: 'video-to-gif',         label: 'Video to GIF Converter',         group: 'Video & Motion' },
+    { id: 'audio-extractor',      label: 'Audio Extractor (Video to MP3)', group: 'Video & Motion' },
+    // ── Typography & Fonts ───────────────────────────────────────────────────
+    { id: 'font-converter',       label: 'Font Format Converter',          group: 'Typography & Fonts' },
+    { id: 'px-rem-calc',          label: 'PX to REM / EM Converter',       group: 'Typography & Fonts' },
+    { id: 'text-case-transformer',label: 'Text Case Transformer',          group: 'Typography & Fonts' },
+    // ── Web & Developer ───────────────────────────────────────────────────────
+    { id: 'glassmorphism-gen',    label: 'Glassmorphism CSS Generator',    group: 'Web & Developer' },
+    { id: 'color-contrast-wcag',  label: 'WCAG Color Contrast Checker',   group: 'Web & Developer' },
+    { id: 'svg-optimizer-svgo',   label: 'SVG Optimizer (SVGO)',           group: 'Web & Developer' },
+    { id: 'opengraph-builder',    label: 'OpenGraph Meta Tag Builder',     group: 'Web & Developer' },
+    // ── CAD & Architectural ───────────────────────────────────────────────────
+    { id: 'cad-pdf-recalibrator', label: 'PDF Drawing Scale Recalibrator', group: 'CAD & Architectural' },
+    { id: 'blueprint-inverter',   label: 'Blueprint Color Inverter',       group: 'CAD & Architectural' },
+    // ── Legal & Medical ───────────────────────────────────────────────────────
+    { id: 'bates-stamping',       label: 'Bates Stamping Metadata Lock',   group: 'Legal & Medical' },
+    { id: 'dicom-converter',      label: 'DICOM Medical Image Converter',  group: 'Legal & Medical' },
+    // ── E-Books & Publishing ─────────────────────────────────────────────────
+    { id: 'pdf-to-epub',          label: 'PDF to Reflowable EPUB 3',       group: 'E-Books & Publishing' },
+    { id: 'pdf-ua-fixer',         label: 'PDF Accessibility (PDF/UA) Fixer',group: 'E-Books & Publishing' },
+    // ── 3D & Motion ───────────────────────────────────────────────────────────
+    { id: 'gltf-texture-compressor',label:'GLTF/GLB 3D Texture Compressor',group: '3D & Motion' },
+    // ── Security & AI ────────────────────────────────────────────────────────
+    { id: 'pdf-a-archival',       label: 'PDF/A Archival Converter',       group: 'Security & AI' },
+    { id: 'ai-pdf-summarizer',    label: 'AI PDF Summarizer',              group: 'Security & AI' },
+    { id: 'ai-doc-chat',          label: 'AI Document Chat Q&A',           group: 'Security & AI' },
+    { id: 'ai-quiz-creator',      label: 'Auto Quiz Creator',              group: 'Security & AI' },
   ];
 
   // Auto-generate feature text from selected feature IDs + plan details
   static _autoGenerateFeatures(selectedIds, planName, priceINR, durationDays, maxFileSizeMB, inheritedIds = []) {
     const allIds = [...new Set([...inheritedIds, ...selectedIds])];
     const catalog = this._FEATURE_CATALOG;
-    const picked = allIds.map(id => catalog.find(f => f.id === id)).filter(Boolean);
-
-    // Always add plan-specific generated lines
     const generated = [];
-    // Price/duration summary
-    if (priceINR === 0) generated.push('Free Forever — No Credit Card Required');
-    else if (durationDays >= 365) generated.push(`₹${priceINR}/year — Save ${Math.round(100 - (priceINR / ((priceINR/durationDays)*365))*100) || 0}% vs Monthly`);
-    else generated.push(`₹${priceINR} for ${durationDays} Days`);
 
-    // File size
-    const mbLabel = maxFileSizeMB >= 1024 ? `${(maxFileSizeMB/1024).toFixed(0)} GB` : `${maxFileSizeMB} MB`;
-    generated.push(`${mbLabel} Max File Size Per Upload`);
+    // Plan summary line
+    if (priceINR === 0)            generated.push('Free Plan — No Payment Required');
+    else if (durationDays >= 365)  generated.push('Annual Plan — ' + durationDays + ' Days Full Access');
+    else if (durationDays >= 28)   generated.push('Monthly Plan — ' + durationDays + ' Days Access');
+    else                           generated.push(durationDays + '-Day Access Plan');
 
-    // Add catalog feature labels
-    picked.forEach(f => generated.push(f.label));
+    // File size line
+    const mbLabel = maxFileSizeMB >= 1024 ? (maxFileSizeMB / 1024).toFixed(0) + ' GB' : maxFileSizeMB + ' MB';
+    generated.push('Up to ' + mbLabel + ' File Upload Size');
 
+    // Group tools by category
+    const groups = {};
+    allIds.forEach(id => {
+      const f = catalog.find(x => x.id === id);
+      if (!f) return;
+      if (!groups[f.group]) groups[f.group] = [];
+      groups[f.group].push(f.label);
+    });
+
+    const groupKeys = Object.keys(groups);
+    if (groupKeys.length === 0) {
+      generated.push('No tools selected for this plan');
+    } else if (allIds.length >= catalog.length) {
+      generated.push('All ' + catalog.length + ' Professional Tools Unlocked');
+    } else {
+      // If whole group selected, show "All PDF Core Tools (10)" else list individually
+      groupKeys.forEach(group => {
+        const totalInGroup = catalog.filter(x => x.group === group).length;
+        const selectedInGroup = groups[group].length;
+        if (selectedInGroup === totalInGroup) {
+          generated.push('All ' + group + ' Tools (' + selectedInGroup + ')');
+        } else {
+          groups[group].forEach(label => generated.push(label));
+        }
+      });
+    }
     return [...new Set(generated)];
-  }
-
-  // Get the lowest-tier plan to inherit features from (for standard+ tiers)
-  static _getBasePlanFeatureIds(plans) {
-    if (!plans || plans.length === 0) return [];
-    // Find the cheapest non-free paid plan (basic/starter)
-    const paid = plans.filter(p => (p.priceINR || 0) > 0).sort((a,b) => (a.priceINR||0)-(b.priceINR||0));
-    if (paid.length === 0) return [];
-    const base = paid[0];
-    // Extract feature IDs stored in allowedToolIds field (we store selected IDs there as JSON)
-    try {
-      const ids = JSON.parse(base.allowedToolIds || '[]');
-      if (Array.isArray(ids)) return ids;
-    } catch(e) {}
-    return [];
   }
 
   static async _renderPlansTab(container) {
