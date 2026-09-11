@@ -1,4 +1,4 @@
-/**
+﻿/**
  * StudioSuite Pro "” SupabaseEngine
  * Real Supabase client wrapper. Replaces the old NeonEngine API proxy.
  * window.NeonEngine and window.SupabaseEngine are both aliased here for
@@ -212,7 +212,7 @@ class SupabaseEngine {
       if (!_sbClient) return this.DEFAULT_PLANS;
       const { data, error } = await _sbClient.from('plans').select('*').order('price_inr');
       if (error) throw error;
-      if (!data || !data.length) return this.DEFAULT_PLANS;
+      if (!data) return [];  // return empty array; admin must create plans
       return data.map(p => ({
         id: p.id,
         name: p.name,

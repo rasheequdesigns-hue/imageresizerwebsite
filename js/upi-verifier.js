@@ -826,12 +826,50 @@ const UPIVerifier = (function() {
 })();
 
 // ============================================================
-// AUTO-INIT
+// AUTO-INIT — only show for unsubscribed users
 // ============================================================
+function _shouldShowUPIVerifier() {
+  try {
+    // Check if user is subscribed/admin via AuthSubscriptionEngine
+    if (window.AuthSubscriptionEngine) {
+      const user = AuthSubscriptionEngine.getCurrentUser();
+      if (!user) return true; // not logged in — show payment UI
+      if (user.isAdmin) return false; // admin never needs to pay
+      if (user.subscriptionVerified && user.planId && user.planId !== 'free') return false; // already subscribed
+      return true; // logged in but not subscribed
+    }
+    // No auth engine — show by default
+    return true;
+  } catch(e) { return true; }
+}
+
+function _initUPIVerifierIfNeeded() {
+  const mount = document.getElementById('upi-verifier-mount');
+  if (!mount) return;
+  if (_shouldShowUPIVerifier()) {
+    mount.style.display = '';
+    UPIVerifier.init();
+  } else {
+    mount.style.display = 'none';
+  }
+}
+
+// Re-check on auth state change (called by auth engine after login/logout)
+window._refreshUPIVerifierVisibility = function() {
+  const mount = document.getElementById('upi-verifier-mount');
+  if (!mount) return;
+  if (_shouldShowUPIVerifier()) {
+    mount.style.display = '';
+    if (!mount.querySelector('.upi-verifier-root')) UPIVerifier.init();
+  } else {
+    mount.style.display = 'none';
+  }
+};
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => UPIVerifier.init());
+  document.addEventListener('DOMContentLoaded', _initUPIVerifierIfNeeded);
 } else {
-  UPIVerifier.init();
+  _initUPIVerifierIfNeeded();
 }
 
 })(); // end IIFE

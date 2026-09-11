@@ -84,6 +84,8 @@ class AuthSubscriptionEngine {
   static _setCurrentUser(user) {
     if (user) localStorage.setItem(this.STORAGE_CURRENT_USER, JSON.stringify(user));
     else       localStorage.removeItem(this.STORAGE_CURRENT_USER);
+    // Refresh UPI verifier visibility (show for unsubscribed, hide for subscribed/admin)
+    setTimeout(function() { if (window._refreshUPIVerifierVisibility) window._refreshUPIVerifierVisibility(); }, 100);
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────

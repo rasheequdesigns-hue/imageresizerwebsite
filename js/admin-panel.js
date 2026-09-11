@@ -1116,7 +1116,8 @@ class AdminPanelEngine {
       if (window.SupabaseEngine) {
         if (enabled) await SupabaseEngine.enableAllFeatures(toolIds);
         else await SupabaseEngine.disableAllFeatures(toolIds);
-        if (window.showToast) window.showToast(`All 50 tools ${enabled ? 'enabled' : 'disabled'}!`, 'success');
+        if (window.showToast) window.showToast('All 50 tools ' + (enabled ? 'enabled' : 'disabled') + '!', 'success');
+        document.querySelectorAll('input[onchange*="toggleSingleFeature"]').forEach(function(cb){ cb.checked = enabled; });
         await this.renderTabContent('features');
       }
     } catch (e) {
@@ -1240,7 +1241,8 @@ class AdminPanelEngine {
 
   // ── 7. Site Settings Tab ───────────────────────────────────────────────────
   static async _renderSettingsTab(container) {
-    const settings = this._settingsCache || {};
+    const settings = window.SupabaseEngine ? await SupabaseEngine.getSettings(true) : (this._settingsCache || {});
+    this._settingsCache = settings;
     const adminUpi = settings.admin_upi || 'merchant@upi';
     const contact = this.getContactInfo();
 
@@ -1297,7 +1299,7 @@ class AdminPanelEngine {
             </div>
           </div>
 
-          <button type="submit" class="btn-gradient w-full py-3 rounded-xl text-xs font-extrabold shadow-lg">
+          <button type="submit" id="settings-save-btn" class="btn-gradient w-full py-3 rounded-xl text-xs font-extrabold shadow-lg">
             <i class="fa-solid fa-floppy-disk mr-1.5"></i> Save Settings &amp; Sync Site-Wide
           </button>
 
@@ -1314,6 +1316,8 @@ class AdminPanelEngine {
     const email = document.getElementById('setting-contact-email')?.value?.trim();
     const phone = document.getElementById('setting-contact-phone')?.value?.trim();
     const address = document.getElementById('setting-contact-address')?.value?.trim();
+    const btn = document.getElementById('settings-save-btn');
+    if (btn) { btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Saving...'; }
 
     try {
       if (window.SupabaseEngine) {
