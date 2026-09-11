@@ -611,6 +611,14 @@ Return ONLY the JSON object, no explanation.`;
     }
     return;
   }
+  // Favicon — return a minimal 1x1 transparent PNG to stop 404 noise
+  if (pathname === '/favicon.ico') {
+    const favPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==','base64');
+    res.writeHead(200,{'Content-Type':'image/png','Cache-Control':'public,max-age=86400'});
+    res.end(favPng);
+    return;
+  }
+
   // =========================================================================
   // STATIC FILE SERVING
   // =========================================================================
